@@ -1,4 +1,24 @@
 import { z } from 'zod';
+import { apiErrorSchema, type ApiErrorCode } from './errors';
+
+/** Structured HTTP failure; the controller may branch on code/status without parsing messages. */
+export class ShareApiError extends Error {
+  /**
+   * Preserves a validated API failure for display and programmatic handling.
+   * @param code - Stable API identifier, independent of display wording.
+   * @param message - Server-supplied safe display message.
+   * @param status - HTTP failure status; callers must not automatically retry POST.
+   */
+  constructor(
+    public readonly code: ApiErrorCode,
+    message: string,
+    public readonly status: number
+  ) {
+    super(message);
+    this.name = 'ShareApiError';
+  }
+}
+
 import { shareSchema, type Share } from './model';
 
 async function request(path: string, options?: RequestInit): Promise<unknown> {
@@ -9,11 +29,11 @@ async function request(path: string, options?: RequestInit): Promise<unknown> {
   });
   const body: unknown = await response.json();
   if (!response.ok) {
-    const failure = z
-      .object({ error: z.object({ message: z.string() }) })
-      .safeParse(body);
-    throw new Error(
-      failure.success ? failure.data.error.message : 'Please try again.'
+    const failure = apiErrorSchema.safeParse(body);
+    throw new ShareApiError(
+      failure.success ? failure.data.error.code : 'INTERNAL_ERROR',
+      failure.success ? failure.data.error.message : 'Please try again.',
+      response.status
     );
   }
   return body;

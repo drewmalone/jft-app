@@ -1,5 +1,8 @@
 import { z } from 'zod';
 
+/** Maximum raw text length in Unicode code points, before surrounding whitespace is trimmed. */
+export const MAX_SHARE_TEXT_LENGTH = 10_000;
+
 const nonblankText = z.string().refine((value) => value.trim().length > 0, {
   message: 'Text must not be blank'
 });
@@ -16,7 +19,19 @@ const reflectionSchema = z.object({
  * Parsing invalid input throws ZodError; handlers use safeParse to return 400.
  */
 export const createShareSchema = z.strictObject({
-  text: z.string().trim().min(1, 'Write a few words before saving your share.')
+  text: z
+    .string()
+    .refine(
+      (value) => Array.from(value).length <= MAX_SHARE_TEXT_LENGTH,
+      'Text exceeds 10,000 characters'
+    )
+    .trim()
+    .min(1, 'Write a few words before saving your share.')
+    .meta({
+      maxLength: MAX_SHARE_TEXT_LENGTH,
+      description:
+        'At most 10,000 Unicode code points before trimming; the trimmed result must contain non-whitespace text.'
+    })
 });
 
 /**

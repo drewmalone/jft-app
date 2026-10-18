@@ -24,7 +24,11 @@ async function session() {
   return cookieFrom(await GET(request()));
 }
 async function detail(id: string, cookie?: string) {
-  return getDetail(request('GET', cookie), { params: Promise.resolve({ id }) });
+  return getDetail(
+    new NextRequest(`http://localhost/api/shares/${id}`, {
+      headers: cookie ? { cookie } : {}
+    })
+  );
 }
 
 test('creates validated shares with server metadata and retrieves them across requests', async () => {

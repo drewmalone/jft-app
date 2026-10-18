@@ -35,7 +35,7 @@ Production requires this secret and sets Secure cookies. Missing or short produc
 2. Choose **Save privately**. Confirmation appears only after the server saves your text.
 3. Open **Past shares** to browse newest first, then select an entry to fetch and read it in full.
 
-Blank shares cannot be saved. Navigating between views preserves drafts. Failed saves retain your words and show an error. Pending saves disable editing and duplicate submissions. History and detail requests have loading and error feedback; failed history requests can be retried.
+Blank shares cannot be saved. Text is limited to 10,000 Unicode code points, and the full JSON request is limited to 64 KiB. Oversized-input failures retain the draft for editing. Navigating between views preserves drafts. Failed saves retain your words and show an error. Pending saves disable editing and duplicate submissions. History and detail requests have loading and error feedback; failed history requests can be retried.
 
 The reading and April 23, 2025 date remain deliberate placeholders.
 
@@ -64,7 +64,7 @@ npm run build
 npm run test:e2e
 ```
 
-Omit `PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH` when using Playwright's installed browser. Tests cover API validation and metadata, ownership/session credential checks, save/reload/detail flows, ordering, API failures, draft retention, duplicate prevention, loading, and empty history in mobile and desktop Chromium.
+Omit `PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH` when using Playwright's installed browser. Tests validate the generated OpenAPI document and actual responses with Swagger Parser and Ajv. They cover HTTP headers/methods, stable error codes, input-size boundaries, API validation and metadata, ownership/session credential checks, save/reload/detail flows, ordering, API failures, draft retention, duplicate prevention, loading, and empty history in mobile and desktop Chromium.
 
 Manual checks:
 
@@ -80,19 +80,23 @@ Manual checks:
 ```text
 src/
   app/                  App Router entry, layout, theme
-    api/shares/         list/create and owner-checked detail Route Handlers
+    api/shares/         Next.js exports for private share operations
+    api/openapi.json/   generated OpenAPI 3.1 contract
   components/           app-wide header and footer
   shares/
     share-app.tsx       React state, requests, and screen transitions
     api.ts              browser fetch and response validation
     components/         reading, form, history, and detail presentation
-    model.ts            shared Zod schemas and placeholder reading
-    server/             server-only repository, sessions, and HTTP helpers
+    model.ts            shared Zod schemas, text limit, and placeholder reading
+    errors.ts           shared stable error codes and envelope
+    server/             OpenAPI routes/app, repository, sessions, HTTP helpers
     dates.ts            saved-date formatting
 tests/
   shares/               Node tests for schemas, routes, repository, and dates
   e2e/                  Playwright user flows
 ```
+
+Open http://localhost:3000/api/openapi.json for the generated machine-readable contract. Request validation and OpenAPI generation share the same route/Zod definitions.
 
 See [the private API reference and curl example](docs/API.md), [architecture](docs/ARCHITECTURE.md), [contributor commands](CONTRIBUTING.md#commands), [repository standards](docs/REPOSITORY_STANDARDS.md), and [data glossary](docs/DATA_GLOSSARY.md).
 

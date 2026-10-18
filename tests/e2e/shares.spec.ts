@@ -60,7 +60,9 @@ test('preserves a failed draft and saves it exactly once on retry', async ({
       await route.fulfill({
         status: 503,
         contentType: 'application/json',
-        body: JSON.stringify({ error: { message: 'Please try again.' } })
+        body: JSON.stringify({
+          error: { code: 'INTERNAL_ERROR', message: 'Please try again.' }
+        })
       });
     } else await route.continue();
   });
@@ -143,7 +145,9 @@ test('shows history API errors and supports retry', async ({ page }) => {
     route.fulfill({
       status: 500,
       contentType: 'application/json',
-      body: JSON.stringify({ error: { message: 'Please try again.' } })
+      body: JSON.stringify({
+        error: { code: 'INTERNAL_ERROR', message: 'Please try again.' }
+      })
     })
   );
   await page.goto('/');
@@ -215,7 +219,9 @@ test('fetches individual shares and reports detail failures', async ({
     route.fulfill({
       status: 404,
       contentType: 'application/json',
-      body: JSON.stringify({ error: { message: 'Share not found.' } })
+      body: JSON.stringify({
+        error: { code: 'SHARE_NOT_FOUND', message: 'Share not found.' }
+      })
     })
   );
   await page.getByRole('listitem').getByRole('button').click();

@@ -5,7 +5,7 @@ import {
   randomUUID,
   timingSafeEqual
 } from 'node:crypto';
-import { NextRequest, NextResponse } from 'next/server';
+import { parse, serialize } from 'hono/utils/cookie';
 import { z } from 'zod';
 
 const cookieName = 'doorknob-session';
@@ -63,7 +63,7 @@ function signature(payload: SessionPayload): Buffer {
 
 /**
  * Signals a malformed, expired, or incorrectly signed cookie.
- * withSession maps this to 401 without replacing the cookie or accessing shares.
+ * The API error handler maps this to 401 without replacing the cookie or accessing shares.
  * Configuration/crypto failures use ordinary errors and map to 500 instead.
  */
 export class InvalidSessionError extends Error {}
@@ -80,8 +80,10 @@ export class InvalidSessionError extends Error {}
  * A nonempty configured secret must contain at least 32 bytes; production requires
  * one. Development otherwise uses a process-global random secret.
  */
-export function getSession(request: NextRequest): AnonymousSession {
-  const credential = request.cookies.get(cookieName)?.value;
+export function getSession(request: Request): AnonymousSession {
+  const credential = parse(request.headers.get('cookie') ?? '', cookieName)[
+    cookieName
+  ];
   if (credential === undefined) {
     const payload: SessionPayload = {
       ownerId: randomUUID(),
@@ -113,20 +115,23 @@ export function getSession(request: NextRequest): AnonymousSession {
  * Uses HttpOnly, SameSite=Lax, path /, a 30-day Max-Age, and Secure in production.
  * @param response - Response to mutate before returning it to the browser.
  * @param credential - Value issued by getSession; null leaves cookies unchanged.
- * @throws If cookie serialization fails; withSession converts that failure to 500.
+ * @throws If cookie serialization fails; the API error handler converts that failure to 500.
  * @remarks Existing sessions are not refreshed. This helper does not verify values;
  * callers must never pass an arbitrary client-provided string as a credential.
  */
 export function setSessionCookie(
-  response: NextResponse,
+  response: Response,
   credential: string | null
 ) {
   if (credential)
-    response.cookies.set(cookieName, credential, {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
-      sameSite: 'lax',
-      path: '/',
-      maxAge: lifetimeSeconds
-    });
+    response.headers.append(
+      'Set-Cookie',
+      serialize(cookieName, credential, {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === 'production',
+        sameSite: 'lax',
+        path: '/',
+        maxAge: lifetimeSeconds
+      })
+    );
 }

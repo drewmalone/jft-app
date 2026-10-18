@@ -1,6 +1,6 @@
 # Architecture
 
-Doorknob v0.2 keeps the React frontend and Next.js Backend for Frontend (BFF) in `jft-app`. App Router Route Handlers run in Node.js. There is no separately deployed backend, database, ORM, authentication framework, or external persistence.
+Doorknob v0.2 keeps the React frontend and Next.js Backend for Frontend (BFF) in `jft-app`. App Router Route Handlers run in Node.js. There is no separately deployed backend, database, ORM, login/authentication framework, or external persistence. `@hono/zod-openapi` implements the small HTTP layer within the existing Next.js server; it does not add a separately hosted backend.
 
 ## Responsibilities
 
@@ -9,14 +9,35 @@ Doorknob v0.2 keeps the React frontend and Next.js Backend for Frontend (BFF) in
 - `src/shares/components/` presents the reading, form, history, and detail. `src/components/` owns the header/footer. Presentation components do not access persistence.
 - `src/shares/api.ts` uses browser `fetch` with same-origin credentials and no caching. It validates responses with shared Zod schemas and coalesces concurrent list reads so initial requests, including React Strict Mode effects, share one cookie issuance. It sends only text on creation and fetches details by ID instead of opening a cached history record.
 - `src/shares/model.ts` owns the placeholder reading and shared input/response schemas. Types are inferred from Zod. The strict creation schema rejects client metadata and ownership fields. Response parsing omits server ownership.
-- `src/app/api/shares/route.ts` implements list/create; `[id]/route.ts` implements detail. Both are dynamic Node routes. The POST attaches metadata and a reflection snapshot on the server.
+- `src/app/api/shares/route.ts` and `[id]/route.ts` are thin dynamic Node dispatch exports for Next.js. `src/app/api/openapi.json/route.ts` exposes the generated specification. Explicit exports let the library handle HEAD, OPTIONS, and rejected App Router methods consistently.
+- `src/shares/server/openapi.ts` declares operations with `createRoute`, shared Zod schemas, cookie security, responses, and headers. `app.ts` registers these on `OpenAPIHono`, validates incoming POST JSON through the library, and binds the repository. Responses project through `shareSchema` before serialization. HEAD contracts derive from GET; OPTIONS/405 use the same Allow constants.
+- `src/shares/errors.ts` owns stable failure codes/the runtime error envelope. The fetch client preserves codes and status in `ShareApiError`; messages remain display text.
 - `src/shares/server/repository.ts` defines a small asynchronous, owner-scoped `ShareRepository` and its Map implementation. Creation validates and trims text, generates metadata, and captures the reading. Every retrieval takes an owner ID, so there is no unscoped private lookup. Returned records are cloned to prevent callers mutating stored snapshots.
-- `src/shares/server/session.ts` handles anonymous signed cookies. `http.ts` centralizes session enforcement, private/no-store JSON responses, and consistent errors. These modules import `server-only` to prevent client bundling.
+- `src/shares/server/session.ts` handles anonymous signed cookies. `http.ts` owns the status/message mapping and protocol/size constants. `app.ts` performs session enforcement and catches expected/unexpected exceptions into private JSON errors without logging sensitive data. The custom DoorknobSession challenge describes cookie credentials, not OAuth or public share tokens. These modules import `server-only` to prevent client bundling.
 - `src/shares/dates.ts` preserves saved timestamp/local timezone and reading calendar date/UTC behavior.
 
 ## HTTP contract
 
-[The private API reference](API.md) owns request/response examples, validation rules, status codes, cookie-client usage, and retry semantics. The handlers support POST/list at `/api/shares` and owner-checked detail at `/api/shares/:id`. They project stored records through `shareSchema` before returning JSON, removing `ownerId` after authorization. Framework responses for unsupported methods are separate from the handlers' JSON error envelope.
+[The private API reference](API.md) owns request/response examples, validation rules, status codes, cookie-client usage, and retry semantics. The handlers support POST/list at `/api/shares` and owner-checked detail at `/api/shares/:id`. They project stored records through `shareSchema` before returning JSON, removing `ownerId` after authorization. Rejected App Router methods use the coded 405 envelope and Allow. Responses rejected before library dispatch remain framework-owned.
+
+## Request and schema flow
+
+```mermaid
+flowchart TD
+  Browser[Browser fetch] --> Next[Next.js Route Handler]
+  Next --> App[OpenAPIHono dispatcher]
+  App --> Session[Validate or issue anonymous session]
+  Session --> Input[POST origin, media type, byte limit, Zod validation]
+  Input --> Repository[Owner-scoped Map repository]
+  Repository --> Output[Project saved records through Share schema]
+  Output --> Browser
+  Contract[Route definitions and shared Zod schemas] --> Input
+  Contract --> Document[GET /api/openapi.json]
+```
+
+GET/HEAD skip POST input validation. OPTIONS and rejected methods skip session creation. A supplied invalid credential wins over POST input failures. The cookie is attached to successful/non-500 action responses for newly issued sessions; 401 and internal failures do not issue replacements.
+
+Media types use `content-type` parsing rather than handwritten regular expressions. The app normalizes valid application/json before the library validator. It strips the incoming Content-Length from the internal Request so Hono's body-limit middleware counts actual bytes, including streams; it buffers at most 64 KiB. Shared input validation limits raw text to 10,000 Unicode code points before trimming, matching the generated maxLength constraint. Whitespace-only rejection remains a Zod semantic rule described in the contract.
 
 ## Anonymous session boundary
 
@@ -46,7 +67,7 @@ v0.1 browser persistence, compatibility fixtures, and storage-only tests are rem
 
 ## Verification
 
-[CONTRIBUTING.md](../CONTRIBUTING.md#commands) owns verification commands. `npm run check` includes formatting, lint, Node tests, and the production build/type check. The Node suite enables the `react-server` export condition so server-only modules can be tested without weakening their client boundary. Tests run without child-process isolation so individual tests execute with the TypeScript loader on Node 24. Session tests use test-scoped `context.mock.property(process, 'env', ...)` and automatic restoration instead of assigning to Next.js's readonly `NODE_ENV`. Next.js 16 owns generated route declarations; `tsconfig.json` includes production/development route types and uses the automatic React JSX runtime.
+[CONTRIBUTING.md](../CONTRIBUTING.md#commands) owns verification commands. `npm run check` includes formatting, lint, Node tests, and the production build/type check. Swagger Parser validates the serialized OpenAPI 3.1 document with external reference loading disabled. Ajv 2020-12 plus ajv-formats validates actual response bodies/required headers against the dereferenced document, including failures and bodyless protocol responses. Boundary tests cover normal/streamed body limits, misleading Content-Length, and Unicode text length. The Node suite enables the `react-server` export condition so server-only modules can be tested without weakening their client boundary. Tests run without child-process isolation so individual tests execute with the TypeScript loader on Node 24. Session tests use test-scoped `context.mock.property(process, 'env', ...)` and automatic restoration instead of assigning to Next.js's readonly `NODE_ENV`. Next.js 16 owns generated route declarations; `tsconfig.json` includes production/development route types and uses the automatic React JSX runtime.
 
 Node tests cover schemas, route handlers, repository snapshots, server-generated metadata, sorting, missing shares, session isolation, invalid credentials, and cross-origin writes. Playwright runs mobile/desktop Chromium against a production build on port 3100 with an isolated synthetic secret. It covers save/reload/detail, heading focus, ordering, draft retention, pending submission behavior, API failures, loading, and empty history. No live feeds or external services are called. Manual layout/keyboard review and server-restart checks remain useful; automated browser coverage does not establish full accessibility conformance.
 

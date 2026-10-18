@@ -45,7 +45,7 @@ When updating a feature, review its documentation together:
 
 - README: user-visible behavior, local setup, configuration, limitations, and verification entry points.
 - [Architecture](docs/ARCHITECTURE.md): module ownership, request/data flow, security decisions, and operational tradeoffs.
-- [API reference](docs/API.md): supported requests/responses, error statuses, session/cookie behavior, and runnable fictional examples.
+- [API reference](docs/API.md): supported requests/responses, error codes/statuses, session/cookie behavior, and runnable fictional examples. Update `src/shares/server/openapi.ts` and shared Zod schemas together; `/api/openapi.json` is generated from them, not hand-edited. Contract tests use Swagger Parser and Ajv to catch drift.
 - [Shared glossary](docs/DATA_GLOSSARY.md): data location, transmission, access loss, deletion, and backup lifecycle.
 - Source TSDoc: exported contracts and failures, including methods of exported interfaces. Name internal invariants when a parser or security check depends on them.
 

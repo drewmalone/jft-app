@@ -1,60 +1,77 @@
 import 'server-only';
-import { NextRequest, NextResponse } from 'next/server';
-import { getSession, InvalidSessionError, setSessionCookie } from './session';
+import { NextResponse } from 'next/server';
+import type { ApiErrorCode } from '../errors';
 
-/**
- * Serializes a supported endpoint response with Cache-Control: private, no-store.
- * @param body - JSON-serializable response data; callers must omit ownership/credentials.
- * @param status - HTTP status, defaulting to 200.
- * @returns A JSON response with the supplied status and private cache policy.
- * @throws When the body cannot be serialized or response construction fails.
- */
-export function json(body: unknown, status = 200) {
-  return NextResponse.json(body, {
-    status,
-    headers: { 'Cache-Control': 'private, no-store' }
-  });
-}
+/** Raw JSON request limit, including whitespace and escaping; enforced on actual streamed bytes. */
+export const MAX_SHARE_REQUEST_BYTES = 64 * 1024;
+/** Application-specific HTTP challenge; credentials are transported in the signed cookie. */
+export const SESSION_CHALLENGE = 'DoorknobSession realm="doorknob"';
 
-/**
- * Creates the shared JSON error envelope without exposing exception details.
- * @param message - User-facing message; never include private text or credentials.
- * @param status - Error HTTP status chosen by the endpoint/session boundary.
- * @returns A private, uncached response containing error.message.
- * @throws When response construction fails, such as an invalid HTTP status.
- */
-export function error(message: string, status: number) {
-  return json({ error: { message } }, status);
-}
-
-/**
- * Establishes a trusted owner before invoking an endpoint's repository work.
- * @param request - Incoming request whose cookie must be verified or newly issued.
- * @param action - Endpoint operation, called only after session validation succeeds.
- * @returns The action response with any newly issued cookie; invalid credentials
- * produce 401, and configuration/action failures produce a generic 500. These
- * errors are handled here rather than escaping to the Route Handler. Invalid
- * credentials are not silently replaced; no private text is logged.
- * @remarks For a new session, the cookie is also attached to validation-error
- * responses returned by action. Thrown failures are caught before cookie attachment.
- */
-export async function withSession(
-  request: NextRequest,
-  action: (ownerId: string) => Promise<NextResponse>
-) {
-  try {
-    const session = getSession(request);
-    const response = await action(session.ownerId);
-    setSessionCookie(response, session.credential);
-    return response;
-  } catch (cause) {
-    if (cause instanceof InvalidSessionError) {
-      const response = error(
-        'Your session is invalid or expired. Clear site cookies to start a new session; access to previous shares will be lost.',
-        401
-      );
-      return response;
-    }
-    return error('The request could not be completed. Please try again.', 500);
+/** Status/message definitions shared by error responses and OpenAPI descriptions. */
+export const apiFailures = {
+  INVALID_JSON: { status: 400, message: 'Invalid JSON body.' },
+  INVALID_SHARE: {
+    status: 400,
+    message:
+      'Provide non-empty share text of at most 10,000 characters, without additional fields.'
+  },
+  INVALID_SESSION: {
+    status: 401,
+    message:
+      'Your session is invalid or expired. Clear site cookies to start a new session; access to previous shares will be lost.'
+  },
+  CROSS_ORIGIN_REQUEST: {
+    status: 403,
+    message: 'Cross-origin requests are not allowed.'
+  },
+  UNSUPPORTED_MEDIA_TYPE: {
+    status: 415,
+    message: 'Send the share as application/json.'
+  },
+  PAYLOAD_TOO_LARGE: {
+    status: 413,
+    message: 'The JSON request must not exceed 64 KiB.'
+  },
+  SHARE_NOT_FOUND: { status: 404, message: 'Share not found.' },
+  METHOD_NOT_ALLOWED: {
+    status: 405,
+    message: 'This HTTP method is not supported for this resource.'
+  },
+  INTERNAL_ERROR: {
+    status: 500,
+    message: 'The request could not be completed. Please try again.'
   }
+} as const satisfies Record<ApiErrorCode, { status: number; message: string }>;
+
+/**
+ * Serializes JSON with a private/no-store cache policy, including supplied response headers.
+ * @param body - JSON-safe data with private ownership/credentials already removed.
+ * @param status - HTTP response status; defaults to 200.
+ * @param headers - Additional headers such as Location or Allow; cannot enable caching.
+ * @returns An uncached JSON response.
+ * @throws When serialization or response construction fails.
+ */
+export function json(body: unknown, status = 200, headers?: HeadersInit) {
+  const result = NextResponse.json(body, { status, headers });
+  result.headers.set('Cache-Control', 'private, no-store');
+  return result;
+}
+
+/**
+ * Creates a consistent error from a stable code; status and message cannot drift independently.
+ * @param code - Failure definition, without sensitive exception details.
+ * @param headers - Optional protocol headers, for example Allow on 405.
+ * @returns A private JSON error. INVALID_SESSION includes the documented custom HTTP challenge.
+ * @throws If response construction fails.
+ */
+export function error(code: ApiErrorCode, headers?: HeadersInit) {
+  const failure = apiFailures[code];
+  const result = json(
+    { error: { code, message: failure.message } },
+    failure.status,
+    headers
+  );
+  if (code === 'INVALID_SESSION')
+    result.headers.set('WWW-Authenticate', SESSION_CHALLENGE);
+  return result;
 }
