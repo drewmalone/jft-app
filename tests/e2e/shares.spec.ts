@@ -61,15 +61,17 @@ test('preserves a draft when saving fails and explains the error', async ({
     };
   });
   await page.getByRole('button', { name: 'Save privately' }).click();
-  await expect(page.locator('#share-error')).toContainText(
+  await expect(page.getByRole('main').getByRole('alert')).toContainText(
     'could not be saved'
   );
   await expect(page.getByRole('textbox')).toHaveValue(
     'A fictional draft to keep.'
   );
-  await expect(page.getByRole('textbox')).toHaveAttribute(
-    'aria-describedby',
-    'share-help share-error'
+  await expect(page.getByRole('textbox')).toHaveAccessibleDescription(
+    /could not be saved/
+  );
+  await expect(page.locator('form').getByRole('alert')).toContainText(
+    'could not be saved'
   );
   await expect(
     page.getByRole('heading', { name: 'Write your share' })
@@ -84,12 +86,16 @@ test('preserves unreadable history instead of overwriting it', async ({
     localStorage.setItem('doorknob.shares.v1', '{broken')
   );
   await page.reload();
-  await expect(page.locator('#share-error')).toContainText('could not be read');
+  await expect(page.getByRole('main').getByRole('alert')).toContainText(
+    'could not be read'
+  );
   await page
     .getByRole('banner')
     .getByRole('button', { name: 'Past shares', exact: true })
     .click();
-  await expect(page.locator('#share-error')).toContainText('could not be read');
+  await expect(page.getByRole('main').getByRole('alert')).toContainText(
+    'could not be read'
+  );
   await expect(page.getByText('A place for your words.')).toHaveCount(0);
   await expect(
     page.getByRole('button', { name: 'Write your first share' })
@@ -101,7 +107,7 @@ test('preserves unreadable history instead of overwriting it', async ({
 
   await page.getByRole('textbox').fill('Another fictional draft.');
   await page.getByRole('button', { name: 'Save privately' }).click();
-  await expect(page.locator('#share-error')).toContainText(
+  await expect(page.locator('form').getByRole('alert')).toContainText(
     'could not be saved'
   );
   expect(

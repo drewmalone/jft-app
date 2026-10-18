@@ -1,7 +1,6 @@
 'use client';
 
 import { useEffect, useRef, useState, type FormEvent } from 'react';
-import Image from 'next/image';
 import type { Share } from './shares';
 import { readShares, saveShare } from './storage';
 import { ShareForm } from './components/share-form';
@@ -11,6 +10,8 @@ import {
 } from './components/share-history';
 import { ShareDetail } from './components/share-detail';
 import { ReflectionReading } from './components/reflection-reading';
+import { AppHeader } from './components/app-header';
+import { AppFooter } from './components/app-footer';
 
 type Screen =
   { view: 'today' | 'past' } | { view: 'saved' | 'detail'; share: Share };
@@ -42,9 +43,6 @@ export function ShareApp() {
     status: 'loading'
   });
   const [saveError, setSaveError] = useState('');
-  const error =
-    (view === 'today' && saveError) ||
-    (history.status === 'failed' ? history.message : '');
   const heading = useRef<HTMLHeadingElement>(null);
   const navigated = useRef(false);
 
@@ -84,38 +82,18 @@ export function ShareApp() {
     }
   }
   const { title, description } = screenCopy[view];
+  const navigationView =
+    view === 'past' || view === 'detail' ? 'today' : 'past';
 
   return (
     <div className="min-h-screen">
-      <header className="mx-auto flex max-w-5xl items-center justify-between border-b border-[var(--line)] px-6 py-6 sm:px-10">
-        <button
-          className="brand flex items-center gap-3"
-          onClick={() => navigate({ view: 'today' })}
-          aria-label="Doorknob, today's reflection"
-        >
-          <Image
-            src="/doorknob-logo.svg"
-            width={30}
-            height={39}
-            alt=""
-            aria-hidden="true"
-          />
-          <span>Doorknob</span>
-        </button>
-        <button
-          className="nav-link"
-          onClick={() =>
-            navigate({
-              view: view === 'past' || view === 'detail' ? 'today' : 'past'
-            })
-          }
-        >
-          {view === 'past' || view === 'detail'
-            ? 'Today’s reflection'
-            : 'Past shares'}{' '}
-          <span aria-hidden="true">→</span>
-        </button>
-      </header>
+      <AppHeader
+        onHome={() => navigate({ view: 'today' })}
+        onNavigate={() => navigate({ view: navigationView })}
+        navigationLabel={
+          navigationView === 'today' ? 'Today’s reflection' : 'Past shares'
+        }
+      />
       <main className="mx-auto max-w-xl px-6 pb-12 pt-10 sm:px-8 sm:pt-14">
         {view === 'today' && <ReflectionReading />}
         {view === 'saved' && (
@@ -138,20 +116,19 @@ export function ShareApp() {
         >
           {description}
         </p>
-        {error && (
+        {history.status === 'failed' && (
           <p
-            id="share-error"
             role="alert"
             className="error mt-6 rounded-xl border p-4 text-sm leading-relaxed"
           >
-            {error}
+            {history.message}
           </p>
         )}
         {view === 'today' && (
           <ShareForm
             text={text}
             disabled={history.status === 'loading'}
-            error={error}
+            error={saveError}
             onTextChange={setText}
             onSave={save}
           />
@@ -180,13 +157,7 @@ export function ShareApp() {
             </button>
           </>
         )}
-        <footer className="mt-12 text-center">
-          <div className="divider" />
-          <p className="eyebrow">One day. One thought. One step.</p>
-          <p className="mt-3 text-xs leading-relaxed text-[var(--muted)]">
-            Private to this browser. Clearing site data removes saved shares.
-          </p>
-        </footer>
+        <AppFooter />
       </main>
     </div>
   );

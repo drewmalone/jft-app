@@ -1,4 +1,4 @@
-import type { FormEvent } from 'react';
+import { useId, type FormEvent } from 'react';
 import { LockIcon } from './lock-icon';
 
 type ShareFormProps = {
@@ -17,25 +17,37 @@ export function ShareForm({
   onTextChange,
   onSave
 }: ShareFormProps) {
+  const fieldId = useId();
+  const helpId = `${fieldId}-help`;
+  const errorId = `${fieldId}-error`;
   return (
     <form onSubmit={onSave} className="mt-7">
-      <label htmlFor="thoughts" className="sr-only">
+      <label htmlFor={fieldId} className="sr-only">
         Your thoughts about today&apos;s reading
       </label>
       <textarea
-        id="thoughts"
-        aria-describedby={`share-help${error ? ' share-error' : ''}`}
+        id={fieldId}
+        aria-describedby={error ? `${helpId} ${errorId}` : helpId}
         value={text}
         onChange={(event) => onTextChange(event.target.value)}
         placeholder="Start wherever you are…"
-        className="min-h-64 w-full resize-y rounded-xl border border-[var(--line)] bg-[var(--paper)] p-5 font-serif text-xl leading-relaxed outline-none transition placeholder:text-[var(--muted)] focus:border-[var(--navy)] focus:ring-1 focus:ring-[var(--navy)]"
+        className="share-textarea"
       />
       <p
-        id="share-help"
+        id={helpId}
         className="mt-3 flex items-start gap-2 text-xs leading-relaxed text-[var(--muted)]"
       >
         <LockIcon /> Saved only in this browser. Your words stay on this device.
       </p>
+      {error && (
+        <p
+          id={errorId}
+          role="alert"
+          className="error mt-4 rounded-xl border p-4 text-sm leading-relaxed"
+        >
+          {error}
+        </p>
+      )}
       <button
         className="primary mt-7 w-full"
         disabled={disabled || !text.trim()}

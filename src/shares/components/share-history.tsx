@@ -1,5 +1,5 @@
 import type { Share } from '../shares';
-import { dateLabel } from '../dates';
+import { ShareHistoryItem } from './share-history-item';
 
 /** Keeps unreadable history distinct from a successfully loaded, empty list. */
 export type ShareHistoryState =
@@ -42,41 +42,7 @@ export function ShareHistory({ history, onWrite, onOpen }: ShareHistoryProps) {
       ) : (
         <ul>
           {shares.map((share) => (
-            <li key={share.id} className="border-t border-[var(--line)]">
-              <button
-                className="share-row flex w-full items-center gap-5 py-6 text-left"
-                onClick={() => {
-                  onOpen(share);
-                }}
-              >
-                <div className="min-w-10 text-center">
-                  <span className="eyebrow">
-                    {new Date(share.createdAt).toLocaleDateString('en-US', {
-                      month: 'short'
-                    })}
-                  </span>
-                  <span className="block font-serif text-3xl">
-                    {new Date(share.createdAt).getDate()}
-                  </span>
-                </div>
-                <div className="min-w-0 flex-1">
-                  <p className="font-serif text-xl leading-snug">
-                    {share.reflection.title}
-                  </p>
-                  <p className="mt-2 line-clamp-2 text-sm leading-relaxed text-[var(--muted)]">
-                    {share.text}
-                  </p>
-                  <p className="mt-2 text-xs text-[var(--muted)]">
-                    {dateLabel(share.createdAt)} ·{' '}
-                    {new Date(share.createdAt).toLocaleTimeString('en-US', {
-                      hour: 'numeric',
-                      minute: '2-digit'
-                    })}
-                  </p>
-                </div>
-                <span aria-hidden="true">›</span>
-              </button>
-            </li>
+            <ShareHistoryItem key={share.id} share={share} onOpen={onOpen} />
           ))}
         </ul>
       )}
