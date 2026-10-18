@@ -69,3 +69,7 @@ Preserve the small boundaries already present:
 - Before people rely on native local storage, decide backup, recovery, deletion, device migration, and any synchronization policy. Packaging the app does not supply those behaviors.
 
 Keep `src/` and the current single application. There is no BFF now; a server-rendered Next.js entry point does not introduce one. Add a clear server boundary when actual backend behavior exists, and consider a separately deployed BFF only when web/mobile requirements warrant it. Extract a shared package only after a second client demonstrates real reuse. No mobile SDK, empty app skeleton, monorepo, or shared storage framework is needed for this PR.
+
+## Temporary dependency override
+
+Next.js 15.5.28 pins PostCSS 8.4.31, which is affected by [GHSA-6g55-p6wh-862q](https://github.com/advisories/GHSA-6g55-p6wh-862q) and [GHSA-r28c-9q8g-f849](https://github.com/advisories/GHSA-r28c-9q8g-f849). The scoped npm override uses PostCSS `^8.5.30` for Next.js, staying on PostCSS major 8 and resolving both reported ranges. Production build and browser tests verify this combination. Remove the override once the selected Next.js release depends on a patched version directly; do not suppress the dependency check.
