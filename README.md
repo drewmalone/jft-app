@@ -75,10 +75,11 @@ Source and tests are grouped by responsibility, with direct imports and no barre
 ```text
 src/
   app/                  page.tsx, layout.tsx, globals.css — route entry and theme
+  components/           app-wide header and footer
   shares/
     share-app.tsx       client state and screen transitions
     components/         reading, form, history, and detail presentation
-    shares.ts           share records, creation, and validation
+    model.ts            share records, creation, and validation
     storage.ts          validated localStorage reads and writes
     dates.ts            saved-date formatting
 tests/

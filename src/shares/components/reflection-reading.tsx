@@ -1,4 +1,4 @@
-import { reflection } from '../shares';
+import { reflection } from '../model';
 import { readingDateLabel } from '../dates';
 
 /** Displays the fixed reading for this milestone. */

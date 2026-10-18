@@ -1,4 +1,4 @@
-import type { Share } from '../shares';
+import type { Share } from '../model';
 import { ShareHistoryItem } from './share-history-item';
 
 /** Keeps unreadable history distinct from a successfully loaded, empty list. */

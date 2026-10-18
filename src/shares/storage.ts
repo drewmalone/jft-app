@@ -1,4 +1,4 @@
-import { createShare, parseShares, STORAGE_KEY, type Share } from './shares';
+import { createShare, parseShares, STORAGE_KEY, type Share } from './model';
 
 type ShareStorage = Pick<Storage, 'getItem' | 'setItem'>;
 

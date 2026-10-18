@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { createShare, parseShares } from '../../src/shares/shares';
+import { createShare, parseShares } from '../../src/shares/model';
 
 test('rejects empty shares and trims saved text', () => {
   assert.throws(() => createShare(' \n '));

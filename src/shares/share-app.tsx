@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useRef, useState, type FormEvent } from 'react';
-import type { Share } from './shares';
+import type { Share } from './model';
 import { readShares, saveShare } from './storage';
 import { ShareForm } from './components/share-form';
 import {
@@ -10,8 +10,8 @@ import {
 } from './components/share-history';
 import { ShareDetail } from './components/share-detail';
 import { ReflectionReading } from './components/reflection-reading';
-import { AppHeader } from './components/app-header';
-import { AppFooter } from './components/app-footer';
+import { AppHeader } from '../components/app-header';
+import { AppFooter } from '../components/app-footer';
 
 type Screen =
   { view: 'today' | 'past' } | { view: 'saved' | 'detail'; share: Share };

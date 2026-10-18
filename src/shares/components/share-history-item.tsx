@@ -1,4 +1,4 @@
-import type { Share } from '../shares';
+import type { Share } from '../model';
 import { dateLabel } from '../dates';
 
 type ShareHistoryItemProps = { share: Share; onOpen: (share: Share) => void };

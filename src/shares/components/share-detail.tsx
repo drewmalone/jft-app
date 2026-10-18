@@ -1,4 +1,4 @@
-import type { Share } from '../shares';
+import type { Share } from '../model';
 import { dateLabel } from '../dates';
 
 /** Reads a saved share using the reading snapshot captured when it was created. */
