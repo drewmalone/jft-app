@@ -27,7 +27,7 @@ npm run build
 npm start
 ```
 
-Production requires this secret and sets Secure cookies. Use HTTPS when hosting; browser handling of Secure cookies on plain HTTP localhost can vary. Use `npm run dev` for ordinary local development.
+Production requires this secret and sets Secure cookies. Missing or short production secrets cause API requests to return a generic 500; the app does not supply a production fallback. A signing-key change invalidates existing cookies. Use HTTPS when hosting; browser handling of Secure cookies on plain HTTP localhost can vary. Use `npm run dev` for ordinary local development.
 
 ## Writing and reviewing shares
 
@@ -41,11 +41,11 @@ The reading and April 23, 2025 date remain deliberate placeholders.
 
 ## Persistence and privacy limitations
 
-Shares are sent to the same-origin Next.js server and stored in a process-local Map. Each record has a server-generated UUID, ISO timestamp, `kind: 'text'`, text, reading snapshot, and server-only anonymous owner ID. Responses omit ownership IDs. There is no browser storage persistence or migration of v0.1 test data.
+Shares are sent to the same-origin Next.js server and stored in a process-local Map. Each record has a server-generated UUID, ISO timestamp, `kind: 'text'`, text, reading snapshot, and anonymous owner ID in the server record. Share JSON omits the ownerId field. There is no browser storage persistence or migration of v0.1 test data.
 
-A signed, HttpOnly, SameSite=Lax cookie identifies the anonymous session. It expires after 30 days and is Secure in production. Different browser sessions cannot list or read one another's shares. Invalid or expired credentials receive 401. Clear site cookies to start a fresh session if this occurs; **clearing cookies loses access to existing shares**, even while those records remain in server memory. Cookies are bearer credentials, not login accounts or a recovery mechanism.
+A signed, HttpOnly, SameSite=Lax cookie identifies the anonymous session. It expires after 30 days and is Secure in production. Different browser sessions cannot list or read one another's shares. Invalid or expired credentials receive 401. Clear site cookies to start a fresh session if this occurs; **clearing cookies loses access to existing shares**, even while those records remain in server memory. The signed cookie is readable, not encrypted, and must be treated as a bearer credential. Tabs sharing site cookies share an owner; use separate profiles/cookie jars to test isolation. Cookies do not provide login accounts or recovery.
 
-**This storage is for local development. Restarting the server clears all shares. Multiple processes, replicas, and serverless instances such as Vercel do not share the Map and cannot provide reliable persistence.** No disk storage, database, encryption at rest, backup, account recovery, or durable deployment is provided. Unsaved drafts live only in React memory and disappear on refresh. The development signing secret also resets on process restart unless configured.
+**This storage is for local development. Restarting the server clears all shares. Multiple processes, replicas, and serverless instances such as Vercel do not share the Map and cannot provide reliable persistence.** No disk storage, database, encryption at rest, backup, account recovery, or durable deployment is provided. Unsaved drafts live only in React memory and disappear on refresh. The development signing secret also resets on process restart unless configured. There is no per-share deletion or expiry job; cookie loss does not remove records from the running Map. See [the data lifecycle](docs/DATA_GLOSSARY.md#app-data-lifecycle).
 
 No public sharing links, audio, transcription, AI, registration, real reading feeds, or harness integration are included.
 
@@ -68,11 +68,12 @@ Omit `PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH` when using Playwright's installed bro
 
 Manual checks:
 
-1. Save a multiline share, refresh, and reopen it from **Past shares**.
-2. Open a separate private browser session and confirm its history is empty and the first session's share ID returns 404.
-3. Simulate a failed POST in browser developer tools; verify the draft remains with no confirmation.
-4. Check phone and desktop layouts, keyboard navigation, and heading focus.
-5. Restart the server and confirm history is empty. Clear cookies and confirm previous shares are inaccessible.
+1. Confirm blank text cannot be saved. Navigate between views and confirm an unfinished draft remains.
+2. Save a multiline share, refresh, and reopen it from **Past shares**.
+3. Open a separate private browser session and confirm its history is empty and the first session's share ID returns 404.
+4. Simulate a failed POST in browser developer tools; verify the draft remains with no confirmation.
+5. Check phone and desktop layouts, keyboard navigation, and heading focus.
+6. Restart the server and confirm history is empty. Clear cookies and confirm previous shares are inaccessible.
 
 ## Project layout
 
@@ -93,7 +94,7 @@ tests/
   e2e/                  Playwright user flows
 ```
 
-See [architecture](docs/ARCHITECTURE.md), [contributor commands](CONTRIBUTING.md#commands), [repository standards](docs/REPOSITORY_STANDARDS.md), and [data glossary](docs/DATA_GLOSSARY.md).
+See [the private API reference and curl example](docs/API.md), [architecture](docs/ARCHITECTURE.md), [contributor commands](CONTRIBUTING.md#commands), [repository standards](docs/REPOSITORY_STANDARDS.md), and [data glossary](docs/DATA_GLOSSARY.md).
 
 ## Installation troubleshooting
 

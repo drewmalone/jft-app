@@ -10,12 +10,21 @@ const reflectionSchema = z.object({
   body: nonblankText
 });
 
-/** Only text is accepted from the browser; metadata is assigned by the server. */
+/**
+ * Strict POST body contract: trim text, reject blank input and all extra fields.
+ * IDs, timestamps, kind, reading snapshots, and ownership are assigned server-side.
+ * Parsing invalid input throws ZodError; handlers use safeParse to return 400.
+ */
 export const createShareSchema = z.strictObject({
   text: z.string().trim().min(1, 'Write a few words before saving your share.')
 });
 
-/** Public-to-the-owner API representation; session ownership stays on the server. */
+/**
+ * Owner-visible response contract; parsing strips fields not declared here, including
+ * the stored ownerId. Validates UUID/time/kind and the complete reading snapshot.
+ * Parsing invalid records throws ZodError; this schema does not authorize access.
+ * Route handlers must perform the session/ownership checks before projecting data.
+ */
 export const shareSchema = z.object({
   id: z.uuid(),
   createdAt: z.iso.datetime({ offset: true }),
@@ -24,12 +33,12 @@ export const shareSchema = z.object({
   text: nonblankText
 });
 
-/** A reading snapshot, independent of the current hardcoded reading. */
+/** Reading snapshot with an ISO calendar date; saved snapshots do not follow later edits. */
 export type Reflection = z.infer<typeof reflectionSchema>;
-/** A private text share returned to its owner. */
+/** Validated API share without ownerId; its TypeScript shape alone does not grant access. */
 export type Share = z.infer<typeof shareSchema>;
 
-/** Fixed placeholder reading, copied into every saved share. */
+/** Fictional placeholder used by the UI and copied by the server when saving a share. */
 export const reflection: Reflection = {
   id: 'acceptance-2025-04-23',
   date: '2025-04-23',

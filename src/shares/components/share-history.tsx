@@ -1,7 +1,10 @@
 import type { Share } from '../model';
 import { ShareHistoryItem } from './share-history-item';
 
-/** Keeps unreadable history distinct from a successfully loaded, empty list. */
+/**
+ * History request state: only loaded carries shares, and only an empty loaded list
+ * means no records exist. failed carries a displayable message, not partial results.
+ */
 export type ShareHistoryState =
   | { status: 'loading' }
   | { status: 'failed'; message: string }
@@ -13,7 +16,11 @@ type ShareHistoryProps = {
   onOpen: (share: Share) => void;
 };
 
-/** Displays saved history, loading feedback, or the first-share invitation. */
+/**
+ * Presents loading, history, or the empty invitation without making requests.
+ * The controller displays failed-state messages/retry. onOpen receives the selected
+ * list record so the controller can fetch its detail; selection does not authorize it.
+ */
 export function ShareHistory({ history, onWrite, onOpen }: ShareHistoryProps) {
   if (history.status === 'loading')
     return <p role="status">Loading your shares…</p>;

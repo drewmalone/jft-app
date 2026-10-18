@@ -39,7 +39,17 @@ npm run check
 
 Group source by responsibility under `src/` and mirror those groups under `tests/`. Use direct imports, with no barrel files or path aliases. Keep abstractions proportional to the current milestone.
 
-Prettier owns formatting; `.editorconfig` supplies matching editor defaults. Use TSDoc for exported functions and types, explaining contracts and escaping failures. Update the README for user-visible behavior, `docs/ARCHITECTURE.md` for design changes, and [the shared glossary](docs/DATA_GLOSSARY.md) when data terminology changes.
+Prettier owns formatting; `.editorconfig` supplies matching editor defaults. Use TSDoc for exported functions and types, explaining contracts and escaping failures. Document meaningful parameters, return values, ownership/trust requirements, and side effects at the source. For asynchronous functions, `@throws` describes promise rejections; for Route Handlers and wrappers that catch errors, document returned HTTP failures under `@returns`. Keep presentation-component comments proportional to their state/callback responsibilities rather than repeating markup.
+
+When updating a feature, review its documentation together:
+
+- README: user-visible behavior, local setup, configuration, limitations, and verification entry points.
+- [Architecture](docs/ARCHITECTURE.md): module ownership, request/data flow, security decisions, and operational tradeoffs.
+- [API reference](docs/API.md): supported requests/responses, error statuses, session/cookie behavior, and runnable fictional examples.
+- [Shared glossary](docs/DATA_GLOSSARY.md): data location, transmission, access loss, deletion, and backup lifecycle.
+- Source TSDoc: exported contracts and failures, including methods of exported interfaces. Name internal invariants when a parser or security check depends on them.
+
+Keep each detailed contract in its owning document and link to it from summaries. Check examples/links against the implementation, remove stale milestone claims, and distinguish manual verification from automated checks in the PR. Generated Next.js declarations should come from the build, not manual edits. `next dev` also maintains the framework-owned block in [AGENTS.md](AGENTS.md); preserve it and consult the installed Next.js guides it points to. Keep project documentation policy here rather than inside that managed block.
 
 ## Testing
 
@@ -53,7 +63,7 @@ Use a focused branch and the PR template's Summary, Validation, and Limitations 
 
 Allowed types are `feat`, `fix`, `docs`, `style`, `refactor`, `perf`, `test`, `build`, `ci`, `chore`, and `revert`. Single-commit PRs must also have a conventional commit message. Additional review commits need no history rewriting.
 
-Use **Squash and merge** with the validated PR title as the commit title. Follow the [repository settings policy](docs/REPOSITORY_STANDARDS.md#4-repository-settings) once configured. No automatic merging is enabled by this PR.
+Use **Squash and merge** with the validated PR title as the commit title. Follow the [repository settings policy](docs/REPOSITORY_STANDARDS.md#4-repository-settings) once configured. A maintainer reviews and merges; do not enable automatic merging as part of routine implementation work.
 
 ## Dependency maintenance
 

@@ -1,6 +1,6 @@
 # Shared repository standards
 
-This is the reference policy for `jft-app` and a future matching change in `jft-harness`. This PR changes only `jft-app`. Copy the common tooling and documentation conventions; preserve each project's product behavior and architecture.
+This is the reference policy for `jft-app` and a future matching change in `jft-harness`. Copy the common tooling and documentation conventions; preserve each project's product behavior and architecture. Changes to this app do not configure or integrate the harness.
 
 ## 1. One verification command
 
@@ -18,9 +18,9 @@ Copy [.github/pull_request_template.md](../.github/pull_request_template.md) and
 
 ## 4. Repository settings
 
-These are deliberate configuration decisions, **not settings applied by files in this PR**. Current metadata reports that squash, merge commits, and rebase merges are all allowed; the desired policy below is not yet enforced.
+These are desired configuration decisions, **not settings enforced by repository files**. This document is not a live report of GitHub enforcement. Inspect actual repository settings/rules before claiming a policy is active; do not infer enforcement from a merged PR or committed workflow.
 
-After this initial PR is merged and the workflows have registered successful checks, configure both repositories in GitHub:
+After the workflows have registered successful checks, configure and verify the following policy in each repository:
 
 | Setting                   | Decision                                                                      |
 | ------------------------- | ----------------------------------------------------------------------------- |

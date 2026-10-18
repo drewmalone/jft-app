@@ -6,7 +6,12 @@ import { error, json, withSession } from '../../../shares/server/http';
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
-/** List only this anonymous session's private shares, newest first. */
+/**
+ * Lists only the validated anonymous session's shares; no owner filter is accepted.
+ * @param request - Incoming request used to establish or verify the session cookie.
+ * @returns 200 with newest-first Share JSON (possibly empty); 401 for invalid session
+ * credentials, or generic 500 for internal failures. Responses are private/no-store.
+ */
 export async function GET(request: NextRequest) {
   return withSession(request, async (ownerId) =>
     json(
@@ -17,7 +22,15 @@ export async function GET(request: NextRequest) {
   );
 }
 
-/** Validate text and create metadata, ownership, and reading snapshot server-side. */
+/**
+ * Creates a text share with server-generated metadata, ownership, and reading snapshot.
+ * @param request - JSON body containing only text; supplied Origin must match the
+ * browser-facing Host and request protocol. Deployment proxies must preserve these.
+ * @returns 201 with owner-visible Share JSON; 400 for JSON/body validation, 403 for
+ * a foreign Origin, 415 for unsupported content type, 401 for invalid credentials,
+ * or generic 500 for internal/configuration failures. withSession handles failures;
+ * unsuccessful responses never report a successful save.
+ */
 export async function POST(request: NextRequest) {
   return withSession(request, async (ownerId) => {
     const origin = request.headers.get('origin');

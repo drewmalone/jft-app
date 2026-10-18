@@ -34,7 +34,13 @@ const screenCopy = {
   }
 };
 
-/** Owns the local writing, confirmation, history, and full-share views. */
+/**
+ * Owns the writing draft, BFF requests, view transitions, and heading focus.
+ * Drafts survive in-app navigation; only a confirmed save clears them. Pending saves
+ * block duplicate submissions, request counters ignore stale results, and API errors
+ * are rendered in the relevant view rather than escaping from event handlers.
+ * Navigation is React state only: refreshing returns to writing and loses the draft.
+ */
 export function ShareApp() {
   const [screen, setScreen] = useState<Screen>({ view: 'today' });
   const { view } = screen;
