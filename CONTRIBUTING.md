@@ -1,0 +1,60 @@
+# Contributing
+
+## Setup
+
+Use Node.js 24 LTS and npm. The runtime is pinned in `.nvmrc` and constrained by `package.json`.
+
+```bash
+nvm use
+npm ci
+npm run dev
+```
+
+This app requires no credentials. Never commit `.env` files, credentials, or personal recovery text.
+
+## Commands
+
+| Command                | Purpose                                                                   |
+| ---------------------- | ------------------------------------------------------------------------- |
+| `npm run dev`          | Start the local application                                               |
+| `npm run format`       | Apply repository formatting                                               |
+| `npm run format:check` | Check formatting without changing files                                   |
+| `npm test`             | Run automated tests                                                       |
+| `npm run build`        | Produce and validate the production application                           |
+| `npm run typecheck`    | Check TypeScript; build first on a fresh checkout to generate route types |
+| `npm run check`        | Run the complete local verification used by CI                            |
+
+Before opening or updating a PR:
+
+```bash
+npm run format
+npm run check
+```
+
+`check` runs formatting, tests, production build, and TypeScript in that order. It needs no credentials or external services once dependencies are installed. Separate scripts remain available for focused work.
+
+## Organization and documentation
+
+Group source by responsibility under `src/` and mirror those groups under `tests/`. Use direct imports, with no barrel files or path aliases. Keep abstractions proportional to the current milestone.
+
+Prettier owns formatting; `.editorconfig` supplies matching editor defaults. Use TSDoc for exported functions and types, explaining contracts and escaping failures. Update the README for user-visible behavior, `docs/ARCHITECTURE.md` for design changes, and [the shared glossary](docs/DATA_GLOSSARY.md) when data terminology changes.
+
+## Testing
+
+Add or update meaningful tests when behavior changes. Use fictional text and synthetic credentials in fixtures and test output. Do not call live model providers or external services from the default test command.
+
+For UI changes, manually check phone and desktop layouts, keyboard use, and error states. Report these separately from automated tests; `npm run check` does not currently run browser checks. See the README for the app's manual checklist.
+
+## Pull requests and merging
+
+Use a focused branch and the PR template's Summary, Validation, and Limitations sections. State what was actually tested and disclose anything unverified. PR titles follow Conventional Commits: `type(optional-scope): description`.
+
+Allowed types are `feat`, `fix`, `docs`, `style`, `refactor`, `perf`, `test`, `build`, `ci`, `chore`, and `revert`. Single-commit PRs must also have a conventional commit message. Additional review commits need no history rewriting.
+
+Use **Squash and merge** with the validated PR title as the commit title. Follow the [repository settings policy](docs/REPOSITORY_STANDARDS.md#4-repository-settings) once configured. No automatic merging is enabled by this PR.
+
+## Dependency maintenance
+
+Commit `package-lock.json` and install with `npm ci`. Dependabot proposes updates weekly on Monday at 09:00 America/Chicago, grouping minor and patch updates per ecosystem and leaving major updates separate. Review security updates promptly and run the full checks before merging; dependency PRs are not automatically merged.
+
+Dependency Review blocks newly introduced high or critical known vulnerabilities. CodeQL checks JavaScript/TypeScript on PRs, pushes to `main`, and weekly. These tools do not replace code review or prove the app is free of vulnerabilities.

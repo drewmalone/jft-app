@@ -42,12 +42,10 @@ This milestone includes no audio, transcription, AI, authentication, database, s
 ## Validation
 
 ```bash
-npm test
-npm run build
-npm run typecheck
+npm run check
 ```
 
-GitHub Actions runs these checks after `npm ci` on pull requests and pushes to `main`. The build generates Next.js route types before the explicit TypeScript check. Tests require no credentials or external services.
+GitHub Actions runs the same `npm run check` command after `npm ci` on pull requests and pushes to `main`. It checks formatting, tests, the production build, and TypeScript. The build generates Next.js route types before the explicit TypeScript check. Tests require no credentials or external services.
 
 Unit tests cover empty input, unique IDs, timestamps, storage round trips, newest-first ordering, and malformed records. Browser validation during implementation covered saving, persistence after refresh, full-share reading, storage errors, malformed storage, and horizontal overflow at 320px, 390px, and 1440px. Those browser checks are not part of `npm test`.
 
@@ -79,16 +77,8 @@ docs/
 
 See [the architecture](docs/ARCHITECTURE.md) for data flow and implementation decisions.
 
-## Code documentation
+## Contributing and repository standards
 
-Use TSDoc `/** ... */` comments for exported functions and types. Explain contracts and reasoning; use `@param` for constraints and `@throws` for failures that escape to callers. Keep comments beside the code. Internal comments explain non-obvious storage and state decisions.
+See [CONTRIBUTING.md](CONTRIBUTING.md) for commands, formatting, documentation, and PR conventions. [Shared repository standards](docs/REPOSITORY_STANDARDS.md) records the seven workflow decisions and the copy plan for `jft-harness`, including GitHub settings that still require configuration. [The data glossary](docs/DATA_GLOSSARY.md) defines terminology shared by both repositories.
 
-Use readable multiline TypeScript and JSX, two-space indentation, and single quotes in TypeScript. No documentation generator or formatting dependency is required.
-
-## Commit and merge convention
-
-PR titles follow [Conventional Commits](https://www.conventionalcommits.org/): `type(optional-scope): description`, for example `feat: add private text shares` or `fix(shares): preserve drafts when storage fails`.
-
-The PR title workflow accepts `feat`, `fix`, `docs`, `style`, `refactor`, `perf`, `test`, `build`, `ci`, `chore`, and `revert`. It also checks the commit message for single-commit PRs. Review commits in multi-commit PRs do not need rewriting.
-
-Use **Squash and merge**, with the validated PR title as the final commit title. Required status checks and permitted merge methods are configured separately in repository settings.
+Dependabot proposes weekly npm and GitHub Actions updates. Dependency Review checks newly introduced high/critical vulnerabilities, and CodeQL scans TypeScript. These workflows do not configure branch protection or repository security features by themselves.
