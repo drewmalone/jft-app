@@ -18,7 +18,7 @@ export function ShareHistory({ history, onWrite, onOpen }: ShareHistoryProps) {
   if (history.status === 'loading')
     return <p role="status">Loading your shares…</p>;
   if (history.status === 'failed') {
-    // The parent displays the storage error above the view.
+    // The parent displays the API error above the view.
     return (
       <button className="secondary mt-7 w-full" onClick={onWrite}>
         Today&apos;s reflection

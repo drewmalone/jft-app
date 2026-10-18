@@ -1,13 +1,13 @@
 {
   "name": "doorknob",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "private": true,
   "scripts": {
     "dev": "next dev --hostname 0.0.0.0",
     "build": "next build",
     "start": "next start --hostname 0.0.0.0",
     "typecheck": "tsc --noEmit",
-    "test": "node --import tsx --test tests/shares/*.test.ts",
+    "test": "node --conditions=react-server --import tsx --test --test-isolation=none tests/shares/*.test.ts",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "check": "npm run format:check && npm run lint && npm test && npm run build",
@@ -18,7 +18,8 @@
     "next": "^15.5.0",
     "react": "^19.1.0",
     "react-dom": "^19.1.0",
-    "zod": "^4.6.7"
+    "zod": "^4.6.7",
+    "server-only": "0.0.1"
   },
   "devDependencies": {
     "@eslint/eslintrc": "^3.3.7",

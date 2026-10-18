@@ -65,4 +65,4 @@ Dependency Review blocks newly introduced high/critical known vulnerabilities on
 2. Add the harness-specific `check` sequence from section 1 and invoke it from a CI job named `Verify`.
 3. Adapt `CONTRIBUTING.md` setup and commands for the existing CLI. Copy the glossary and this policy, updating actual enforcement status.
 4. Retain its existing CodeQL and Dependency Review behavior, aligning job names and schedules with these files. Retain its conventional title validator.
-5. Apply and verify the repository settings only after the checks exist. Do not copy Next.js commands, UI structure, or localStorage behavior into the harness.
+5. Apply and verify the repository settings only after the checks exist. Do not copy Next.js commands, UI structure, or app persistence behavior into the harness.
