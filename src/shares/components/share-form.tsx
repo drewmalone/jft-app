@@ -1,4 +1,5 @@
 import type { FormEvent } from 'react';
+import { LockIcon } from './lock-icon';
 
 type ShareFormProps = {
   text: string;
@@ -33,20 +34,7 @@ export function ShareForm({
         id="share-help"
         className="mt-3 flex items-start gap-2 text-xs leading-relaxed text-[var(--muted)]"
       >
-        <svg
-          className="mt-0.5 shrink-0"
-          width="13"
-          height="14"
-          viewBox="0 0 16 18"
-          fill="none"
-          stroke="currentColor"
-          strokeWidth="1.3"
-          aria-hidden="true"
-        >
-          <rect x="2" y="8" width="12" height="8" rx="2" />
-          <path d="M5 8V5a3 3 0 0 1 6 0v3" />
-        </svg>{' '}
-        Saved only in this browser. Your words stay on this device.
+        <LockIcon /> Saved only in this browser. Your words stay on this device.
       </p>
       <button
         className="primary mt-7 w-full"

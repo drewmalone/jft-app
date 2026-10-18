@@ -6,6 +6,7 @@ Doorknob groups code by responsibility, with the share feature kept together. Ne
 
 - **`src/app/page.tsx`** is the server-rendered route entry. It renders the interactive share experience without a content-injection prop.
 - **`src/app/layout.tsx`** supplies page metadata and the shared stylesheet.
+- **`public/doorknob-logo.svg`** owns the brand artwork. Screens reference the asset through Next.js Image; the small decorative lock stays behind a named `LockIcon` component. Drawing coordinates stay outside screen and form markup.
 - **`src/app/globals.css`** supplies the ivory and navy palette, serif typography, responsive spacing, and focus styles alongside Tailwind utilities.
 - **`src/shares/share-app.tsx`** is the client boundary. It owns the current screen, draft, history, loading/error feedback, and heading focus. History is explicitly loading, loaded, or failed; an unreadable history is never presented as an empty one. The screen state carries a share only for saved/detail views, so those views cannot exist without the record they display.
 - **`src/shares/components/`** contains the reading, form, history, and detail presentation components. Props express their inputs and callbacks; they do not access storage. The share controller composes the reading directly. Components imported by the client boundary run as part of its client tree without redundant `use client` directives.

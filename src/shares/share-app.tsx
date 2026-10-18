@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useRef, useState, type FormEvent } from 'react';
+import Image from 'next/image';
 import type { Share } from './shares';
 import { readShares, saveShare } from './storage';
 import { ShareForm } from './components/share-form';
@@ -92,17 +93,13 @@ export function ShareApp() {
           onClick={() => navigate({ view: 'today' })}
           aria-label="Doorknob, today's reflection"
         >
-          <svg
-            width="30"
-            height="39"
-            viewBox="0 0 30 39"
-            fill="none"
+          <Image
+            src="/doorknob-logo.svg"
+            width={30}
+            height={39}
+            alt=""
             aria-hidden="true"
-          >
-            <path d="M2 9 19 2v35L2 30Z" fill="currentColor" />
-            <path d="m23 3 5 2v29l-5 2Z" fill="#C4A16C" />
-            <circle cx="13" cy="20" r="1.8" fill="#E2C394" />
-          </svg>
+          />
           <span>Doorknob</span>
         </button>
         <button
