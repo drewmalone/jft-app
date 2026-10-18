@@ -45,9 +45,19 @@ This milestone includes no audio, transcription, AI, authentication, database, s
 npm run check
 ```
 
-GitHub Actions runs the same `npm run check` command after `npm ci` on pull requests and pushes to `main`. It checks formatting, tests, the production build, and TypeScript. The build generates Next.js route types before the explicit TypeScript check. Tests require no credentials or external services.
+GitHub Actions runs the same `npm run check` command after `npm ci` on pull requests and pushes to `main`. It checks formatting, React/Next.js lint rules, unit tests, the production build, and TypeScript. The build generates Next.js route types before the explicit TypeScript check. Tests require no credentials or external services.
 
-Unit tests cover empty input, unique IDs, timestamps, storage round trips, newest-first ordering, and malformed records. Browser validation during implementation covered saving, persistence after refresh, full-share reading, storage errors, malformed storage, and horizontal overflow at 320px, 390px, and 1440px. Those browser checks are not part of `npm test`.
+Unit tests cover share creation, validation, ordering, and storage failures. Playwright tests cover save/reload persistence, full-share reading, ordering, draft retention, and storage errors in mobile and desktop Chromium. CI runs them after `check`.
+
+To run browser tests locally:
+
+```bash
+npx playwright install chromium
+npm run build
+npm run test:e2e
+```
+
+Playwright starts its own production server on port 3100. Browser tests are separate from `npm test` and `npm run check` because they require a browser installation. All test content is fictional.
 
 Manual checks:
 
@@ -64,15 +74,19 @@ Source and tests are grouped by responsibility, with direct imports and no barre
 
 ```text
 src/
-  app/              page.tsx, layout.tsx, globals.css — Next.js views and styling
-  shares/           shares.ts — reading, share records, creation, and validation
+  app/                  page.tsx, layout.tsx, globals.css — route entry and theme
+  shares/
+    share-app.tsx       client state and screen transitions
+    components/         reading, form, history, and detail presentation
+    shares.ts           share records, creation, and validation
+    storage.ts          validated localStorage reads and writes
+    dates.ts            saved-date formatting
 tests/
-  shares/           shares.test.ts — share and stored-history contracts
+  shares/               unit tests for data and persistence
+  e2e/                  Playwright tests for user flows
 docs/
-  ARCHITECTURE.md    view transitions, persistence, and design tradeoffs
-.github/workflows/
-  checks.yml                  tests, production build, and TypeScript
-  conventional-commits.yml    PR title validation
+  ARCHITECTURE.md       responsibilities, tradeoffs, and official guidance
+.github/workflows/      verification, title validation, and security scans
 ```
 
 See [the architecture](docs/ARCHITECTURE.md) for data flow and implementation decisions.
@@ -82,3 +96,13 @@ See [the architecture](docs/ARCHITECTURE.md) for data flow and implementation de
 See [CONTRIBUTING.md](CONTRIBUTING.md) for commands, formatting, documentation, and PR conventions. [Shared repository standards](docs/REPOSITORY_STANDARDS.md) records the seven workflow decisions and the copy plan for `jft-harness`, including GitHub settings that still require configuration. [The data glossary](docs/DATA_GLOSSARY.md) defines terminology shared by both repositories.
 
 Dependabot proposes weekly npm and GitHub Actions updates. Dependency Review checks newly introduced high/critical vulnerabilities, and CodeQL scans TypeScript. These workflows do not configure branch protection or repository security features by themselves.
+
+## Installation troubleshooting
+
+This project uses public npm packages and does not require npm login. If `npm ci` returns E401 on a machine configured for a private company registry, try:
+
+```bash
+npm ci --registry=https://registry.npmjs.org/
+```
+
+A failed installation leaves `next` unavailable, so fix the install before running `npm run dev`. Do not commit registry credentials or change shared company authentication to run this app.

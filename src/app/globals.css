@@ -4,7 +4,7 @@
 }
 :root {
   --navy: #102b3c;
-  --muted: #68778a;
+  --muted: #617084;
   --line: #deded5;
   --paper: #fffdf7;
 }
@@ -32,6 +32,7 @@ button:disabled {
   letter-spacing: -1.2px;
 }
 .nav-link {
+  min-height: 44px;
   font-size: 13px;
   color: #536579;
 }
@@ -104,6 +105,7 @@ button:disabled {
     font-size: 24px;
   }
   .nav-link {
+    min-height: 44px;
     font-size: 12px;
   }
 }

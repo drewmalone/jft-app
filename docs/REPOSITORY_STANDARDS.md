@@ -6,10 +6,10 @@ This is the reference policy for `jft-app` and a future matching change in `jft-
 
 Use `npm run check` locally and in GitHub Actions after `npm ci`. Individual scripts remain callable.
 
-- App: `format:check` → `test` → `build` → `typecheck`. The build generates Next.js route types.
+- App: `format:check` → `lint` → `test` → `build` → `typecheck`. The build generates Next.js route types.
 - Harness adoption: `format:check` → `test` → `typecheck`. Include a build only if the harness actually gains a build step.
 
-The command name and purpose match; the checks reflect the project. Neither default suite needs credentials or live external services.
+The command name and purpose match; the checks reflect the project. Neither default suite needs credentials or live external services. The app additionally runs Playwright mobile/desktop Chromium tests in CI after `check`. Browser installation is explicit; the harness need not copy UI tests or Next.js lint presets.
 
 ## 2. Formatting
 
