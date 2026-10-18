@@ -33,7 +33,7 @@ npm run format
 npm run check
 ```
 
-`check` runs formatting, linting, tests, production build, and TypeScript in that order. It needs no credentials or external services once dependencies are installed. Separate scripts remain available for focused work.
+`check` runs formatting, linting, unit tests, and the production build. Next.js 15 checks TypeScript during the build, so the sequence does not run the same type check again. `typecheck` remains available for focused development. It needs no credentials or external services once dependencies are installed. Separate scripts remain available for focused work.
 
 ## Organization and documentation
 
@@ -57,6 +57,4 @@ Use **Squash and merge** with the validated PR title as the commit title. Follow
 
 ## Dependency maintenance
 
-Commit `package-lock.json` and install with `npm ci`. Dependabot proposes updates weekly on Monday at 09:00 America/Chicago, grouping minor and patch updates per ecosystem and leaving major updates separate. Review security updates promptly and run the full checks before merging; dependency PRs are not automatically merged.
-
-Dependency Review blocks newly introduced high or critical known vulnerabilities. CodeQL checks JavaScript/TypeScript on PRs, pushes to `main`, and weekly. These tools do not replace code review or prove the app is free of vulnerabilities.
+Commit `package-lock.json` and install with `npm ci`. Review dependency changes and merge manually after checks pass. See [shared repository standards](docs/REPOSITORY_STANDARDS.md#7-dependency-and-security-maintenance) for the update schedule, grouping, and security-check policy. Those cross-repository decisions are maintained there rather than repeated here.

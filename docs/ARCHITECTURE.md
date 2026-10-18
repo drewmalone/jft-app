@@ -4,14 +4,14 @@ Doorknob groups code by responsibility, with the share feature kept together. Ne
 
 ## Responsibilities
 
-- **`src/app/page.tsx`** is the server-rendered route entry. It composes the fixed reading into the interactive share experience.
+- **`src/app/page.tsx`** is the server-rendered route entry. It renders the interactive share experience without a content-injection prop.
 - **`src/app/layout.tsx`** supplies page metadata and the shared stylesheet.
 - **`src/app/globals.css`** supplies the ivory and navy palette, serif typography, responsive spacing, and focus styles alongside Tailwind utilities.
 - **`src/shares/share-app.tsx`** is the client boundary. It owns the current screen, draft, history, loading/error feedback, and heading focus. The screen state carries a share only for saved/detail views, so those views cannot exist without the record they display.
-- **`src/shares/components/`** contains the reading, form, history, and detail presentation components. Props express their inputs and callbacks; they do not access storage. The reading is rendered by the server and passed into the client as content. Components imported by the client boundary run as part of its client tree without redundant `use client` directives.
-- **`src/shares/shares.ts`** owns the fixed reading, share type, versioned storage key, creation, and runtime validation. It has no dependency on React or browser storage.
+- **`src/shares/components/`** contains the reading, form, history, and detail presentation components. Props express their inputs and callbacks; they do not access storage. The share controller composes the reading directly. Components imported by the client boundary run as part of its client tree without redundant `use client` directives.
+- **`src/shares/shares.ts`** owns the fixed reading, versioned storage key, creation, and Zod schemas. Share and reflection types are inferred from those schemas, keeping the TypeScript and runtime contracts together. Unknown fields are preserved for forward compatibility; invalid records still fail without overwriting history. It has no dependency on React or browser storage.
 - **`src/shares/storage.ts`** reads and writes validated history. It accepts the small storage API it needs, so error behavior can be tested without a browser. Browser storage is accessed only after mounting or in event handlers.
-- **`src/shares/dates.ts`** formats full saved dates consistently in the reader's local time zone.
+- **`src/shares/dates.ts`** formats saved timestamps in the reader's local time zone and reading calendar dates in UTC, preventing calendar dates from moving to the previous day.
 - **`tests/shares/`** verifies data and persistence contracts. **`tests/e2e/`** checks real user flows in mobile and desktop Chromium.
 
 ## Save and read flow
@@ -38,7 +38,7 @@ Keep components at meaningful UI boundaries. Do not extract every heading, butto
 
 ## Verification
 
-`npm run check` runs Prettier, ESLint's Next.js/Core Web Vitals and TypeScript presets, unit tests, production compilation, and TypeScript. Prettier owns formatting; linting owns code rules. The ESLint configuration matches the installed Next.js 15 major rather than copying a newer major's configuration blindly.
+[CONTRIBUTING.md](../CONTRIBUTING.md#commands) owns verification commands and lint/format conventions. The ESLint configuration matches Next.js 15. Its production build checks TypeScript, so no second type check is included in `check`.
 
 `npm run test:e2e` runs Playwright against the production build on port 3100, with isolated storage per test. It covers persistence, full-share reading, newest-first ordering, empty input, heading focus, draft retention, quota failures, and malformed history on mobile and desktop Chromium. CI installs Chromium and runs this after `check`. Firefox, Safari, and complete accessibility conformance are not covered by these tests.
 
@@ -47,7 +47,7 @@ Keep components at meaningful UI boundaries. Do not extract every heading, butto
 Reviewed against official documentation:
 
 - [Next.js project structure](https://nextjs.org/docs/app/getting-started/project-structure): keep framework entry points and feature ownership clear; Next.js does not mandate a universal folder tree.
-- [Next.js server and client components](https://nextjs.org/docs/app/getting-started/server-and-client-components): browser APIs and interaction belong behind a client boundary; static server content can be passed into that tree.
+- [Next.js server and client components](https://nextjs.org/docs/app/getting-started/server-and-client-components): browser APIs and interaction belong behind a client boundary. This small feature composes its own reading rather than adding a server-content prop for minimal benefit.
 - [React state structure](https://react.dev/learn/choosing-the-state-structure): group state that changes together and avoid contradictory or redundant state.
 - [Next.js 15 ESLint configuration](https://nextjs.org/docs/15/app/api-reference/config/eslint): use framework, hooks, accessibility, and TypeScript rules appropriate to the installed version.
 - [W3C form instructions](https://www.w3.org/WAI/tutorials/forms/instructions/): provide labels and associate supporting instructions with controls.

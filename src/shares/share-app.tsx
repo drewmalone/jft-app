@@ -1,17 +1,12 @@
 'use client';
 
-import {
-  useEffect,
-  useRef,
-  useState,
-  type ReactNode,
-  type FormEvent
-} from 'react';
+import { useEffect, useRef, useState, type FormEvent } from 'react';
 import type { Share } from './shares';
 import { readShares, saveShare } from './storage';
 import { ShareForm } from './components/share-form';
 import { ShareHistory } from './components/share-history';
 import { ShareDetail } from './components/share-detail';
+import { ReflectionReading } from './components/reflection-reading';
 
 type Screen =
   { view: 'today' | 'past' } | { view: 'saved' | 'detail'; share: Share };
@@ -35,7 +30,7 @@ const screenCopy = {
 };
 
 /** Owns the local writing, confirmation, history, and full-share views. */
-export function ShareApp({ reading }: { reading: ReactNode }) {
+export function ShareApp() {
   const [screen, setScreen] = useState<Screen>({ view: 'today' });
   const { view } = screen;
   const [text, setText] = useState('');
@@ -118,7 +113,7 @@ export function ShareApp({ reading }: { reading: ReactNode }) {
         </button>
       </header>
       <main className="mx-auto max-w-xl px-6 pb-12 pt-10 sm:px-8 sm:pt-14">
-        {view === 'today' && reading}
+        {view === 'today' && <ReflectionReading />}
         {view === 'saved' && (
           <div
             className="check mx-auto mb-7 flex h-16 w-16 items-center justify-center rounded-full text-3xl"

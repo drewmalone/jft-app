@@ -19,10 +19,14 @@ test('saves, persists, and opens shares in newest-first order', async ({
   await expect(page.locator('article')).toContainText('One small step.');
   await page.reload();
   await page
+    .getByRole('banner')
     .getByRole('button', { name: 'Past shares', exact: true })
-    .first()
     .click();
-  await page.getByRole('listitem').first().getByRole('button').click();
+  await page
+    .getByRole('listitem')
+    .filter({ hasText: 'A fictional first thought.' })
+    .getByRole('button')
+    .click();
   await expect(page.locator('article')).toContainText(
     'A fictional first thought.'
   );
@@ -32,8 +36,8 @@ test('saves, persists, and opens shares in newest-first order', async ({
   await page.getByRole('textbox').fill('A fictional second thought.');
   await save.click();
   await page
+    .getByRole('main')
     .getByRole('button', { name: 'Past shares', exact: true })
-    .last()
     .click();
   await expect(page.getByRole('listitem').first()).toContainText(
     'A fictional second thought.'
@@ -96,7 +100,10 @@ test('shows the empty history and retains a draft between views', async ({
 }) => {
   await page.goto('/');
   await page.getByRole('textbox').fill('An unfinished fictional draft.');
-  await page.getByRole('button', { name: 'Past shares', exact: true }).click();
+  await page
+    .getByRole('banner')
+    .getByRole('button', { name: 'Past shares', exact: true })
+    .click();
   await expect(page.getByText('A place for your words.')).toBeVisible();
   await page.getByRole('button', { name: 'Write your first share' }).click();
   await expect(page.getByRole('textbox')).toHaveValue(

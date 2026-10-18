@@ -4,22 +4,17 @@ This is the reference policy for `jft-app` and a future matching change in `jft-
 
 ## 1. One verification command
 
-Use `npm run check` locally and in GitHub Actions after `npm ci`. Individual scripts remain callable.
+Use `npm run check` locally and in CI after `npm ci`. [CONTRIBUTING.md](../CONTRIBUTING.md#commands) owns the app's command descriptions. Next.js 15's build already checks TypeScript; do not run a second type check afterward. The harness copy should include its standalone type check because it has no equivalent build.
 
-- App: `format:check` → `lint` → `test` → `build` → `typecheck`. The build generates Next.js route types.
-- Harness adoption: `format:check` → `test` → `typecheck`. Include a build only if the harness actually gains a build step.
-
-The command name and purpose match; the checks reflect the project. Neither default suite needs credentials or live external services. The app additionally runs Playwright mobile/desktop Chromium tests in CI after `check`. Browser installation is explicit; the harness need not copy UI tests or Next.js lint presets.
+The app additionally runs Playwright after `check`; the harness need not copy UI tests or Next.js lint presets. Both default suites use fictional data and require no live service credentials.
 
 ## 2. Formatting
 
-Commit `.prettierrc.json`, `.prettierignore`, and `.editorconfig`. Use two spaces, LF, UTF-8, final newlines, 80-column print width, single quotes in TypeScript, and no trailing commas. Markdown retains intentional trailing spaces.
-
-Pin the same exact Prettier version in both repositories and expose `format` and `format:check`. Ignore generated files, dependency directories, coverage, and lockfile formatting. The app additionally ignores `.next/` and generated Next.js declarations; the harness should ignore its generated traces. Do not add a Tailwind-specific formatter plugin to the shared baseline.
+Copy `.prettierrc.json`, `.prettierignore`, and `.editorconfig`, plus the exact Prettier version and format scripts. The configuration files own formatting values; do not maintain separate descriptions of those values in multiple guides. Adjust ignore lists for each project's generated files. No Tailwind-specific formatter plugin is part of the shared baseline.
 
 ## 3. PR template
 
-Use `.github/pull_request_template.md` with Summary, Validation, and Limitations. Summaries explain resulting behavior and decisions. Validation distinguishes automated results from manual evidence. Limitations state unverified behavior, data implications, and pending setup. Keep the Conventional Commits title workflow.
+Copy [.github/pull_request_template.md](../.github/pull_request_template.md) and the Conventional Commits workflow. [CONTRIBUTING.md](../CONTRIBUTING.md#pull-requests-and-merging) owns the authoring instructions; the template owns section prompts.
 
 ## 4. Repository settings
 

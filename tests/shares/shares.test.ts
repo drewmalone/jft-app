@@ -32,3 +32,25 @@ test('rejects malformed storage instead of silently discarding history', () => {
     assert.throws(() => parseShares(raw));
   }
 });
+
+test('rejects records outside the saved share contract', () => {
+  const share = createShare('A fictional thought.');
+  const invalid = [
+    { ...share, id: 'not-a-uuid' },
+    { ...share, createdAt: '2025-04-23' },
+    { ...share, kind: 'audio' },
+    { ...share, text: ' \n ' },
+    { ...share, reflection: { ...share.reflection, title: '' } },
+    { ...share, reflection: { ...share.reflection, date: '2025-02-30' } }
+  ];
+  for (const value of invalid)
+    assert.throws(() => parseShares(JSON.stringify([value])));
+});
+
+test('preserves unknown fields while validating stored records', () => {
+  const share = {
+    ...createShare('A fictional thought.'),
+    futureMetadata: { source: 'example' }
+  };
+  assert.deepEqual(parseShares(JSON.stringify([share])), [share]);
+});

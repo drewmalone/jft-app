@@ -1,10 +1,11 @@
 import { reflection } from '../shares';
+import { readingDateLabel } from '../dates';
 
 /** Displays the fixed reading for this milestone. */
 export function ReflectionReading() {
   return (
     <section className="reading text-center" aria-label="Today's reflection">
-      <p className="eyebrow">Wednesday, April 23, 2025</p>
+      <p className="eyebrow">{readingDateLabel(reflection.date)}</p>
       <p className="mt-6 font-serif text-[27px] leading-snug sm:text-3xl">
         {reflection.title}
       </p>

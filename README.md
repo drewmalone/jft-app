@@ -45,7 +45,7 @@ This milestone includes no audio, transcription, AI, authentication, database, s
 npm run check
 ```
 
-GitHub Actions runs the same `npm run check` command after `npm ci` on pull requests and pushes to `main`. It checks formatting, React/Next.js lint rules, unit tests, the production build, and TypeScript. The build generates Next.js route types before the explicit TypeScript check. Tests require no credentials or external services.
+GitHub Actions runs the same `npm run check` command after `npm ci` on pull requests and pushes to `main`. See [contributor commands](CONTRIBUTING.md#commands) for its steps. The Next.js build includes TypeScript validation. Tests require no credentials or external services.
 
 Unit tests cover share creation, validation, ordering, and storage failures. Playwright tests cover save/reload persistence, full-share reading, ordering, draft retention, and storage errors in mobile and desktop Chromium. CI runs them after `check`.
 

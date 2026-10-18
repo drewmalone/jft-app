@@ -10,14 +10,15 @@
     "test": "node --import tsx --test tests/shares/*.test.ts",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
-    "check": "npm run format:check && npm run lint && npm test && npm run build && npm run typecheck",
+    "check": "npm run format:check && npm run lint && npm test && npm run build",
     "lint": "eslint . --max-warnings=0",
     "test:e2e": "playwright test"
   },
   "dependencies": {
     "next": "^15.5.0",
     "react": "^19.1.0",
-    "react-dom": "^19.1.0"
+    "react-dom": "^19.1.0",
+    "zod": "^4.6.7"
   },
   "devDependencies": {
     "@eslint/eslintrc": "^3.3.7",

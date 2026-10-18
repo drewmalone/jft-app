@@ -6,3 +6,14 @@ export function dateLabel(date: string): string {
     year: 'numeric'
   });
 }
+
+/** Formats a reading's calendar date without shifting it to the previous day locally. */
+export function readingDateLabel(date: string): string {
+  return new Intl.DateTimeFormat('en-US', {
+    weekday: 'long',
+    month: 'long',
+    day: 'numeric',
+    year: 'numeric',
+    timeZone: 'UTC'
+  }).format(new Date(`${date}T00:00:00Z`));
+}
