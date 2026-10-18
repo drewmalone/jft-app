@@ -22,38 +22,72 @@ function secret() {
   }
   return (processState.doorknobSessionSecret ??= randomBytes(32));
 }
-function signature(payload: string) {
-  return createHmac('sha256', secret()).update(payload).digest('base64url');
+const expirySchema = z
+  .string()
+  .refine((value) => String(Number(value)) === value, 'Expected epoch seconds')
+  .transform((value) => Number(value))
+  .pipe(z.number().int().positive().max(Number.MAX_SAFE_INTEGER));
+const signatureSchema = z
+  .string()
+  .refine((value) => {
+    const decoded = Buffer.from(value, 'base64url');
+    if (decoded.length !== 32) return false;
+    return decoded.toString('base64url') === value;
+  }, 'Expected a base64url SHA-256 signature')
+  .transform((value) => Buffer.from(value, 'base64url'));
+const credentialSchema = z
+  .tuple([z.uuid(), expirySchema, signatureSchema])
+  .transform(([ownerId, expiresAt, signature]) => ({
+    ownerId,
+    expiresAt,
+    signature
+  }));
+type SessionCredential = z.infer<typeof credentialSchema>;
+type SessionPayload = Pick<SessionCredential, 'ownerId' | 'expiresAt'>;
+
+/** Validated identity and a cookie value only when a new session was issued. */
+export type AnonymousSession = {
+  ownerId: SessionCredential['ownerId'];
+  credential: string | null;
+};
+
+function encodePayload(payload: SessionPayload): string {
+  return `${payload.ownerId}.${payload.expiresAt}`;
+}
+function signature(payload: SessionPayload): Buffer {
+  return createHmac('sha256', secret()).update(encodePayload(payload)).digest();
 }
 
 /** Invalid credentials are rejected rather than treated as an ownership ID. */
 export class InvalidSessionError extends Error {}
 
 /** Read a signed credential or issue a fresh server-generated anonymous identity. */
-export function getSession(request: NextRequest) {
+export function getSession(request: NextRequest): AnonymousSession {
   const credential = request.cookies.get(cookieName)?.value;
   if (credential === undefined) {
-    const ownerId = randomUUID();
-    const expires = Math.floor(Date.now() / 1000) + lifetimeSeconds;
-    const payload = `${ownerId}.${expires}`;
-    return { ownerId, credential: `${payload}.${signature(payload)}` };
+    const payload: SessionPayload = {
+      ownerId: randomUUID(),
+      expiresAt: Math.floor(Date.now() / 1000) + lifetimeSeconds
+    };
+    const signed = signature(payload).toString('base64url');
+    return {
+      ownerId: payload.ownerId,
+      credential: `${encodePayload(payload)}.${signed}`
+    };
   }
-  const parts = credential.split('.');
-  const [ownerId, expires, suppliedSignature] = parts;
-  if (
-    parts.length !== 3 ||
-    !z.uuid().safeParse(ownerId).success ||
-    !/^\d+$/.test(expires) ||
-    !Number.isSafeInteger(Number(expires)) ||
-    Number(expires) <= Math.floor(Date.now() / 1000) ||
-    !/^[A-Za-z0-9_-]{43}$/.test(suppliedSignature)
-  )
-    throw new InvalidSessionError();
-  const expected = Buffer.from(signature(`${ownerId}.${expires}`));
-  if (!timingSafeEqual(expected, Buffer.from(suppliedSignature))) {
-    throw new InvalidSessionError();
-  }
-  return { ownerId, credential: null };
+
+  const parsed = credentialSchema.safeParse(credential.split('.'));
+  if (!parsed.success) throw new InvalidSessionError();
+
+  const session = parsed.data;
+  const expired = session.expiresAt <= Math.floor(Date.now() / 1000);
+  if (expired) throw new InvalidSessionError();
+
+  const expected = signature(session);
+  const supplied = session.signature;
+  if (!timingSafeEqual(expected, supplied)) throw new InvalidSessionError();
+
+  return { ownerId: session.ownerId, credential: null };
 }
 
 /** Only a newly issued session sets a cookie; existing credentials are not refreshed. */
