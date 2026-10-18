@@ -44,6 +44,8 @@ After this initial PR is merged and the workflows have registered successful che
 
 Select the check runs emitted by the corresponding GitHub Actions workflows, rather than similarly named checks from another source. Confirm their actual names in GitHub before configuring the rule. Require checks only after their first successful run so initialization is not blocked by checks that do not exist yet.
 
+The first Dependency Review run in this PR failed because the dependency graph is disabled. Enable it under GitHub Settings → Security → Advanced Security (the `settings/security_analysis` page), then rerun Dependency Review. The workflow intentionally remains failing until its prerequisite is available.
+
 Enable the dependency graph, Dependabot alerts, and Dependabot security updates. Confirm Actions and code scanning are enabled and that CodeQL uses the committed workflow rather than duplicate default setup. Repository rules and feature availability must be verified in GitHub; no branch-protection or security-setting change is claimed here.
 
 ## 5. Contributor instructions
