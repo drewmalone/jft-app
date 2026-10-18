@@ -1,17 +1,12 @@
 import 'server-only';
-import {
-  createHmac,
-  randomBytes,
-  randomUUID,
-  timingSafeEqual
-} from 'node:crypto';
-import { parse, serialize } from 'hono/utils/cookie';
+import { randomBytes, randomUUID } from 'node:crypto';
+import { parse, parseSigned, serializeSigned } from 'hono/utils/cookie';
 import { z } from 'zod';
 
 const cookieName = 'doorknob-session';
 const lifetimeSeconds = 60 * 60 * 24 * 30;
 const processState = globalThis as typeof globalThis & {
-  doorknobSessionSecret?: Buffer;
+  doorknobSessionSecret?: string;
 };
 
 function secret() {
@@ -20,46 +15,22 @@ function secret() {
   if (process.env.NODE_ENV === 'production' || configured) {
     throw new Error('SESSION_SECRET must contain at least 32 bytes.');
   }
-  return (processState.doorknobSessionSecret ??= randomBytes(32));
+  return (processState.doorknobSessionSecret ??=
+    randomBytes(32).toString('base64'));
 }
-// Require canonical encodings before reconstructing the payload for HMAC verification.
-const expirySchema = z
-  .string()
-  .refine((value) => String(Number(value)) === value, 'Expected epoch seconds')
-  .transform((value) => Number(value))
-  .pipe(z.number().int().positive().max(Number.MAX_SAFE_INTEGER));
-const signatureSchema = z
-  .string()
-  .refine((value) => {
-    const decoded = Buffer.from(value, 'base64url');
-    if (decoded.length !== 32) return false;
-    return decoded.toString('base64url') === value;
-  }, 'Expected a base64url SHA-256 signature')
-  .transform((value) => Buffer.from(value, 'base64url'));
-const credentialSchema = z
-  .tuple([z.uuid(), expirySchema, signatureSchema])
-  .transform(([ownerId, expiresAt, signature]) => ({
-    ownerId,
-    expiresAt,
-    signature
-  }));
-type SessionCredential = z.infer<typeof credentialSchema>;
-type SessionPayload = Pick<SessionCredential, 'ownerId' | 'expiresAt'>;
+const payloadSchema = z.strictObject({
+  ownerId: z.uuid(),
+  expiresAt: z.number().int().positive().max(Number.MAX_SAFE_INTEGER)
+});
+type SessionPayload = z.infer<typeof payloadSchema>;
 
 /** Session boundary result; the serialized credential is a bearer secret, not share data. */
 export type AnonymousSession = {
   /** Verified or server-generated owner; safe to use for repository ownership checks. */
-  ownerId: SessionCredential['ownerId'];
-  /** New signed cookie value, or null for an existing session. Never log or return in JSON. */
+  ownerId: SessionPayload['ownerId'];
+  /** New JSON payload for signing, or null for an existing session. Never log or return in JSON. */
   credential: string | null;
 };
-
-function encodePayload(payload: SessionPayload): string {
-  return `${payload.ownerId}.${payload.expiresAt}`;
-}
-function signature(payload: SessionPayload): Buffer {
-  return createHmac('sha256', secret()).update(encodePayload(payload)).digest();
-}
 
 /**
  * Signals a malformed, expired, or incorrectly signed cookie.
@@ -69,64 +40,64 @@ function signature(payload: SessionPayload): Buffer {
 export class InvalidSessionError extends Error {}
 
 /**
- * Verifies an incoming cookie, or creates an identity only when the cookie is absent.
- * Parsing converts the expiry to epoch seconds and the signature to 32 validated bytes
- * before the timing-safe HMAC comparison. Existing sessions have absolute expiry;
- * reading them does not extend their lifetime. This function does not set cookies.
- * @param request - Incoming request containing the untrusted session cookie, if any.
- * @returns The verified/new owner and an optional credential for setSessionCookie.
- * @throws InvalidSessionError for malformed, expired, or forged credentials.
- * @throws When signing configuration is invalid or server crypto operations fail.
- * A nonempty configured secret must contain at least 32 bytes; production requires
- * one. Development otherwise uses a process-global random secret.
+ * Verifies a Hono-signed JSON payload, or issues an owner only when no cookie exists.
+ * @param request - Incoming request with an optional untrusted session cookie.
+ * @returns The owner and a new payload to serialize, or null for an existing session.
+ * @throws InvalidSessionError for malformed, forged, or expired credentials.
+ * @throws If signing configuration or cryptographic operations fail.
  */
-export function getSession(request: Request): AnonymousSession {
-  const credential = parse(request.headers.get('cookie') ?? '', cookieName)[
-    cookieName
-  ];
-  if (credential === undefined) {
+export async function getSession(request: Request): Promise<AnonymousSession> {
+  const cookie = request.headers.get('cookie') ?? '';
+  const supplied = parse(cookie, cookieName)[cookieName];
+  if (
+    supplied === undefined &&
+    cookie
+      .split(';')
+      .some((part) => part.trimStart().startsWith(`${cookieName}=`))
+  )
+    throw new InvalidSessionError();
+  if (supplied === undefined) {
+    secret(); // Fail closed before a route can write when configuration is invalid.
     const payload: SessionPayload = {
       ownerId: randomUUID(),
       expiresAt: Math.floor(Date.now() / 1000) + lifetimeSeconds
     };
-    const signed = signature(payload).toString('base64url');
-    return {
-      ownerId: payload.ownerId,
-      credential: `${encodePayload(payload)}.${signed}`
-    };
+    return { ownerId: payload.ownerId, credential: JSON.stringify(payload) };
   }
-
-  const parsed = credentialSchema.safeParse(credential.split('.'));
-  if (!parsed.success) throw new InvalidSessionError();
-
-  const session = parsed.data;
-  const expired = session.expiresAt <= Math.floor(Date.now() / 1000);
-  if (expired) throw new InvalidSessionError();
-
-  const expected = signature(session);
-  const supplied = session.signature;
-  if (!timingSafeEqual(expected, supplied)) throw new InvalidSessionError();
-
-  return { ownerId: session.ownerId, credential: null };
+  // Hono omits some malformed signatures; only a genuinely absent cookie bootstraps.
+  const verified = (await parseSigned(cookie, secret(), cookieName))[
+    cookieName
+  ];
+  if (typeof verified !== 'string') throw new InvalidSessionError();
+  let value: unknown;
+  try {
+    value = JSON.parse(verified);
+  } catch {
+    throw new InvalidSessionError();
+  }
+  const parsed = payloadSchema.safeParse(value);
+  if (!parsed.success || parsed.data.expiresAt <= Math.floor(Date.now() / 1000))
+    throw new InvalidSessionError();
+  return { ownerId: parsed.data.ownerId, credential: null };
 }
 
 /**
  * Attaches a newly issued host-only cookie to the supplied response in place.
  * Uses HttpOnly, SameSite=Lax, path /, a 30-day Max-Age, and Secure in production.
  * @param response - Response to mutate before returning it to the browser.
- * @param credential - Value issued by getSession; null leaves cookies unchanged.
+ * @param credential - Payload issued by getSession; null leaves cookies unchanged.
  * @throws If cookie serialization fails; the API error handler converts that failure to 500.
  * @remarks Existing sessions are not refreshed. This helper does not verify values;
  * callers must never pass an arbitrary client-provided string as a credential.
  */
-export function setSessionCookie(
+export async function setSessionCookie(
   response: Response,
   credential: string | null
 ) {
   if (credential)
     response.headers.append(
       'Set-Cookie',
-      serialize(cookieName, credential, {
+      await serializeSigned(cookieName, credential, secret(), {
         httpOnly: true,
         secure: process.env.NODE_ENV === 'production',
         sameSite: 'lax',

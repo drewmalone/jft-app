@@ -297,3 +297,59 @@ test('real HTTP requests retain shares and isolate browser sessions', async ({
     ).status()
   ).toBe(404);
 });
+
+test('background history does not block saving or overwrite fresh history', async ({
+  page
+}) => {
+  await page.goto('/');
+  await page.getByRole('textbox').fill('A fictional independent save.');
+  await expect(
+    page.getByRole('button', { name: 'Save privately' })
+  ).toBeEnabled();
+  let release!: () => void;
+  const pending = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  let captured!: () => void;
+  const capturedHistory = new Promise<void>((resolve) => {
+    captured = resolve;
+  });
+  let reads = 0;
+  await page.route('**/api/shares', async (route) => {
+    if (route.request().method() === 'GET' && ++reads === 1) {
+      const response = await route.fetch();
+      captured();
+      await pending;
+      await route.fulfill({ response });
+    } else await route.continue();
+  });
+  const navigation = page.getByRole('banner');
+  await navigation
+    .getByRole('button', { name: 'Past shares', exact: true })
+    .click();
+  await capturedHistory;
+  await expect(page.getByRole('status')).toHaveText('Loading your shares…');
+  await navigation
+    .getByRole('button', { name: 'Today’s reflection', exact: true })
+    .click();
+  await expect(
+    page.getByRole('button', { name: 'Save privately' })
+  ).toBeEnabled();
+  await page.getByRole('button', { name: 'Save privately' }).click();
+  await expect(
+    page.getByRole('heading', { name: 'Your share has been saved.' })
+  ).toBeVisible();
+  await page
+    .getByRole('main')
+    .getByRole('button', { name: 'Past shares', exact: true })
+    .click();
+  await expect(page.getByRole('listitem')).toHaveCount(1);
+  const oldResponse = page.waitForResponse(
+    (response) =>
+      response.request().method() === 'GET' &&
+      response.url().endsWith('/api/shares')
+  );
+  release();
+  await oldResponse;
+  await expect(page.getByRole('listitem')).toHaveCount(1);
+});

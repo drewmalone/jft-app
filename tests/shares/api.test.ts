@@ -1,6 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { createHmac, randomUUID } from 'node:crypto';
+import { randomUUID } from 'node:crypto';
+import { serializeSigned } from 'hono/utils/cookie';
 import { NextRequest } from 'next/server';
 import { GET, POST } from '../../src/app/api/shares/route';
 import { GET as getDetail } from '../../src/app/api/shares/[id]/route';
@@ -110,18 +111,16 @@ test('returns 404 for nonexistent and other owners shares; isolates anonymous se
 
 test('rejects forged, unsigned, empty, malformed and expired session credentials', async () => {
   const valid = await session();
-  const credential = valid.split('=')[1];
-  const [owner, expires, signature] = credential.split('.');
+  const credential = decodeURIComponent(valid.slice(valid.indexOf('=') + 1));
   for (const forged of [
     '',
     randomUUID(),
     'garbage',
-    `${randomUUID()}.${expires}.${signature}`,
-    `${owner}.${expires}.${signature.slice(0, -1)}!`,
-    `${owner}.1.${signature}`,
-    `${owner}.${expires}.${signature}.extra`
+    credential.replace(/.$/, '!'),
+    credential.replace('ownerId', 'forgedId'),
+    credential + '.extra'
   ]) {
-    const cookie = `doorknob-session=${forged}`;
+    const cookie = `doorknob-session=${encodeURIComponent(forged)}`;
     assert.equal((await GET(request('GET', cookie))).status, 401);
     assert.equal(
       (await POST(request('POST', cookie, { text: 'Fictional thought.' })))
@@ -130,6 +129,13 @@ test('rejects forged, unsigned, empty, malformed and expired session credentials
     );
     assert.equal((await detail(randomUUID(), cookie)).status, 401);
   }
+});
+
+test('rejects a supplied cookie that the library cannot parse', async () => {
+  assert.equal(
+    (await GET(request('GET', 'doorknob-session=invalid"value'))).status,
+    401
+  );
 });
 
 test('rejects cross-origin writes', async () => {
@@ -168,15 +174,15 @@ test('production cookies are Secure and an authentic expired signature is reject
   assert.equal(response.status, 200);
   assert.match(response.headers.get('set-cookie')!, /; Secure/i);
   assert.match(response.headers.get('set-cookie')!, /Max-Age=2592000/i);
-  const payload = `${randomUUID()}.${Math.floor(Date.now() / 1000) - 1}`;
-  const signature = createHmac('sha256', secret)
-    .update(payload)
-    .digest('base64url');
-  assert.equal(
-    (await GET(request('GET', `doorknob-session=${payload}.${signature}`)))
-      .status,
-    401
+  const expired = await serializeSigned(
+    'doorknob-session',
+    JSON.stringify({
+      ownerId: randomUUID(),
+      expiresAt: Math.floor(Date.now() / 1000) - 1
+    }),
+    secret
   );
+  assert.equal((await GET(request('GET', expired))).status, 401);
   delete process.env.SESSION_SECRET;
   assert.equal((await GET(request())).status, 500);
   process.env.SESSION_SECRET = 'too-short';
@@ -196,70 +202,34 @@ test('accepts same-origin requests when the listening hostname differs from Host
   assert.equal((await POST(req)).status, 201);
 });
 
-test('validates signed credential fields before using the typed session', async (context) => {
+test('validates signed JSON payloads before trusting session ownership', async (context) => {
   const secret = 'fictional-parser-test-secret-at-least-32-bytes';
   context.mock.property(process, 'env', {
     ...process.env,
     SESSION_SECRET: secret
   });
-  const ownerId = randomUUID();
-  const expires = String(Math.floor(Date.now() / 1000) + 3600);
-  function sign(expiry: string) {
-    const payload = `${ownerId}.${expiry}`;
-    const digest = createHmac('sha256', secret)
-      .update(payload)
-      .digest('base64url');
-    return `${payload}.${digest}`;
-  }
-  const valid = await GET(request('GET', `doorknob-session=${sign(expires)}`));
-  assert.equal(valid.status, 200);
-  assert.equal(valid.headers.get('set-cookie'), null);
-
-  // Even correctly signed input must satisfy the credential schema.
-  for (const expiry of [
-    '',
-    '0',
-    '-1',
-    'NaN',
-    'Infinity',
-    '1.5',
-    '1e10',
-    '0x123',
-    '9007199254740992',
-    `0${expires}`,
-    `+${expires}`
-  ]) {
-    assert.equal(
-      (await GET(request('GET', `doorknob-session=${sign(expiry)}`))).status,
-      401
-    );
-  }
-
-  const credential = sign(expires);
-  const digest = credential.split('.')[2];
-  const alphabet =
-    'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_';
-  const lastCharacter = alphabet.indexOf(digest.at(-1)!);
-  const noncanonical = digest.slice(0, -1) + alphabet[lastCharacter + 1];
-  // Node's decoder tolerates unused trailing bits; the cookie parser must not.
-  assert.deepEqual(
-    Buffer.from(noncanonical, 'base64url'),
-    Buffer.from(digest, 'base64url')
+  const payload = {
+    ownerId: randomUUID(),
+    expiresAt: Math.floor(Date.now() / 1000) + 3600
+  };
+  const valid = await serializeSigned(
+    'doorknob-session',
+    JSON.stringify(payload),
+    secret
   );
-  for (const supplied of [
-    digest.slice(1),
-    digest + 'A',
-    '!'.repeat(43),
-    'A'.repeat(43),
-    noncanonical
+  const response = await GET(request('GET', valid));
+  assert.equal(response.status, 200);
+  assert.equal(response.headers.get('set-cookie'), null);
+  for (const value of [
+    'invalid JSON',
+    JSON.stringify(null),
+    JSON.stringify({ ...payload, ownerId: 'forged' }),
+    ...['', 0, -1, 1.5, '1e10', Number.MAX_SAFE_INTEGER + 1].map((expiresAt) =>
+      JSON.stringify({ ...payload, expiresAt })
+    ),
+    JSON.stringify({ ...payload, extra: true })
   ]) {
-    assert.equal(
-      (
-        await GET(
-          request('GET', `doorknob-session=${ownerId}.${expires}.${supplied}`)
-        )
-      ).status,
-      401
-    );
+    const cookie = await serializeSigned('doorknob-session', value, secret);
+    assert.equal((await GET(request('GET', cookie))).status, 401);
   }
 });

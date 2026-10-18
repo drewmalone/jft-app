@@ -252,7 +252,13 @@ test('HEAD enforces ownership/session rules with no bodies; OPTIONS and 405 adve
       assert.equal(rejected.status, 405);
       assert.equal(rejected.headers.get('Allow'), allow);
       assert.equal(rejected.headers.get('Set-Cookie'), null);
-      await contract(rejected, specPath);
+      assert.deepEqual(await rejected.json(), {
+        error: {
+          code: 'METHOD_NOT_ALLOWED',
+          message: 'This HTTP method is not supported for this resource.'
+        }
+      });
+      assert.equal(rejected.headers.get('Cache-Control'), 'private, no-store');
     }
   }
   const missing = await request('HEAD', `/api/shares/${created.id}`);
@@ -265,7 +271,8 @@ test('HEAD enforces ownership/session rules with no bodies; OPTIONS and 405 adve
     '{}'
   );
   assert.equal(wrongPost.status, 405);
-  await contract(wrongPost, '/api/shares/{id}', 'get');
+  assert.equal((await wrongPost.json()).error.code, 'METHOD_NOT_ALLOWED');
+  assert.equal(wrongPost.headers.get('Allow'), detailAllow);
 });
 
 test('the text limit counts Unicode code points consistently with OpenAPI maxLength', async () => {
@@ -301,4 +308,21 @@ test('internal failures retain the generic coded envelope and do not issue cooki
   assert.equal((await failed.clone().json()).error.code, 'INTERNAL_ERROR');
   assert.equal(failed.headers.get('set-cookie'), null);
   await contract(failed);
+});
+
+test('error contracts reject codes belonging to a different HTTP status', async () => {
+  await assert.rejects(
+    contract(
+      Response.json(
+        { error: { code: 'INTERNAL_ERROR', message: 'Fictional error.' } },
+        {
+          status: 401,
+          headers: {
+            'Cache-Control': 'private, no-store',
+            'WWW-Authenticate': SESSION_CHALLENGE
+          }
+        }
+      )
+    )
+  );
 });

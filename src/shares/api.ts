@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { shareSchema } from './model';
 import { apiErrorSchema, type ApiErrorCode } from './errors';
 
 /** Structured HTTP failure; the controller may branch on code/status without parsing messages. */
@@ -19,15 +20,23 @@ export class ShareApiError extends Error {
   }
 }
 
-import { shareSchema, type Share } from './model';
-
 async function request(path: string, options?: RequestInit): Promise<unknown> {
   const response = await fetch(path, {
     ...options,
     cache: 'no-store',
     credentials: 'same-origin'
   });
-  const body: unknown = await response.json();
+  let body: unknown;
+  try {
+    body = await response.json();
+  } catch (cause) {
+    if (response.ok) throw cause;
+    throw new ShareApiError(
+      'INTERNAL_ERROR',
+      'Please try again.',
+      response.status
+    );
+  }
   if (!response.ok) {
     const failure = apiErrorSchema.safeParse(body);
     throw new ShareApiError(
@@ -39,24 +48,14 @@ async function request(path: string, options?: RequestInit): Promise<unknown> {
   return body;
 }
 
-let pendingHistory: Promise<Share[]> | undefined;
-
 /**
  * Fetches and validates this browser session's newest-first history.
  * @returns Server-ordered shares, or an empty array for an owner with no shares.
- * Concurrent calls share one pending read, including initial session-cookie issuance;
- * the pending promise is discarded after either success or failure.
  * @throws On network failure, non-2xx status, invalid JSON, or a schema mismatch.
  * A structured API error's message is retained for the controller to display.
  */
 export async function readShares() {
-  // Coalesce initial reads, including React Strict Mode, so one cookie is issued.
-  pendingHistory ??= request('/api/shares')
-    .then((body) => z.array(shareSchema).parse(body))
-    .finally(() => {
-      pendingHistory = undefined;
-    });
-  return pendingHistory;
+  return z.array(shareSchema).parse(await request('/api/shares'));
 }
 /**
  * Posts text only; the server supplies ownership, ID, timestamp, and reading snapshot.

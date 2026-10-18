@@ -1,7 +1,7 @@
 import 'server-only';
-import { createRoute, z } from '@hono/zod-openapi';
+import { createRoute, type RouteConfig, z } from '@hono/zod-openapi';
 import type { HeadersObject } from 'openapi3-ts/oas31';
-import { apiErrorSchema, type ApiErrorCode } from '../errors';
+import type { ApiErrorCode } from '../errors';
 import {
   createShareSchema,
   shareSchema,
@@ -13,8 +13,10 @@ import {
   SESSION_CHALLENGE
 } from './http';
 
+import { anonymousSession, sameOrigin, jsonBody } from './middleware';
+
 const share = shareSchema.openapi('Share', { additionalProperties: false });
-const failure = apiErrorSchema.openapi('ApiError');
+
 const privateHeader = {
   description: 'Private responses are never cached.',
   required: true,
@@ -33,25 +35,25 @@ const sessionSecurity: Record<string, string[]>[] = [
   { AnonymousSession: [] },
   {}
 ];
-const sessionDescription =
-  'Missing cookies start a new owner; a supplied invalid/expired cookie returns 401, even though anonymous bootstrap is allowed. Cookies are bearer credentials, not encrypted. Clearing them loses access, not records.';
-function failed(codes: ApiErrorCode[], extraHeaders: HeadersObject = {}) {
+function failed(
+  codes: [ApiErrorCode, ...ApiErrorCode[]],
+  extraHeaders: HeadersObject = {}
+) {
   return {
     description: codes
       .map((code) => `${code}: ${apiFailures[code].message}`)
       .join(' '),
     headers: { ...privateHeaders, ...extraHeaders },
-    content: { 'application/json': { schema: failure } }
+    content: {
+      'application/json': {
+        schema: z.object({
+          error: z.object({ code: z.enum(codes), message: z.string() })
+        })
+      }
+    }
   };
 }
 const commonFailures = {
-  405: failed(['METHOD_NOT_ALLOWED'], {
-    Allow: {
-      required: true,
-      description: 'Methods implemented for this resource.',
-      schema: { type: 'string' as const }
-    }
-  }),
   401: failed(['INVALID_SESSION'], {
     'WWW-Authenticate': {
       required: true,
@@ -72,22 +74,20 @@ const idParams = z.object({
         'Share ID selects a record but does not authorize access. Non-UUID strings also return 404.'
     })
 });
-const allowCollection = 'GET, HEAD, POST, OPTIONS';
-const allowDetail = 'GET, HEAD, OPTIONS';
 
 /** Declared methods for the collection resource, reused by OPTIONS and 405 responses. */
-export const collectionAllow = allowCollection;
+export const collectionAllow = 'GET, HEAD, POST, OPTIONS';
 /** Declared methods for an individual private share. */
-export const detailAllow = allowDetail;
+export const detailAllow = 'GET, HEAD, OPTIONS';
 
 /** Collection read contract; history is private and newest first, with [] for no shares. */
 export const listSharesRoute = createRoute({
+  middleware: [anonymousSession] as const,
   method: 'get',
   path: '/shares',
   operationId: 'listShares',
   tags: ['Shares'],
   summary: 'List this anonymous owner’s private shares',
-  description: sessionDescription,
   security: sessionSecurity,
   responses: {
     200: {
@@ -102,12 +102,14 @@ export const listSharesRoute = createRoute({
 
 /** Creation contract; runtime input validation and OpenAPI generation use the same Zod object. */
 export const createShareRoute = createRoute({
+  middleware: [anonymousSession, sameOrigin, jsonBody] as const,
   method: 'post',
   path: '/shares',
   operationId: 'createShare',
   tags: ['Shares'],
   summary: 'Save a private text share',
-  description: `${sessionDescription} POST is not idempotent; no automatic retry. Origin, if supplied, must match Host/protocol.`,
+  description:
+    'POST is not idempotent. A supplied Origin must match Host/protocol.',
   security: sessionSecurity,
   request: {
     body: {
@@ -147,12 +149,12 @@ export const createShareRoute = createRoute({
 
 /** Detail contract; nonexistent records and ownership mismatches intentionally share a 404. */
 export const readShareRoute = createRoute({
+  middleware: [anonymousSession] as const,
   method: 'get',
   path: '/shares/{id}',
   operationId: 'readShare',
   tags: ['Shares'],
   summary: 'Read one private share',
-  description: sessionDescription,
   security: sessionSecurity,
   request: { params: idParams },
   responses: {
@@ -167,55 +169,64 @@ export const readShareRoute = createRoute({
   }
 });
 
-/** Additional HTTP method documentation; HEAD uses the GET checks with its body removed by Hono. */
-export const protocolRoutes = [
-  ...[listSharesRoute, readShareRoute].map((route) =>
-    createRoute({
-      ...route,
-      method: 'head' as const,
-      operationId: `${route.operationId}Head`,
-      summary: `${route.summary} (headers only)`,
-      responses: Object.fromEntries(
-        Object.entries(route.responses).map(([status, response]) => {
-          const { content: _content, ...withoutBody } = response as {
-            content?: unknown;
-            description: string;
-          };
-          void _content;
-          return [status, withoutBody];
-        })
-      )
-    })
-  ),
-  ...[
-    { path: '/shares', allow: allowCollection },
-    { path: '/shares/{id}', allow: allowDetail }
-  ].map(({ path, allow }, index) =>
-    createRoute({
-      method: 'options' as const,
-      path,
-      operationId: index ? 'shareOptions' : 'sharesOptions',
-      tags: ['Shares'],
-      summary: 'Discover supported HTTP methods',
-      description:
-        'No session required or issued. No CORS permission is granted.',
-      security: [],
-      ...(index ? { request: { params: idParams } } : {}),
-      responses: {
-        204: {
-          description: 'No body; Allow advertises this resource’s methods.',
-          headers: {
-            'Cache-Control': privateHeader,
-            Allow: {
-              required: true,
-              schema: { type: 'string' as const, enum: [allow] }
-            }
-          }
+function headRoute(route: RouteConfig) {
+  const { middleware: _middleware, ...contract } = route;
+  void _middleware;
+  return createRoute({
+    ...contract,
+    method: 'head',
+    operationId: `${route.operationId}Head`,
+    summary: `${route.summary} (headers only)`,
+    responses: Object.fromEntries(
+      Object.entries(route.responses).map(([status, response]) => {
+        if ('$ref' in response) return [status, response];
+        const { content: _content, ...headersOnly } = response;
+        void _content;
+        return [status, headersOnly];
+      })
+    )
+  });
+}
+
+/** HEAD contracts inherit GET authorization and headers; Hono removes the body. */
+export const headRoutes = [
+  headRoute(listSharesRoute),
+  headRoute(readShareRoute)
+];
+
+function optionsRoute(path: string, allow: string, operationId: string) {
+  return createRoute({
+    method: 'options',
+    path,
+    operationId,
+    tags: ['Shares'],
+    summary: 'Discover supported HTTP methods',
+    description:
+      'No session required or issued. No CORS permission is granted.',
+    security: [],
+    responses: {
+      204: {
+        description: 'No body; Allow advertises supported methods.',
+        headers: {
+          'Cache-Control': privateHeader,
+          Allow: { required: true, schema: { type: 'string', enum: [allow] } }
         }
       }
-    })
-  )
-];
+    }
+  });
+}
+
+/** Collection method discovery; used for both dispatch and documentation. */
+export const collectionOptionsRoute = optionsRoute(
+  '/shares',
+  collectionAllow,
+  'sharesOptions'
+);
+/** Detail method discovery, independent of whether a record exists. */
+export const detailOptionsRoute = createRoute({
+  ...optionsRoute('/shares/{id}', detailAllow, 'shareOptions'),
+  request: { params: idParams }
+});
 
 /** Configuration for the generated OpenAPI 3.1 document; contains no live share/session data. */
 export const openApiConfiguration = {

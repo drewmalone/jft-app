@@ -26,3 +26,19 @@ test('the fetch client retains stable error codes/status and does not retry fail
   });
   assert.equal(calls.mock.callCount(), 1);
 });
+
+test('non-JSON failures retain HTTP status and use a safe fallback without retrying', async (context) => {
+  const calls = context.mock.method(
+    globalThis,
+    'fetch',
+    async () => new Response('<html>Proxy failure</html>', { status: 502 })
+  );
+  await assert.rejects(saveShare('Fictional text.'), (cause: unknown) => {
+    assert.ok(cause instanceof ShareApiError);
+    assert.equal(cause.status, 502);
+    assert.equal(cause.code, 'INTERNAL_ERROR');
+    assert.equal(cause.message, 'Please try again.');
+    return true;
+  });
+  assert.equal(calls.mock.callCount(), 1);
+});

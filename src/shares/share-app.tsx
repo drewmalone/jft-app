@@ -2,12 +2,10 @@
 
 import { useEffect, useRef, useState, type FormEvent } from 'react';
 import type { Share } from './model';
-import { readShare, readShares, saveShare } from './api';
+import { readShare, saveShare } from './api';
 import { ShareForm } from './components/share-form';
-import {
-  ShareHistory,
-  type ShareHistoryState
-} from './components/share-history';
+import { ShareHistory } from './components/share-history';
+import { useShareHistory } from './use-share-history';
 import { ShareDetail } from './components/share-detail';
 import { ReflectionReading } from './components/reflection-reading';
 import { AppHeader } from '../components/app-header';
@@ -45,13 +43,10 @@ export function ShareApp() {
   const [screen, setScreen] = useState<Screen>({ view: 'today' });
   const { view } = screen;
   const [text, setText] = useState('');
-  const [history, setHistory] = useState<ShareHistoryState>({
-    status: 'loading'
-  });
+  const { history, initializing, refresh: loadHistory } = useShareHistory();
   const [saveError, setSaveError] = useState('');
   const [saving, setSaving] = useState(false);
   const savePending = useRef(false);
-  const historyRequest = useRef(0);
   const detailRequest = useRef(0);
   const [detailState, setDetailState] = useState<{
     status: 'idle' | 'loading' | 'failed';
@@ -60,39 +55,21 @@ export function ShareApp() {
   const heading = useRef<HTMLHeadingElement>(null);
   const navigated = useRef(false);
 
-  async function loadHistory() {
-    const requestId = ++historyRequest.current;
-    setHistory({ status: 'loading' });
-    try {
-      const shares = await readShares();
-      if (requestId === historyRequest.current)
-        setHistory({ status: 'loaded', shares });
-    } catch (cause) {
-      if (requestId === historyRequest.current)
-        setHistory({
-          status: 'failed',
-          message: `Your saved shares could not be read. ${cause instanceof Error ? cause.message : 'Check your connection and try again.'}`
-        });
-    }
-  }
-  useEffect(() => {
-    void loadHistory();
-    return cancelRequests;
-  }, []);
+  useEffect(
+    () => () => {
+      detailRequest.current++;
+    },
+    []
+  );
   useEffect(() => {
     if (navigated.current) heading.current?.focus();
     navigated.current = true;
   }, [view]);
-  function cancelRequests() {
-    historyRequest.current++;
-    detailRequest.current++;
-  }
   function navigate(next: Screen) {
     detailRequest.current++;
     setDetailState({ status: 'idle' });
     setScreen(next);
-    if (next.view === 'past' && history.status !== 'loading')
-      void loadHistory();
+    if (next.view === 'past' && !initializing) void loadHistory();
     window.scrollTo({ top: 0 });
   }
   async function openShare(id: string) {
@@ -122,15 +99,6 @@ export function ShareApp() {
     setSaveError('');
     try {
       const share = await saveShare(text);
-      // An older list request must not overwrite the result of this save.
-      historyRequest.current++;
-      setHistory((previous) => ({
-        status: 'loaded',
-        shares: [
-          share,
-          ...(previous.status === 'loaded' ? previous.shares : [])
-        ]
-      }));
       setText('');
       navigate({ view: 'saved', share });
     } catch (cause) {
@@ -188,7 +156,7 @@ export function ShareApp() {
         {view === 'today' && (
           <ShareForm
             text={text}
-            disabled={saving || history.status === 'loading'}
+            disabled={saving || initializing}
             saving={saving}
             error={saveError}
             onTextChange={setText}
