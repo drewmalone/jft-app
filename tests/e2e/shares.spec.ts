@@ -85,6 +85,20 @@ test('preserves unreadable history instead of overwriting it', async ({
   );
   await page.reload();
   await expect(page.locator('#share-error')).toContainText('could not be read');
+  await page
+    .getByRole('banner')
+    .getByRole('button', { name: 'Past shares', exact: true })
+    .click();
+  await expect(page.locator('#share-error')).toContainText('could not be read');
+  await expect(page.getByText('A place for your words.')).toHaveCount(0);
+  await expect(
+    page.getByRole('button', { name: 'Write your first share' })
+  ).toHaveCount(0);
+  await page
+    .getByRole('main')
+    .getByRole('button', { name: "Today's reflection", exact: true })
+    .click();
+
   await page.getByRole('textbox').fill('Another fictional draft.');
   await page.getByRole('button', { name: 'Save privately' }).click();
   await expect(page.locator('#share-error')).toContainText(

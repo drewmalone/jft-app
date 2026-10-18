@@ -89,7 +89,7 @@ docs/
 .github/workflows/      verification, title validation, and security scans
 ```
 
-See [the architecture](docs/ARCHITECTURE.md) for data flow and implementation decisions.
+See [the architecture](docs/ARCHITECTURE.md) for data flow and implementation decisions, including the [intended mobile direction](docs/ARCHITECTURE.md#intended-mobile-direction).
 
 ## Contributing and repository standards
 

@@ -4,7 +4,10 @@ import { useEffect, useRef, useState, type FormEvent } from 'react';
 import type { Share } from './shares';
 import { readShares, saveShare } from './storage';
 import { ShareForm } from './components/share-form';
-import { ShareHistory } from './components/share-history';
+import {
+  ShareHistory,
+  type ShareHistoryState
+} from './components/share-history';
 import { ShareDetail } from './components/share-detail';
 import { ReflectionReading } from './components/reflection-reading';
 
@@ -34,21 +37,25 @@ export function ShareApp() {
   const [screen, setScreen] = useState<Screen>({ view: 'today' });
   const { view } = screen;
   const [text, setText] = useState('');
-  const [shares, setShares] = useState<Share[]>([]);
-  const [ready, setReady] = useState(false);
-  const [error, setError] = useState('');
+  const [history, setHistory] = useState<ShareHistoryState>({
+    status: 'loading'
+  });
+  const [saveError, setSaveError] = useState('');
+  const error =
+    (view === 'today' && saveError) ||
+    (history.status === 'failed' ? history.message : '');
   const heading = useRef<HTMLHeadingElement>(null);
   const navigated = useRef(false);
 
   useEffect(() => {
     try {
-      setShares(readShares(localStorage));
+      setHistory({ status: 'loaded', shares: readShares(localStorage) });
     } catch {
-      setError(
-        'Your saved shares could not be read. Check that browser storage is available, then refresh. Existing data has not been changed.'
-      );
-    } finally {
-      setReady(true);
+      setHistory({
+        status: 'failed',
+        message:
+          'Your saved shares could not be read. Check that browser storage is available, then refresh. Existing data has not been changed.'
+      });
     }
   }, []);
   useEffect(() => {
@@ -63,12 +70,12 @@ export function ShareApp() {
     event.preventDefault();
     try {
       const { share, shares: next } = saveShare(localStorage, text);
-      setShares(next);
+      setHistory({ status: 'loaded', shares: next });
       setText('');
-      setError('');
+      setSaveError('');
       navigate({ view: 'saved', share });
     } catch {
-      setError(
+      setSaveError(
         text.trim()
           ? 'Your share could not be saved. Your words are still here. Check browser storage or available space and try again.'
           : 'Write a few words before saving your share.'
@@ -146,7 +153,7 @@ export function ShareApp() {
         {view === 'today' && (
           <ShareForm
             text={text}
-            disabled={!ready}
+            disabled={history.status === 'loading'}
             error={error}
             onTextChange={setText}
             onSave={save}
@@ -154,8 +161,7 @@ export function ShareApp() {
         )}
         {view === 'past' && (
           <ShareHistory
-            ready={ready}
-            shares={shares}
+            history={history}
             onWrite={() => navigate({ view: 'today' })}
             onOpen={(share) => navigate({ view: 'detail', share })}
           />

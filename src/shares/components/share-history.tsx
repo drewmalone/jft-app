@@ -1,25 +1,34 @@
 import type { Share } from '../shares';
 import { dateLabel } from '../dates';
 
+/** Keeps unreadable history distinct from a successfully loaded, empty list. */
+export type ShareHistoryState =
+  | { status: 'loading' }
+  | { status: 'failed'; message: string }
+  | { status: 'loaded'; shares: Share[] };
+
 type ShareHistoryProps = {
-  ready: boolean;
-  shares: Share[];
+  history: ShareHistoryState;
   onWrite: () => void;
   onOpen: (share: Share) => void;
 };
 
 /** Displays saved history, loading feedback, or the first-share invitation. */
-export function ShareHistory({
-  ready,
-  shares,
-  onWrite,
-  onOpen
-}: ShareHistoryProps) {
+export function ShareHistory({ history, onWrite, onOpen }: ShareHistoryProps) {
+  if (history.status === 'loading')
+    return <p role="status">Loading your shares…</p>;
+  if (history.status === 'failed') {
+    // The parent displays the storage error above the view.
+    return (
+      <button className="secondary mt-7 w-full" onClick={onWrite}>
+        Today&apos;s reflection
+      </button>
+    );
+  }
+  const { shares } = history;
   return (
     <div className="mt-9">
-      {!ready ? (
-        <p role="status">Loading your shares…</p>
-      ) : shares.length === 0 ? (
+      {shares.length === 0 ? (
         <div className="empty rounded-xl border border-[var(--line)] p-7">
           <p className="font-serif text-2xl">A place for your words.</p>
           <p className="mt-3 leading-relaxed text-[var(--muted)]">

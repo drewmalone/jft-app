@@ -7,7 +7,7 @@ Doorknob groups code by responsibility, with the share feature kept together. Ne
 - **`src/app/page.tsx`** is the server-rendered route entry. It renders the interactive share experience without a content-injection prop.
 - **`src/app/layout.tsx`** supplies page metadata and the shared stylesheet.
 - **`src/app/globals.css`** supplies the ivory and navy palette, serif typography, responsive spacing, and focus styles alongside Tailwind utilities.
-- **`src/shares/share-app.tsx`** is the client boundary. It owns the current screen, draft, history, loading/error feedback, and heading focus. The screen state carries a share only for saved/detail views, so those views cannot exist without the record they display.
+- **`src/shares/share-app.tsx`** is the client boundary. It owns the current screen, draft, history, loading/error feedback, and heading focus. History is explicitly loading, loaded, or failed; an unreadable history is never presented as an empty one. The screen state carries a share only for saved/detail views, so those views cannot exist without the record they display.
 - **`src/shares/components/`** contains the reading, form, history, and detail presentation components. Props express their inputs and callbacks; they do not access storage. The share controller composes the reading directly. Components imported by the client boundary run as part of its client tree without redundant `use client` directives.
 - **`src/shares/shares.ts`** owns the fixed reading, versioned storage key, creation, and Zod schemas. Share and reflection types are inferred from those schemas, keeping the TypeScript and runtime contracts together. Unknown fields are preserved for forward compatibility; invalid records still fail without overwriting history. It has no dependency on React or browser storage.
 - **`src/shares/storage.ts`** reads and writes validated history. It accepts the small storage API it needs, so error behavior can be tested without a browser. Browser storage is accessed only after mounting or in event handlers.
@@ -53,3 +53,17 @@ Reviewed against official documentation:
 - [W3C form instructions](https://www.w3.org/WAI/tutorials/forms/instructions/): provide labels and associate supporting instructions with controls.
 
 These principles inform this small app; they do not require a design system, global state manager, new server layer, or features from later milestones.
+
+## Intended mobile direction
+
+The long-term goal is an iPhone/Android experience. React Native with Expo is the intended option to evaluate for a native client, rather than treating this Next.js UI as directly portable. Validate recording and playback on real iOS and Android devices before committing to that stack. This is an architectural direction, not a mobile implementation or a promise of unchanged screen reuse.
+
+Preserve the small boundaries already present:
+
+- Share/reading schemas and record logic stay independent of React and browser storage. Stable UUIDs, ISO creation timestamps, and separate reading calendar dates can transfer to another client. Verify UUID generation against the chosen mobile runtime rather than assuming its globals match the browser.
+- Browser persistence stays in `storage.ts`. Mobile persistence will need its own implementation; do not stretch the synchronous localStorage API into a universal abstraction in advance.
+- HTML components, Tailwind styles, Next.js routes, and browser navigation remain web-specific. Native screens can reuse concepts and suitable data logic, not the markup unchanged.
+- When recordings are introduced, store audio separately and reference files from records. Do not add audio fields or encode recordings into share JSON in this milestone.
+- Before people rely on native local storage, decide backup, recovery, deletion, device migration, and any synchronization policy. Packaging the app does not supply those behaviors.
+
+Keep `src/` and the current single application. There is no BFF now; a server-rendered Next.js entry point does not introduce one. Add a clear server boundary when actual backend behavior exists, and consider a separately deployed BFF only when web/mobile requirements warrant it. Extract a shared package only after a second client demonstrates real reuse. No mobile SDK, empty app skeleton, monorepo, or shared storage framework is needed for this PR.
