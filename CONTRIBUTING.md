@@ -33,7 +33,7 @@ npm run format
 npm run check
 ```
 
-`check` runs formatting, linting, unit tests, and the production build. Next.js 15 checks TypeScript during the build, so the sequence does not run the same type check again. `typecheck` remains available for focused development. It needs no credentials or external services once dependencies are installed. Separate scripts remain available for focused work.
+`check` runs formatting, linting, unit tests, and the production build. Next.js 16 checks TypeScript during the build, so the sequence does not run the same type check again. `typecheck` remains available for focused development. It needs no credentials or external services once dependencies are installed. Separate scripts remain available for focused work.
 
 ## Organization and documentation
 

@@ -4,7 +4,7 @@ This is the reference policy for `jft-app` and a future matching change in `jft-
 
 ## 1. One verification command
 
-Use `npm run check` locally and in CI after `npm ci`. [CONTRIBUTING.md](../CONTRIBUTING.md#commands) owns the app's command descriptions. Next.js 15's build already checks TypeScript; do not run a second type check afterward. The harness copy should include its standalone type check because it has no equivalent build.
+Use `npm run check` locally and in CI after `npm ci`. [CONTRIBUTING.md](../CONTRIBUTING.md#commands) owns the app's command descriptions. Next.js 16's build already checks TypeScript; do not run a second type check afterward. The harness copy should include its standalone type check because it has no equivalent build.
 
 The app additionally runs Playwright after `check`; the harness need not copy UI tests or Next.js lint presets. Both default suites use fictional data and require no live service credentials.
 

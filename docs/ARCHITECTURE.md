@@ -62,4 +62,4 @@ React Native with Expo remains an option to evaluate for a future native client.
 
 ## Temporary dependency override
 
-Next.js 15.5.28 pins PostCSS 8.4.31, affected by GHSA-6g55-p6wh-862q and GHSA-r28c-9q8g-f849. The scoped npm override uses PostCSS `^8.5.30` within major 8. Remove it when Next.js directly depends on a patched version; do not suppress dependency checks.
+The scoped npm override keeps Next.js's PostCSS at `^8.5.30`, within major 8. It was introduced to address GHSA-6g55-p6wh-862q and GHSA-r28c-9q8g-f849. Next.js 16.4.1 still pins an earlier PostCSS release, so the override is retained and verified by the production build and browser tests. Recheck the override when upgrading Next.js; remove it once the selected release directly depends on a patched version rather than suppressing dependency checks.

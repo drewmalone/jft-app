@@ -153,36 +153,30 @@ test('repository enforces ownership and returns independent snapshots', async ()
   assert.deepEqual(await shareRepository.listByOwner(other), []);
 });
 
-test('production cookies are Secure and an authentic expired signature is rejected', async () => {
-  const previousSecret = process.env.SESSION_SECRET;
-  const previousMode = process.env.NODE_ENV;
+test('production cookies are Secure and an authentic expired signature is rejected', async (context) => {
   const secret = 'fictional-unit-test-secret-at-least-32-bytes';
-  try {
-    process.env.SESSION_SECRET = secret;
-    process.env.NODE_ENV = 'production';
-    const response = await GET(request());
-    assert.equal(response.status, 200);
-    assert.match(response.headers.get('set-cookie')!, /; Secure/i);
-    assert.match(response.headers.get('set-cookie')!, /Max-Age=2592000/i);
-    const payload = `${randomUUID()}.${Math.floor(Date.now() / 1000) - 1}`;
-    const signature = createHmac('sha256', secret)
-      .update(payload)
-      .digest('base64url');
-    assert.equal(
-      (await GET(request('GET', `doorknob-session=${payload}.${signature}`)))
-        .status,
-      401
-    );
-    delete process.env.SESSION_SECRET;
-    assert.equal((await GET(request())).status, 500);
-    process.env.SESSION_SECRET = 'too-short';
-    assert.equal((await GET(request())).status, 500);
-  } finally {
-    if (previousSecret === undefined) delete process.env.SESSION_SECRET;
-    else process.env.SESSION_SECRET = previousSecret;
-    if (previousMode === undefined) delete process.env.NODE_ENV;
-    else process.env.NODE_ENV = previousMode;
-  }
+  context.mock.property(process, 'env', {
+    ...process.env,
+    NODE_ENV: 'production',
+    SESSION_SECRET: secret
+  });
+  const response = await GET(request());
+  assert.equal(response.status, 200);
+  assert.match(response.headers.get('set-cookie')!, /; Secure/i);
+  assert.match(response.headers.get('set-cookie')!, /Max-Age=2592000/i);
+  const payload = `${randomUUID()}.${Math.floor(Date.now() / 1000) - 1}`;
+  const signature = createHmac('sha256', secret)
+    .update(payload)
+    .digest('base64url');
+  assert.equal(
+    (await GET(request('GET', `doorknob-session=${payload}.${signature}`)))
+      .status,
+    401
+  );
+  delete process.env.SESSION_SECRET;
+  assert.equal((await GET(request())).status, 500);
+  process.env.SESSION_SECRET = 'too-short';
+  assert.equal((await GET(request())).status, 500);
 });
 
 test('accepts same-origin requests when the listening hostname differs from Host', async () => {
@@ -198,10 +192,12 @@ test('accepts same-origin requests when the listening hostname differs from Host
   assert.equal((await POST(req)).status, 201);
 });
 
-test('validates signed credential fields before using the typed session', async () => {
-  const previousSecret = process.env.SESSION_SECRET;
+test('validates signed credential fields before using the typed session', async (context) => {
   const secret = 'fictional-parser-test-secret-at-least-32-bytes';
-  process.env.SESSION_SECRET = secret;
+  context.mock.property(process, 'env', {
+    ...process.env,
+    SESSION_SECRET: secret
+  });
   const ownerId = randomUUID();
   const expires = String(Math.floor(Date.now() / 1000) + 3600);
   function sign(expiry: string) {
@@ -211,62 +207,55 @@ test('validates signed credential fields before using the typed session', async 
       .digest('base64url');
     return `${payload}.${digest}`;
   }
-  try {
-    const valid = await GET(
-      request('GET', `doorknob-session=${sign(expires)}`)
-    );
-    assert.equal(valid.status, 200);
-    assert.equal(valid.headers.get('set-cookie'), null);
+  const valid = await GET(request('GET', `doorknob-session=${sign(expires)}`));
+  assert.equal(valid.status, 200);
+  assert.equal(valid.headers.get('set-cookie'), null);
 
-    // Even correctly signed input must satisfy the credential schema.
-    for (const expiry of [
-      '',
-      '0',
-      '-1',
-      'NaN',
-      'Infinity',
-      '1.5',
-      '1e10',
-      '0x123',
-      '9007199254740992',
-      `0${expires}`,
-      `+${expires}`
-    ]) {
-      assert.equal(
-        (await GET(request('GET', `doorknob-session=${sign(expiry)}`))).status,
-        401
-      );
-    }
-
-    const credential = sign(expires);
-    const digest = credential.split('.')[2];
-    const alphabet =
-      'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_';
-    const lastCharacter = alphabet.indexOf(digest.at(-1)!);
-    const noncanonical = digest.slice(0, -1) + alphabet[lastCharacter + 1];
-    // Node's decoder tolerates unused trailing bits; the cookie parser must not.
-    assert.deepEqual(
-      Buffer.from(noncanonical, 'base64url'),
-      Buffer.from(digest, 'base64url')
+  // Even correctly signed input must satisfy the credential schema.
+  for (const expiry of [
+    '',
+    '0',
+    '-1',
+    'NaN',
+    'Infinity',
+    '1.5',
+    '1e10',
+    '0x123',
+    '9007199254740992',
+    `0${expires}`,
+    `+${expires}`
+  ]) {
+    assert.equal(
+      (await GET(request('GET', `doorknob-session=${sign(expiry)}`))).status,
+      401
     );
-    for (const supplied of [
-      digest.slice(1),
-      digest + 'A',
-      '!'.repeat(43),
-      'A'.repeat(43),
-      noncanonical
-    ]) {
-      assert.equal(
-        (
-          await GET(
-            request('GET', `doorknob-session=${ownerId}.${expires}.${supplied}`)
-          )
-        ).status,
-        401
-      );
-    }
-  } finally {
-    if (previousSecret === undefined) delete process.env.SESSION_SECRET;
-    else process.env.SESSION_SECRET = previousSecret;
+  }
+
+  const credential = sign(expires);
+  const digest = credential.split('.')[2];
+  const alphabet =
+    'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_';
+  const lastCharacter = alphabet.indexOf(digest.at(-1)!);
+  const noncanonical = digest.slice(0, -1) + alphabet[lastCharacter + 1];
+  // Node's decoder tolerates unused trailing bits; the cookie parser must not.
+  assert.deepEqual(
+    Buffer.from(noncanonical, 'base64url'),
+    Buffer.from(digest, 'base64url')
+  );
+  for (const supplied of [
+    digest.slice(1),
+    digest + 'A',
+    '!'.repeat(43),
+    'A'.repeat(43),
+    noncanonical
+  ]) {
+    assert.equal(
+      (
+        await GET(
+          request('GET', `doorknob-session=${ownerId}.${expires}.${supplied}`)
+        )
+      ).status,
+      401
+    );
   }
 });
