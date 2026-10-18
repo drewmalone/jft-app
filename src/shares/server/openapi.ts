@@ -88,6 +88,8 @@ export const listSharesRoute = createRoute({
   operationId: 'listShares',
   tags: ['Shares'],
   summary: 'List this anonymous owner’s private shares',
+  description:
+    'Returns only the current session’s shares, newest first. An empty history is an empty array.',
   security: sessionSecurity,
   responses: {
     200: {
@@ -155,6 +157,8 @@ export const readShareRoute = createRoute({
   operationId: 'readShare',
   tags: ['Shares'],
   summary: 'Read one private share',
+  description:
+    'Requires the owning session. Missing records and records owned by another session both return 404.',
   security: sessionSecurity,
   request: { params: idParams },
   responses: {
@@ -234,9 +238,11 @@ export const openApiConfiguration = {
   info: {
     title: 'Doorknob private share BFF',
     version: '0.2.0',
+    contact: { url: 'https://github.com/drewmalone/jft-app/issues' },
     description:
       'Local-development process-memory persistence. Restarts erase shares; serverless instances/replicas do not share data. No public sharing links or login.'
   },
+  servers: [{ url: '/', description: 'Same origin as the application.' }],
   tags: [
     {
       name: 'Shares',
