@@ -1,4 +1,5 @@
 import { test } from 'node:test';
+import { readFileSync } from 'node:fs';
 import assert from 'node:assert/strict';
 import { createShare, parseShares } from '../../src/shares/model';
 
@@ -53,4 +54,17 @@ test('preserves unknown fields while validating stored records', () => {
     futureMetadata: { source: 'example' }
   };
   assert.deepEqual(parseShares(JSON.stringify([share])), [share]);
+});
+
+test('reads the fixed v1 storage fixture independently of the current record creator', () => {
+  const shares = parseShares(
+    readFileSync('tests/fixtures/shares-v1.json', 'utf8')
+  );
+  assert.equal(shares.length, 1);
+  assert.equal(shares[0].createdAt, '2025-04-23T12:34:56.000Z');
+  assert.equal(
+    shares[0].reflection.body,
+    'A fictional reading snapshot from the first storage format.'
+  );
+  assert.equal(shares[0].text, 'A fictional saved share.\nOne step at a time.');
 });

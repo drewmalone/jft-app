@@ -1,5 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
+import { createShare, STORAGE_KEY } from '../../src/shares/model';
 import { readShares, saveShare } from '../../src/shares/storage';
 
 test('re-reads history before saving so sequential writers retain prior shares', () => {
@@ -42,4 +43,25 @@ test('propagates unavailable storage and quota errors instead of returning succe
     }
   };
   assert.throws(() => saveShare(full, 'Fictional draft.'), /Full/);
+});
+
+test('appending a share preserves older records and their unknown metadata', () => {
+  const original = {
+    ...createShare('An older fictional thought.'),
+    futureMetadata: { source: 'example' },
+    reflection: { ...createShare('Example').reflection, edition: 'example' }
+  };
+  let value = JSON.stringify([original]);
+  const storage = {
+    getItem: (key: string) => {
+      assert.equal(key, STORAGE_KEY);
+      return value;
+    },
+    setItem: (key: string, next: string) => {
+      assert.equal(key, STORAGE_KEY);
+      value = next;
+    }
+  };
+  const { share } = saveShare(storage, 'A new fictional thought.');
+  assert.deepEqual(readShares(storage), [share, original]);
 });

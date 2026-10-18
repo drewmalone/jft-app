@@ -28,7 +28,7 @@ Storage access, parsing, quota, or serialization failures show an error. Failed 
 
 ## Data contract
 
-A share contains `id`, `createdAt`, `kind`, `reflection`, and `text`. The reflection snapshot contains its own ID, date, title, and body, so changing the daily reading does not alter past shares. `kind: 'text'` makes the current record type explicit without unused audio or transcript fields. The versioned storage key leaves room for a deliberate future migration.
+A share contains `id`, `createdAt`, `kind`, `reflection`, and `text`. The reflection snapshot contains its own ID, date, title, and body, so changing the daily reading does not alter past shares. `kind: 'text'` makes the current record type explicit without unused audio or transcript fields. The versioned storage key leaves room for a deliberate future migration. `tests/fixtures/shares-v1.json` is a fixed fictional compatibility example, independent of the current creator function. Keep it readable as the app evolves; changes that reject existing valid records need a deliberate migration and compatibility tests, not a silent key change or history reset.
 
 ## Tradeoffs and boundaries
 
@@ -42,7 +42,7 @@ Keep components at meaningful UI boundaries. Do not extract every heading, butto
 
 [CONTRIBUTING.md](../CONTRIBUTING.md#commands) owns verification commands and lint/format conventions. The ESLint configuration matches Next.js 15. Its production build checks TypeScript, so no second type check is included in `check`.
 
-`npm run test:e2e` runs Playwright against the production build on port 3100, with isolated storage per test. It covers persistence, full-share reading, newest-first ordering, empty input, heading focus, draft retention, quota failures, and malformed history on mobile and desktop Chromium. CI installs Chromium and runs this after `check`. Firefox, Safari, and complete accessibility conformance are not covered by these tests.
+`npm run test:e2e` runs Playwright against the production build on port 3100, with isolated storage per test. It covers persistence, full-share reading, newest-first ordering, empty input, heading focus, draft retention, quota failures and successful retry, denied browser storage, and malformed history on mobile and desktop Chromium. CI installs Chromium and runs this after `check`. Firefox, Safari, and complete accessibility conformance are not covered by these tests.
 
 ## Guidance behind this organization
 
