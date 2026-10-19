@@ -10,12 +10,11 @@
     "test": "node --conditions=react-server --import tsx --test --test-isolation=none tests/shares/*.test.ts",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
-    "check": "npm run format:check && npm run lint && npm run openapi:check && npm test && npm run build",
+    "check": "npm run format:check && npm run lint && npm run openapi:lint && npm test && npm run build",
     "lint": "eslint . --max-warnings=0",
     "test:e2e": "playwright test",
     "openapi:generate": "node --conditions=react-server --import tsx scripts/generate-openapi.ts",
-    "openapi:lint": "spectral lint docs/openapi.yaml --ruleset .spectral.yaml --fail-severity warn",
-    "openapi:check": "npm run openapi:generate -- --check && npm run openapi:lint"
+    "openapi:lint": "npm run openapi:generate && spectral lint .tmp/openapi.yaml --ruleset .spectral.yaml --fail-severity warn"
   },
   "dependencies": {
     "@hono/zod-openapi": "^1.6.3",

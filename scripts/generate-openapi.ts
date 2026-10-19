@@ -1,13 +1,12 @@
-import { readFile, writeFile } from 'node:fs/promises';
+import { mkdir, writeFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 import { format, resolveConfig } from 'prettier';
 import { stringify } from 'yaml';
 import { getOpenApiDocument } from '../src/shares/server/app';
 
 async function main() {
-  const target = fileURLToPath(
-    new URL('../docs/openapi.yaml', import.meta.url)
-  );
+  const directory = new URL('../.tmp/', import.meta.url);
+  const target = fileURLToPath(new URL('openapi.yaml', directory));
   // Strip undefined values and shared object references, just like the HTTP JSON output.
   const document: unknown = JSON.parse(JSON.stringify(getOpenApiDocument()));
   const yaml = await format(
@@ -15,22 +14,9 @@ async function main() {
       stringify(document, { aliasDuplicateObjects: false }),
     { ...(await resolveConfig(target)), filepath: target }
   );
-  if (process.argv.includes('--check')) {
-    const committed = await readFile(target, 'utf8').catch(
-      (cause: NodeJS.ErrnoException) => {
-        if (cause.code === 'ENOENT') return '';
-        throw cause;
-      }
-    );
-    if (committed !== yaml)
-      throw new Error(
-        'docs/openapi.yaml is stale or missing. Run npm run openapi:generate and commit the result.'
-      );
-    console.log('docs/openapi.yaml is current.');
-  } else {
-    await writeFile(target, yaml);
-    console.log('Generated docs/openapi.yaml.');
-  }
+  await mkdir(directory, { recursive: true });
+  await writeFile(target, yaml);
+  console.log('Generated .tmp/openapi.yaml.');
 }
 
 main().catch((cause: unknown) => {

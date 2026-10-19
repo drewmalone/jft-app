@@ -24,9 +24,8 @@ Development generates an ephemeral anonymous-session signing secret. Production 
 | `npm test`                 | Run automated tests                                                       |
 | `npm run build`            | Produce and validate the production application                           |
 | `npm run typecheck`        | Check TypeScript; build first on a fresh checkout to generate route types |
-| `npm run openapi:generate` | Regenerate the committed OpenAPI YAML from TypeScript                     |
-| `npm run openapi:lint`     | Lint the YAML with Spectral; warnings fail                                |
-| `npm run openapi:check`    | Check generated YAML is current, then run Spectral                        |
+| `npm run openapi:generate` | Generate temporary `.tmp/openapi.yaml` from TypeScript                    |
+| `npm run openapi:lint`     | Generate and lint temporary YAML with Spectral; warnings fail             |
 | `npm run check`            | Run the complete local verification used by CI                            |
 
 Before opening or updating a PR:
@@ -36,7 +35,7 @@ npm run format
 npm run check
 ```
 
-`check` runs formatting, linting, OpenAPI drift/Spectral checks, unit tests, and the production build. Next.js 16 checks TypeScript during the build, so the sequence does not run the same type check again. `typecheck` remains available for focused development. It needs no credentials or external services once dependencies are installed. Separate scripts remain available for focused work.
+`check` runs formatting, linting, OpenAPI generation/Spectral checks, unit tests, and the production build. Next.js 16 checks TypeScript during the build, so the sequence does not run the same type check again. `typecheck` remains available for focused development. It needs no credentials or external services once dependencies are installed. Separate scripts remain available for focused work.
 
 ## Organization and documentation
 
@@ -48,7 +47,7 @@ When updating a feature, review its documentation together:
 
 - README: user-visible behavior, local setup, configuration, limitations, and verification entry points.
 - [Architecture](docs/ARCHITECTURE.md): module ownership, request/data flow, security decisions, and operational tradeoffs.
-- [API reference](docs/API.md): supported requests/responses, error codes/statuses, session/cookie behavior, and runnable fictional examples. Update the operation contracts/handlers in `src/shares/server/operations/` and resource-level method handling in `resource-methods.ts`, the shared OpenAPI helpers in `openapi.ts`, and shared Zod schemas together; `/api/openapi.json` is generated from them, not hand-edited. Regenerate and commit `docs/openapi.yaml` with `npm run openapi:generate`; do not edit it by hand. `openapi:check` regenerates in memory and compares exact output without modifying files, then lints with the checked-in `.spectral.yaml` (`spectral:oas`, warnings fail). The existing Verify workflow runs this through `npm run check`. Swagger Parser and Ajv separately validate the document and actual responses.
+- [API reference](docs/API.md): supported requests/responses, error codes/statuses, session/cookie behavior, and runnable fictional examples. Update the operation contracts/handlers in `src/shares/server/operations/` and resource-level method handling in `resource-methods.ts`, the shared OpenAPI helpers in `openapi.ts`, and shared Zod schemas together; `/api/openapi.json` is generated from them, not hand-edited. `npm run openapi:lint` generates ignored `.tmp/openapi.yaml` and lints it using `.spectral.yaml` (`spectral:oas`, warnings fail). TypeScript definitions are the sole source of truth; generated YAML is not committed and has no drift check. The existing Verify workflow runs this through `npm run check` and uploads the generated contract as the `openapi` artifact (retained for seven days). Swagger Parser and Ajv separately validate the document and actual responses.
 - [Shared glossary](docs/DATA_GLOSSARY.md): data location, transmission, access loss, deletion, and backup lifecycle.
 - Source TSDoc: exported contracts and failures, including methods of exported interfaces. Name internal invariants when a parser or security check depends on them.
 

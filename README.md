@@ -102,7 +102,7 @@ tests/
   e2e/                  Playwright user flows
 ```
 
-Read [docs/openapi.yaml](docs/openapi.yaml) for the generated YAML contract, or open http://localhost:3000/api/openapi.json. Regenerate YAML with `npm run openapi:generate`; `npm run check` verifies it stays current and passes Spectral lint. Request validation and OpenAPI generation share the same route/Zod definitions.
+Open http://localhost:3000/api/openapi.json for the generated contract. TypeScript route/Zod definitions are the source of truth. `npm run openapi:lint` generates ignored `.tmp/openapi.yaml` and checks it with Spectral; CI also uploads the YAML as the `openapi` workflow artifact. Generated YAML is not committed.
 
 See [the private API reference and curl example](docs/API.md), [architecture](docs/ARCHITECTURE.md), [contributor commands](CONTRIBUTING.md#commands), [repository standards](docs/REPOSITORY_STANDARDS.md), and [data glossary](docs/DATA_GLOSSARY.md).
 
