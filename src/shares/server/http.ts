@@ -18,7 +18,7 @@ export const apiFailures = {
   INVALID_SESSION: {
     status: 401,
     message:
-      'Your session is invalid or expired. Clear site cookies to start a new session; access to previous shares will be lost.'
+      'Your session is invalid or expired. Start a new session to continue; access to previous shares will not be restored.'
   },
   CROSS_ORIGIN_REQUEST: {
     status: 403,

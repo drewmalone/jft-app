@@ -51,6 +51,12 @@ Production requires a `SESSION_SECRET` of at least 32 bytes (generate it randoml
 
 This mechanism provides browser-session isolation without login or account recovery. Public sharing uses a separate key and capability boundary described below. [The API reference](API.md#session-and-response-conventions) owns the cookie/client contract; [the data glossary](DATA_GLOSSARY.md#app-data-lifecycle) owns access loss and retention.
 
+## Explicit session recovery
+
+A browser may retain a cookie signed by a previous development process or configuration. Ordinary private endpoints continue rejecting it with 401 and never replace it. `POST /api/session/reset` is a distinct, explicit origin-checked operation: it calls `getSession`, catches only `InvalidSessionError`, and then issues a new session with the rejected cookie omitted. Configuration failures still become generic 500. Valid sessions are retained unchanged, so another tab's successful recovery cannot silently detach an already valid owner. It never reads or modifies the share repository.
+
+`useShareHistory` carries the structured invalid-session state and disables saving when a read loses authorization, including after initial readiness. The today/history screens offer **Start a new session**, with access-loss information. Recovery and the following history read use one shared in-flight bootstrap promise to prevent duplicate cookie issuance and navigation races. Draft state is untouched. Failed recovery stays blocked and retryable. The browser cannot clear an HttpOnly cookie itself, so recovery is server-side rather than `document.cookie` manipulation. No automatic owner replacement or account recovery is introduced.
+
 ## Save and read flow
 
 1. Load history and establish a session. Drafts remain in React state.

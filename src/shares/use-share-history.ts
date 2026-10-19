@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
-import { readShares } from './api';
+import { readShares, resetSession, ShareApiError } from './api';
 import type { Share } from './model';
 
 /**
@@ -10,12 +10,12 @@ import type { Share } from './model';
  */
 export type ShareHistoryState =
   | { status: 'loading' }
-  | { status: 'failed'; message: string }
+  | { status: 'failed'; message: string; invalidSession: boolean }
   | { status: 'loaded'; shares: Share[] };
 
 /**
  * Owns history requests and the initial session bootstrap independently of the draft.
- * @returns History, successful session readiness, and a fresh-read callback. Refreshes
+ * @returns History, successful session readiness, refresh, and explicit invalid-session recovery. Refreshes
  * ignore stale results; failures become display state. Saving stays blocked until a read succeeds, including after bootstrap failure.
  */
 export function useShareHistory() {
@@ -36,11 +36,16 @@ export function useShareHistory() {
         setSessionReady(true);
       }
     } catch (cause) {
-      if (current === requestId.current)
+      if (current === requestId.current) {
+        const invalidSession =
+          cause instanceof ShareApiError && cause.code === 'INVALID_SESSION';
+        if (invalidSession) setSessionReady(false);
         setHistory({
           status: 'failed',
+          invalidSession,
           message: `Your saved shares could not be read. ${cause instanceof Error ? cause.message : 'Check your connection and try again.'}`
         });
+      }
     } finally {
       if (current === requestId.current && bootstrapRequest.current === request)
         bootstrapRequest.current = null;
@@ -65,5 +70,13 @@ export function useShareHistory() {
     return load(bootstrapRequest.current);
   }
 
-  return { history, sessionReady, refresh };
+  function recoverSession() {
+    if (history.status !== 'failed' || !history.invalidSession) return;
+    // Share recovery with refresh/navigation so requests cannot race cookie replacement.
+    bootstrapRequest.current ??= resetSession().then(readShares);
+    setSessionReady(false);
+    return load(bootstrapRequest.current);
+  }
+
+  return { history, sessionReady, refresh, recoverSession };
 }

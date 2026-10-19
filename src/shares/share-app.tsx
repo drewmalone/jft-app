@@ -49,7 +49,12 @@ export function ShareApp() {
   const [screen, setScreen] = useState<Screen>({ view: 'today' });
   const { view } = screen;
   const [text, setText] = useState('');
-  const { history, sessionReady, refresh: loadHistory } = useShareHistory();
+  const {
+    history,
+    sessionReady,
+    refresh: loadHistory,
+    recoverSession
+  } = useShareHistory();
   const [saveError, setSaveError] = useState('');
   const [saving, setSaving] = useState(false);
   const savePending = useRef(false);
@@ -166,18 +171,37 @@ export function ShareApp() {
                 Your private session could not be prepared. Your words are still
                 here. {history.message}
               </p>
-              <button
-                className="secondary mt-4 w-full"
-                onClick={() => void loadHistory()}
-              >
-                Try again
-              </button>
+              {!history.invalidSession && (
+                <button
+                  className="secondary mt-4 w-full"
+                  onClick={() => void loadHistory()}
+                >
+                  Try again
+                </button>
+              )}
             </div>
           ) : (
             <p role="status" className="mt-6">
               Preparing your private session…
             </p>
           ))}
+        {(view === 'today' || view === 'past') &&
+          history.status === 'failed' &&
+          history.invalidSession && (
+            <section aria-label="Session recovery" className="mt-6">
+              <p className="text-sm leading-relaxed text-[var(--muted)]">
+                Starting a new session keeps your current draft, but will not
+                restore access to previous shares. It does not delete those
+                shares or invalidate their sharing links.
+              </p>
+              <button
+                className="secondary mt-4 w-full"
+                onClick={() => void recoverSession()}
+              >
+                Start a new session
+              </button>
+            </section>
+          )}
         {view === 'today' && (
           <ShareForm
             text={text}
@@ -205,14 +229,16 @@ export function ShareApp() {
             {detailState.message}
           </p>
         )}
-        {view === 'past' && history.status === 'failed' && (
-          <button
-            className="secondary mt-4 w-full"
-            onClick={() => void loadHistory()}
-          >
-            Try again
-          </button>
-        )}
+        {view === 'past' &&
+          history.status === 'failed' &&
+          !history.invalidSession && (
+            <button
+              className="secondary mt-4 w-full"
+              onClick={() => void loadHistory()}
+            >
+              Try again
+            </button>
+          )}
         {(screen.view === 'saved' || screen.view === 'detail') && (
           <>
             <ShareDetail share={screen.share} />

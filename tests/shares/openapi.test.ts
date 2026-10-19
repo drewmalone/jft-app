@@ -375,3 +375,19 @@ test('signed-link and public responses conform to their generated contracts', as
   ])
     await contract(await request('OPTIONS', path), schema, 'options');
 });
+
+test('explicit session recovery responses conform to the OpenAPI contract', async () => {
+  const path = '/api/session/reset';
+  const recovered = await request('POST', path, 'doorknob-session=forged');
+  assert.equal(recovered.status, 204);
+  assert.ok(recovered.headers.get('set-cookie'));
+  await contract(recovered, path, 'post');
+  await contract(
+    await request('POST', path, undefined, undefined, {
+      origin: 'https://elsewhere.example'
+    }),
+    path,
+    'post'
+  );
+  await contract(await request('OPTIONS', path), path, 'options');
+});

@@ -17,6 +17,8 @@ import {
   getPublicShare
 } from './operations/read-public-share';
 
+import { resetSessionRoute, resetSession } from './operations/reset-session';
+
 const specificationAllow = 'GET, HEAD, OPTIONS';
 
 const app = new OpenAPIHono<SessionEnvironment>({
@@ -36,6 +38,7 @@ app.openapi(createShareRoute, createShare);
 app.openapi(readShareRoute, readShare);
 app.openapi(createShareLinkRoute, generateShareLink);
 app.openapi(readPublicShareRoute, getPublicShare);
+app.openapi(resetSessionRoute, resetSession);
 registerResourceMethods(app);
 app.openAPIRegistry.registerComponent('securitySchemes', 'AnonymousSession', {
   type: 'apiKey',

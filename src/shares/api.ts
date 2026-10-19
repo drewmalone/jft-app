@@ -26,6 +26,7 @@ async function request(path: string, options?: RequestInit): Promise<unknown> {
     cache: 'no-store',
     credentials: 'same-origin'
   });
+  if (response.status === 204) return undefined;
   let body: unknown;
   try {
     body = await response.json();
@@ -99,4 +100,13 @@ export async function generateShareLink(id: string) {
       method: 'POST'
     })
   );
+}
+
+/**
+ * Explicitly recovers rejected credentials; a valid existing session is preserved.
+ * @returns Resolves after the browser receives the replacement HttpOnly cookie.
+ * @throws On network/HTTP failure; never retries or clears the user's draft.
+ */
+export async function resetSession() {
+  await request('/api/session/reset', { method: 'POST' });
 }

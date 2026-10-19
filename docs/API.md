@@ -49,6 +49,12 @@ Messages are intended for display. Branch on `error.code` and the HTTP status, n
 
 401 includes `WWW-Authenticate: DoorknobSession realm="doorknob"`. This is an application-specific HTTP authentication scheme for this private BFF, not a registered interoperable login protocol. Credentials are still carried only in the signed cookie; the server does not accept an Authorization/Bearer header. The challenge advertises the required session mechanism without pretending the credential is an OAuth bearer token. OpenAPI models this transport as an `apiKey` security scheme in a cookie. Its anonymous alternative permits initial cookie issuance; it never makes an invalid supplied cookie acceptable.
 
+## Recover a rejected session
+
+`POST /api/session/reset` is an explicit recovery operation with no request body. Supplied Origin must match the application before any session handling. Missing, expired, malformed, or incorrectly signed credentials receive a fresh anonymous owner and replacement signed HttpOnly cookie. A valid existing session remains unchanged, without a replacement cookie. Success is bodyless **204**; invalid signing configuration returns generic **500**, with no cookie. Foreign origins receive **403**. OPTIONS advertises `POST, OPTIONS`; unsupported methods return **405** without changing cookies. All responses are private/no-store.
+
+This operation does not read, migrate, delete, or recover previous shares, and does not invalidate their public links. The UI offers it only after `INVALID_SESSION`, explains access loss, and preserves the current draft. It then reads history and enables saving only after that succeeds. Private create/list/detail still reject bad credentials with 401 rather than silently switching ownership. The separate recovery operation is required because retrying a read resends the same rejected HttpOnly cookie.
+
 ## Generate a signed sharing link
 
 `POST /api/shares/{id}/link` requires an existing valid owner cookie. It does not bootstrap a new session and needs no request body. A supplied foreign Origin returns 403 before session processing. Missing/invalid sessions return 401; missing or foreign-owned shares return the same 404. Signing configuration failures return generic 500. No response exposes signing keys or changes stored content.
