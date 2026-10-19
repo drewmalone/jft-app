@@ -385,7 +385,7 @@ test('failed bootstrap blocks saves through retry and navigation until the sessi
   const draft = 'A fictional draft during session initialization.';
   await page.getByRole('textbox').fill(draft);
   const save = page.getByRole('button', { name: 'Save privately' });
-  await expect(page.getByRole('alert')).toContainText(
+  await expect(page.getByRole('main').getByRole('alert')).toContainText(
     'private session could not be prepared'
   );
   await expect(save).toBeDisabled();
