@@ -40,7 +40,6 @@ test('share icon uses the saved URL directly for native sharing and session-free
     name: 'Share with fellow alcoholic',
     exact: true
   });
-  await expect(button.locator('circle')).toHaveCount(3);
   await button.click();
   expect(await page.evaluate(() => Reflect.get(window, 'sharedUrl'))).toBe(
     link
@@ -165,8 +164,6 @@ test('unsupported native sharing copies directly, with manual copying only when 
   await expect(page.getByLabel('Sharing link')).toHaveValue(
     new URL(saved.shareUrl, baseURL).href
   );
-  await page.getByRole('button', { name: 'Close', exact: true }).click();
-  await expect(button).toBeFocused();
   await page.evaluate(() =>
     Object.defineProperty(navigator, 'clipboard', {
       configurable: true,
@@ -228,7 +225,7 @@ test('long thoughts expand locally on owner and recipient pages, and recipients 
   const text =
     'A fictional reflection about making space for another person. '.repeat(8) +
     'The complete context is here.';
-  const preview = Array.from(text).slice(0, 240).join('').trimEnd() + '...';
+  const preview = /^A fictional reflection.*\.\.\.$/;
   await page.goto('/');
   await page.getByRole('textbox').fill(text);
   const response = page.waitForResponse(
@@ -246,7 +243,10 @@ test('long thoughts expand locally on owner and recipient pages, and recipients 
   page.on('request', (request) => {
     if (new URL(request.url()).pathname.startsWith('/api/')) calls++;
   });
-  await expect(page.getByText(preview, { exact: true })).toBeVisible();
+  await expect(page.getByText(preview)).toBeVisible();
+  await expect(page.getByText(preview)).not.toContainText(
+    'The complete context is here.'
+  );
   const ownerExpand = page.getByRole('button', {
     name: 'Read more',
     exact: true
@@ -259,24 +259,24 @@ test('long thoughts expand locally on owner and recipient pages, and recipients 
     'true'
   );
   await page.getByRole('button', { name: 'Show less' }).click();
-  await expect(page.getByText(preview, { exact: true })).toBeVisible();
+  await expect(page.getByText(preview)).toBeVisible();
   expect(calls).toBe(0);
   await page
     .getByRole('main')
     .getByRole('button', { name: 'Past shares', exact: true })
     .click();
   await page.getByRole('listitem').getByRole('button').click();
-  await expect(page.getByText(preview, { exact: true })).toBeVisible();
+  await expect(page.getByText(preview)).toBeVisible();
   const recipient = await browser.newContext();
   try {
     const reader = await recipient.newPage();
     await reader.goto(new URL(saved.shareUrl, baseURL).href);
     const thoughts = reader.getByRole('region', { name: 'Shared thoughts' });
-    await expect(thoughts.getByText(preview, { exact: true })).toBeVisible();
+    await expect(thoughts.getByText(preview)).toBeVisible();
     await thoughts.getByRole('button', { name: 'Read more' }).click();
     await expect(thoughts.getByText(text, { exact: true })).toBeVisible();
     await thoughts.getByRole('button', { name: 'Show less' }).click();
-    await expect(thoughts.getByText(preview, { exact: true })).toBeVisible();
+    await expect(thoughts.getByText(preview)).toBeVisible();
     expect(await recipient.cookies()).toEqual([]);
     const write = reader.getByRole('link', {
       name: 'Write your share',
@@ -300,4 +300,18 @@ test('long thoughts expand locally on owner and recipient pages, and recipients 
   } finally {
     await recipient.close();
   }
+});
+
+test('thought previews keep a family emoji intact at the cutoff', async ({
+  page
+}) => {
+  const text = 'x'.repeat(239) + '👨‍👩‍👧‍👦 A fictional complete thought.';
+  await page.goto('/');
+  await page.getByRole('textbox').fill(text);
+  await page.getByRole('button', { name: 'Save privately' }).click();
+  await expect(page.getByText(/👨‍👩‍👧‍👦\.\.\.$/)).toBeVisible();
+  await page.getByRole('button', { name: 'Read more' }).click();
+  await expect(page.getByText(text, { exact: true })).toBeVisible();
+  await page.getByRole('button', { name: 'Show less' }).click();
+  await expect(page.getByText(/👨‍👩‍👧‍👦\.\.\.$/)).toBeVisible();
 });

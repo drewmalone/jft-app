@@ -1,5 +1,10 @@
 import 'server-only';
-import { createRoute, type RouteHandler, z } from '@hono/zod-openapi';
+import {
+  createRoute,
+  type RouteHandler,
+  type RouteHook,
+  z
+} from '@hono/zod-openapi';
 import { publicShareSchema } from '../../model';
 import { readPublicShare } from '../public-shares';
 import { failed, privateHeaders } from '../openapi';
@@ -69,3 +74,8 @@ export const getPublicShare: RouteHandler<
   );
   return share ? c.json(share, 200) : c.json(errorBody('SHARE_NOT_FOUND'), 404);
 };
+
+/** Hono's operation-specific validation hook keeps malformed public credentials indistinguishable. */
+export const publicShareValidation = ((result, c) => {
+  if (!result.success) return c.json(errorBody('SHARE_NOT_FOUND'), 404);
+}) satisfies RouteHook<typeof readPublicShareRoute, SessionEnvironment>;

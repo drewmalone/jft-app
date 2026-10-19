@@ -10,19 +10,15 @@ import { openApiConfiguration } from './openapi';
 
 import {
   readPublicShareRoute,
-  getPublicShare
+  getPublicShare,
+  publicShareValidation
 } from './operations/read-public-share';
 
 const specificationAllow = 'GET, HEAD, OPTIONS';
 
 const app = new OpenAPIHono<SessionEnvironment>({
-  defaultHook: (result, c) => {
-    if (!result.success)
-      return error(
-        c.req.path.startsWith('/api/public/shares/')
-          ? 'SHARE_NOT_FOUND'
-          : 'INVALID_SHARE'
-      );
+  defaultHook: (result) => {
+    if (!result.success) return error('INVALID_SHARE');
   }
 }).basePath('/api');
 
@@ -30,7 +26,7 @@ app.onError(handleApiError);
 app.openapi(listSharesRoute, listShares);
 app.openapi(createShareRoute, createShare);
 app.openapi(readShareRoute, readShare);
-app.openapi(readPublicShareRoute, getPublicShare);
+app.openapi(readPublicShareRoute, getPublicShare, publicShareValidation);
 registerResourceMethods(app);
 app.openAPIRegistry.registerComponent('securitySchemes', 'AnonymousSession', {
   type: 'apiKey',

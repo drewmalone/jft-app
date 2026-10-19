@@ -5,23 +5,22 @@ import { useEffect, useRef, useState } from 'react';
 /** Opens device sharing immediately; falls back to clipboard, then a selectable link. */
 export function ShareButton({ url }: { url: string }) {
   const [pending, setPending] = useState(false);
-  const [manual, setManual] = useState(false);
+  const [manualLink, setManualLink] = useState('');
   const [status, setStatus] = useState('');
   const busy = useRef(false);
   const input = useRef<HTMLInputElement>(null);
-  const button = useRef<HTMLButtonElement>(null);
   useEffect(() => {
-    if (manual) {
+    if (manualLink) {
       input.current?.focus();
       input.current?.select();
     }
-  }, [manual]);
+  }, [manualLink]);
   async function share() {
     if (busy.current) return;
     busy.current = true;
     setPending(true);
     setStatus('');
-    setManual(false);
+    setManualLink('');
     const link = new URL(url, window.location.origin).href;
     try {
       if (navigator.share) {
@@ -41,7 +40,9 @@ export function ShareButton({ url }: { url: string }) {
         await navigator.clipboard.writeText(link);
         setStatus('Link copied.');
       } catch {
-        setManual(true);
+        setManualLink(link);
+        input.current?.focus();
+        input.current?.select();
       }
     } finally {
       busy.current = false;
@@ -49,9 +50,8 @@ export function ShareButton({ url }: { url: string }) {
     }
   }
   return (
-    <div className="relative mt-6">
+    <div className="mt-6">
       <button
-        ref={button}
         type="button"
         aria-label="Share with fellow alcoholic"
         title="Share with fellow alcoholic"
@@ -81,34 +81,17 @@ export function ShareButton({ url }: { url: string }) {
           {status}
         </p>
       )}
-      {manual && (
-        <div className="share-card absolute right-0 top-full z-10 w-64 rounded-xl border border-[var(--line)] p-4 shadow-lg">
-          <div className="flex items-center justify-between">
-            <label htmlFor="manual-share-link" className="text-sm">
-              Copy link
-            </label>
-            <button
-              type="button"
-              aria-label="Close"
-              onClick={() => {
-                setManual(false);
-                button.current?.focus();
-              }}
-              className="flex h-8 w-8 items-center justify-center"
-            >
-              ×
-            </button>
-          </div>
+      {manualLink && (
+        <div className="mt-3">
+          <label htmlFor="manual-share-link" className="text-sm">
+            Copy link
+          </label>
           <input
             ref={input}
             id="manual-share-link"
             aria-label="Sharing link"
             className="mt-2 min-h-11 w-full rounded border border-[var(--line)] p-2 text-sm"
-            value={
-              typeof window === 'undefined'
-                ? url
-                : new URL(url, window.location.origin).href
-            }
+            value={manualLink}
             readOnly
             onFocus={(event) => event.target.select()}
           />

@@ -29,8 +29,8 @@ export default async function SharedReflection({
   try {
     share = await readPublicShare(shareId, sig);
   } catch {
-    // Fail closed without logging token-bearing URLs or internal signing errors.
-    share = null;
+    // Let Next handle unexpected failures, with no request, content, or raw cause in diagnostics.
+    throw new Error('The shared reflection could not be loaded.');
   }
   return (
     <div className="min-h-screen">

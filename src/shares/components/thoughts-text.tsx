@@ -3,12 +3,16 @@
 import { useId, useState } from 'react';
 
 const previewLength = 240;
+const segmenter = new Intl.Segmenter(undefined, { granularity: 'grapheme' });
 
 /** Shows a short text preview; expansion stays local and never makes a request. */
 export function ThoughtsText({ text }: { text: string }) {
   const [expanded, setExpanded] = useState(false);
   const id = useId();
-  const characters = Array.from(text);
+  const characters = Array.from(
+    segmenter.segment(text),
+    ({ segment }) => segment
+  );
   const truncated = characters.length > previewLength;
   const content =
     truncated && !expanded

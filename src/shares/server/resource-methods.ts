@@ -12,6 +12,7 @@ import { readPublicShareRoute } from './operations/read-public-share';
 export const collectionAllow = 'GET, HEAD, POST, OPTIONS';
 /** Supported methods for a private share. */
 export const detailAllow = 'GET, HEAD, OPTIONS';
+const publicAllow = 'GET, HEAD, OPTIONS';
 
 /**
  * Adds resource-level discovery and method rejection after operation registration.
@@ -32,20 +33,16 @@ export function registerResourceMethods(app: OpenAPIHono<SessionEnvironment>) {
   );
   app.openAPIRegistry.registerPath(headRoute(listSharesRoute));
   app.openAPIRegistry.registerPath(headRoute(readShareRoute));
-  for (const [route, allow, name] of [
-    [readPublicShareRoute, 'GET, HEAD, OPTIONS', 'publicShareOptions']
-  ] as const) {
-    app.openapi(
-      createRoute({
-        ...optionsRoute(route.path, allow, name),
-        request: { params: route.request.params }
-      }),
-      (c) => c.body(null, 204, { Allow: allow })
-    );
-    app.all(route.path.replace('{id}', ':id'), () =>
-      error('METHOD_NOT_ALLOWED', { Allow: allow })
-    );
-  }
+  app.openapi(
+    createRoute({
+      ...optionsRoute('/public/shares/{id}', publicAllow, 'publicShareOptions'),
+      request: { params: readPublicShareRoute.request.params }
+    }),
+    (c) => c.body(null, 204, { Allow: publicAllow })
+  );
+  app.all('/public/shares/:id', () =>
+    error('METHOD_NOT_ALLOWED', { Allow: publicAllow })
+  );
   app.openAPIRegistry.registerPath(headRoute(readPublicShareRoute));
   app.all('/shares', () =>
     error('METHOD_NOT_ALLOWED', { Allow: collectionAllow })

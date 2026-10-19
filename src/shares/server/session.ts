@@ -1,6 +1,6 @@
 import 'server-only';
 import { randomBytes, randomUUID } from 'node:crypto';
-import { parse, parseSigned, serializeSigned } from 'hono/utils/cookie';
+import { parseSigned, serializeSigned } from 'hono/utils/cookie';
 import { z } from 'zod';
 
 const cookieName = 'doorknob-session';
@@ -43,23 +43,17 @@ export type AnonymousSession = {
 export async function getSession(request: Request): Promise<AnonymousSession> {
   const key = secret();
   const cookie = request.headers.get('cookie') ?? '';
-  const supplied = parse(cookie, cookieName)[cookieName];
-  if (supplied !== undefined) {
-    const verified = (await parseSigned(cookie, key, cookieName))[cookieName];
-    if (typeof verified === 'string') {
-      let value: unknown;
-      try {
-        value = JSON.parse(verified);
-      } catch {
-        /* Invalid old cookie starts a new owner below. */
-      }
-      const parsed = payloadSchema.safeParse(value);
-      if (
-        parsed.success &&
-        parsed.data.expiresAt > Math.floor(Date.now() / 1000)
-      )
-        return { ownerId: parsed.data.ownerId, newSession: null };
+  const verified = (await parseSigned(cookie, key, cookieName))[cookieName];
+  if (typeof verified === 'string') {
+    let value: unknown;
+    try {
+      value = JSON.parse(verified);
+    } catch {
+      /* Invalid old cookie starts a new owner below. */
     }
+    const parsed = payloadSchema.safeParse(value);
+    if (parsed.success && parsed.data.expiresAt > Math.floor(Date.now() / 1000))
+      return { ownerId: parsed.data.ownerId, newSession: null };
   }
   const payload: SessionPayload = {
     ownerId: randomUUID(),
