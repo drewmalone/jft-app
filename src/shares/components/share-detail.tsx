@@ -10,10 +10,7 @@ import { dateLabel } from '../dates';
 export function ShareDetail({ share }: { share: Share }) {
   return (
     <article className="share-card mt-8 rounded-xl border border-[var(--line)] p-6 sm:p-8">
-      <div className="flex items-center justify-between gap-4">
-        <p className="eyebrow">{dateLabel(share.createdAt)}</p>
-        <ShareButton url={share.shareUrl} />
-      </div>
+      <p className="eyebrow">{dateLabel(share.createdAt)}</p>
       <h2 className="mt-4 font-serif text-2xl leading-snug">
         {share.reflection.title}
       </h2>
@@ -25,6 +22,7 @@ export function ShareDetail({ share }: { share: Share }) {
       <p className="mt-3 whitespace-pre-wrap break-words font-serif text-xl leading-relaxed">
         {share.text}
       </p>
+      <ShareButton url={share.shareUrl} />
     </article>
   );
 }

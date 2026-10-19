@@ -31,7 +31,7 @@ Production requires both `SESSION_SECRET` and a separate `SHARE_LINK_SECRET` and
 
 ## Sharing with another person
 
-Save a share, then tap the three-node share icon on its card. It opens the device's share sheet directly. Browsers without native sharing copy the link; if clipboard access is unavailable, a small selectable link field appears. The same icon is available in past-share details. Saving prepares the URL but never sends it to anyone.
+Save a share, then tap **Share** beneath your thoughts on the card. It opens the device's share sheet directly. Browsers without native sharing copy the link; if clipboard access is unavailable, a small selectable link field appears. The same button and share icon are available in past-share details. Saving prepares the URL but never sends it to anyone.
 
 Recipients can read the original reading and thoughts without an account. They cannot browse the sender's history. Production requires an independent random `SHARE_LINK_SECRET` of at least 32 bytes, separate from `SESSION_SECRET`; development generates one per process. Never log signed URLs. Technical lifetime and storage details are in [architecture](docs/ARCHITECTURE.md#signed-sharing-boundary).
 

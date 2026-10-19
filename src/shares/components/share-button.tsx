@@ -49,7 +49,7 @@ export function ShareButton({ url }: { url: string }) {
     }
   }
   return (
-    <div className="relative shrink-0">
+    <div className="relative mt-6">
       <button
         ref={button}
         type="button"
@@ -57,7 +57,7 @@ export function ShareButton({ url }: { url: string }) {
         title="Share"
         disabled={pending}
         onClick={() => void share()}
-        className="flex h-11 w-11 items-center justify-center rounded-full hover:bg-[#f1eee5]"
+        className="secondary w-full"
       >
         <svg
           width="22"
@@ -73,12 +73,10 @@ export function ShareButton({ url }: { url: string }) {
           <circle cx="18" cy="5" r="3" />
           <circle cx="18" cy="19" r="3" />
         </svg>
+        <span>Share</span>
       </button>
       {status && (
-        <p
-          role="status"
-          className="absolute right-0 top-full whitespace-nowrap text-xs"
-        >
+        <p role="status" className="mt-2 text-sm">
           {status}
         </p>
       )}
