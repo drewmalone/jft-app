@@ -1,4 +1,4 @@
-/** Next.js adapter; collection contracts/handlers live in src/shares/server/collection.ts. */
+/** Next.js adapter; list/create contracts and handlers live in src/shares/server/operations/. */
 export {
   dispatch as GET,
   dispatch as POST,

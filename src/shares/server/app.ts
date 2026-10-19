@@ -2,8 +2,10 @@ import 'server-only';
 import { OpenAPIHono } from '@hono/zod-openapi';
 import type { SessionEnvironment } from './middleware';
 import { error, handleApiError } from './http';
-import { registerCollection } from './collection';
-import { registerDetail } from './detail';
+import { createShareRoute, createShare } from './operations/create-share';
+import { listSharesRoute, listShares } from './operations/list-shares';
+import { readShareRoute, readShare } from './operations/read-share';
+import { registerResourceMethods } from './resource-methods';
 import { openApiConfiguration } from './openapi';
 
 const specificationAllow = 'GET, HEAD, OPTIONS';
@@ -15,8 +17,10 @@ const app = new OpenAPIHono<SessionEnvironment>({
 }).basePath('/api');
 
 app.onError(handleApiError);
-registerCollection(app);
-registerDetail(app);
+app.openapi(listSharesRoute, listShares);
+app.openapi(createShareRoute, createShare);
+app.openapi(readShareRoute, readShare);
+registerResourceMethods(app);
 app.openAPIRegistry.registerComponent('securitySchemes', 'AnonymousSession', {
   type: 'apiKey',
   in: 'cookie',

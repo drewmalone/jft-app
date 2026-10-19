@@ -10,8 +10,10 @@ import {
   MAX_SHARE_REQUEST_BYTES,
   SESSION_CHALLENGE
 } from '../../src/shares/server/http';
-import { collectionAllow } from '../../src/shares/server/collection';
-import { detailAllow } from '../../src/shares/server/detail';
+import {
+  collectionAllow,
+  detailAllow
+} from '../../src/shares/server/resource-methods';
 
 function request(
   method = 'GET',

@@ -89,7 +89,11 @@ src/
     components/         reading, form, history, and detail presentation
     model.ts            shared Zod schemas, text limit, and placeholder reading
     errors.ts           shared stable error codes and envelope
-    server/             collection/detail contracts + handlers, shared infrastructure
+    server/
+      operations/       create, list, read contracts and typed handlers
+      resource-methods.ts HEAD/OPTIONS/405 handling for share resources
+      app.ts            operation registration and dispatch
+      openapi.ts        shared contract helpers and metadata
     use-share-history.ts History loading and initial session bootstrap
     dates.ts            saved-date formatting
 tests/
