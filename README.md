@@ -89,7 +89,7 @@ src/
     components/         reading, form, history, and detail presentation
     model.ts            shared Zod schemas, text limit, and placeholder reading
     errors.ts           shared stable error codes and envelope
-    server/             OpenAPI routes/app, middleware, repository, sessions
+    server/             collection/detail contracts + handlers, shared infrastructure
     use-share-history.ts History loading and initial session bootstrap
     dates.ts            saved-date formatting
 tests/

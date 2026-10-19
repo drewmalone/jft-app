@@ -10,7 +10,8 @@ import {
   MAX_SHARE_REQUEST_BYTES,
   SESSION_CHALLENGE
 } from '../../src/shares/server/http';
-import { collectionAllow, detailAllow } from '../../src/shares/server/openapi';
+import { collectionAllow } from '../../src/shares/server/collection';
+import { detailAllow } from '../../src/shares/server/detail';
 
 function request(
   method = 'GET',

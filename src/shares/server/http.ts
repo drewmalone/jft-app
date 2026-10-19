@@ -1,4 +1,6 @@
 import 'server-only';
+import { HTTPException } from 'hono/http-exception';
+import { InvalidSessionError } from './session';
 import type { ApiErrorCode } from '../errors';
 
 /** Raw JSON request limit, including whitespace and escaping; enforced on actual streamed bytes. */
@@ -58,4 +60,21 @@ export function error(code: ApiErrorCode, headers?: HeadersInit) {
   if (code === 'INVALID_SESSION')
     result.headers.set('WWW-Authenticate', SESSION_CHALLENGE);
   return result;
+}
+
+/**
+ * Translates expected library/session failures and hides unexpected error details.
+ * @param cause - Error caught by the Hono dispatcher; never logged or returned raw.
+ * @returns A coded JSON error; the dispatcher adds the private cache policy.
+ */
+export function handleApiError(cause: Error): Response {
+  if (cause instanceof InvalidSessionError) return error('INVALID_SESSION');
+  if (cause instanceof HTTPException) {
+    if (cause.status === 404) return error('SHARE_NOT_FOUND');
+    if (cause.status === 400) return error('INVALID_JSON');
+    if (cause.status === 415) return error('UNSUPPORTED_MEDIA_TYPE');
+    if (cause.status === 413) return error('PAYLOAD_TOO_LARGE');
+  }
+  // No request bodies, cookie values, or raw exception details enter logs/responses.
+  return error('INTERNAL_ERROR');
 }

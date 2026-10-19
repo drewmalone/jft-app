@@ -1,4 +1,4 @@
-/** Next.js entry for the OpenAPI-defined share resource; see docs/API.md. */
+/** Next.js adapter; detail contracts/handlers live in src/shares/server/detail.ts. */
 export {
   dispatch as GET,
   dispatch as HEAD,
