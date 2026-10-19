@@ -1,20 +1,17 @@
+import { defineConfig, globalIgnores } from 'eslint/config';
 import nextVitals from 'eslint-config-next/core-web-vitals';
 import nextTypescript from 'eslint-config-next/typescript';
 import prettier from 'eslint-config-prettier/flat';
 
-const config = [
+export default defineConfig([
   ...nextVitals,
   ...nextTypescript,
   prettier,
-  {
-    ignores: [
-      '.next/**',
-      'node_modules/**',
-      'next-env.d.ts',
-      'playwright-report/**',
-      'test-results/**'
-    ]
-  }
-];
-
-export default config;
+  globalIgnores([
+    '.next/**',
+    'node_modules/**',
+    'next-env.d.ts',
+    'playwright-report/**',
+    'test-results/**'
+  ])
+]);
