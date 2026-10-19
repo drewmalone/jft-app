@@ -47,6 +47,8 @@ export function ShareApp() {
   const navigated = useRef(false);
 
   useEffect(() => {
+    // Hydrate browser-only storage after the server and initial client render agree.
+    /* eslint-disable react-hooks/set-state-in-effect */
     try {
       setHistory({ status: 'loaded', shares: readShares(localStorage) });
     } catch {
@@ -56,6 +58,7 @@ export function ShareApp() {
           'Your saved shares could not be read. Check that browser storage is available, then refresh. Existing data has not been changed.'
       });
     }
+    /* eslint-enable react-hooks/set-state-in-effect */
   }, []);
   useEffect(() => {
     if (navigated.current) heading.current?.focus();

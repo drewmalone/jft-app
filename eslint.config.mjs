@@ -1,7 +1,11 @@
-import { FlatCompat } from '@eslint/eslintrc';
+import nextVitals from 'eslint-config-next/core-web-vitals';
+import nextTypescript from 'eslint-config-next/typescript';
+import prettier from 'eslint-config-prettier/flat';
 
-const compat = new FlatCompat({ baseDirectory: import.meta.dirname });
 const config = [
+  ...nextVitals,
+  ...nextTypescript,
+  prettier,
   {
     ignores: [
       '.next/**',
@@ -10,8 +14,7 @@ const config = [
       'playwright-report/**',
       'test-results/**'
     ]
-  },
-  ...compat.extends('next/core-web-vitals', 'next/typescript', 'prettier')
+  }
 ];
 
 export default config;
