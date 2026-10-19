@@ -49,13 +49,13 @@ Messages are intended for display. Branch on `error.code` and the HTTP status, n
 
 ## Save-time sharing URL
 
-Create/list/detail responses include `shareUrl`, a signed relative URL such as `/s/{id}?expires={unixSeconds}&sig={base64urlMAC}`. It is generated once when the record is constructed, before storage. Resolve it against the application origin for native sharing or copying. Reads return the original URL without renewal. There is no separate link-generation endpoint or extra sharing request. Treat URLs as bearer credentials and never log them.
+Create/list/detail responses include `shareUrl`, a signed relative URL such as `/s/{id}?sig={base64urlMAC}`. It is generated once when the record is constructed, before storage. Resolve it against the application origin for native sharing or copying. Reads return the original URL without renewal. There is no separate link-generation endpoint or extra sharing request. Treat URLs as bearer credentials and never log them.
 
-The fixed server-side lifetime is seven days from saving. Expiration has no configuration, response metadata field, or UI label. Invalid sharing-key configuration fails creation with generic 500 before storing the record. Public responses exclude `shareUrl` and all owner metadata.
+The server rejects public reads seven days after the stored `createdAt` timestamp. The URL contains only `sig`; adding or changing an `expires` query parameter has no effect. Expiration has no configuration, response metadata field, or UI label. Invalid sharing-key configuration fails creation with generic 500 before storing the record. Public responses exclude `shareUrl` and all owner metadata.
 
 ## Read a public share
 
-`GET /api/public/shares/{id}?expires={unixSeconds}&sig={signature}` requires the signed capability, **no session**. Existing cookies are ignored, including invalid ones; this endpoint never issues or replaces them. The signature covers `share:v1`, the exact UUID, and expiration. Canonical expiration is a positive decimal safe integer; the signature is canonical unpadded base64url HMAC-SHA256 (43 characters). Missing, duplicate, malformed, tampered, expired and nonexistent capabilities return **404/SHARE_NOT_FOUND**, without reading storage for failed verification. Unexpected signing configuration/repository failures return generic 500.
+`GET /api/public/shares/{id}?sig={signature}` requires the signed capability, **no session**. Existing cookies are ignored, including invalid ones; this endpoint never issues or replaces them. The signature covers `share:v2` and the exact UUID. It is canonical unpadded base64url HMAC-SHA256 (43 characters). Signature verification precedes storage lookup; the server then checks the stored creation time before returning content. No client-provided timestamp controls lifetime. Missing, duplicate, malformed, tampered, expired and nonexistent capabilities return **404/SHARE_NOT_FOUND**, without reading storage for failed verification. Unexpected signing configuration/repository failures return generic 500.
 
 Success is **200** with only `{ "reflection": { "id": "...", "date": "2025-04-23", "title": "...", "body": "..." }, "text": "A fictional thought." }`. It excludes owner ID, share creation metadata, kind and private history. Responses, including failures, carry `Cache-Control: private, no-store`, `X-Robots-Tag: noindex, nofollow` and `Referrer-Policy: no-referrer`. HEAD verifies the same capability with no body. OPTIONS advertises `GET, HEAD, OPTIONS`; other methods return coded 405 with Allow. No CORS permission is granted.
 
@@ -84,7 +84,7 @@ Success is **201 Created** with a share and a relative `Location: /api/shares/{i
   "id": "95eff0e1-bca7-4fd1-83d2-42ba330aab22",
   "createdAt": "2026-10-18T12:00:00.000Z",
   "kind": "text",
-  "shareUrl": "/s/95eff0e1-bca7-4fd1-83d2-42ba330aab22?expires=1800604800&sig=<signature>",
+  "shareUrl": "/s/95eff0e1-bca7-4fd1-83d2-42ba330aab22?sig=<signature>",
   "text": "A fictional thought.\nOne small step.",
   "reflection": {
     "id": "acceptance-2025-04-23",

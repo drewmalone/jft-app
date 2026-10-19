@@ -24,10 +24,10 @@ export default async function SharedReflection({
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
   const { shareId } = await params;
-  const { expires, sig } = await searchParams;
+  const { sig } = await searchParams;
   let share;
   try {
-    share = await readPublicShare(shareId, expires, sig);
+    share = await readPublicShare(shareId, sig);
   } catch {
     // Fail closed without logging token-bearing URLs or internal signing errors.
     share = null;

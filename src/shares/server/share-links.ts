@@ -5,7 +5,6 @@ import { z } from 'zod';
 const processState = globalThis as typeof globalThis & {
   doorknobShareLinkSecret?: string;
 };
-const defaultLifetime = 7 * 24 * 60 * 60;
 const uuid = z.uuid();
 
 function secret() {
@@ -20,64 +19,38 @@ function secret() {
   return (processState.doorknobShareLinkSecret ??=
     randomBytes(32).toString('base64'));
 }
-function signature(id: string, expires: string, key: string) {
-  return createHmac('sha256', key)
-    .update(`share:v1\n${id}\n${expires}`)
-    .digest();
+function signature(id: string, key: string) {
+  return createHmac('sha256', key).update(`share:v2\n${id}`).digest();
 }
 
 /**
- * Signs only a validated ID and absolute expiry; callers must first verify ownership.
+ * Signs a saved share ID; lifetime is enforced against the server's saved timestamp.
  * @param id - Owned share UUID, never reflection text.
- * @param now - Unix seconds, injectable for deterministic tests.
- * @returns A same-origin relative bearer URL and Unix expiration timestamp.
- * @throws On invalid ID, clock, or signing configuration. Never log the result.
+ * @returns A same-origin relative bearer URL, with no client-supplied expiry.
+ * @throws On invalid ID or signing configuration. Never log the result.
  */
-export function createShareLink(
-  id: string,
-  now = Math.floor(Date.now() / 1000)
-) {
+export function createShareLink(id: string) {
   uuid.parse(id);
-  const expiresAt = now + defaultLifetime;
-  if (!Number.isSafeInteger(now) || now < 0 || !Number.isSafeInteger(expiresAt))
-    throw new Error('Invalid clock.');
-  const expires = String(expiresAt);
-  const sig = signature(id, expires, secret()).toString('base64url');
-  return { url: `/s/${id}?expires=${expires}&sig=${sig}`, expiresAt };
+  const sig = signature(id, secret()).toString('base64url');
+  return { url: `/s/${id}?sig=${sig}` };
 }
 
 /**
  * Authenticates a versioned capability before any repository lookup.
  * @param id - Untrusted share UUID.
- * @param expires - Canonical decimal Unix seconds; arrays/duplicates are invalid.
  * @param sig - Canonical unpadded base64url SHA256 MAC.
- * @param now - Unix seconds, injectable for expiry tests.
- * @returns False for malformed, tampered, or expired capabilities.
+ * @returns False for malformed or tampered capabilities. The public service checks stored age.
  * @throws On invalid server signing configuration; callers must fail closed.
  */
-export function verifyShareLink(
-  id: string,
-  expires: unknown,
-  sig: unknown,
-  now = Math.floor(Date.now() / 1000)
-) {
+export function verifyShareLink(id: string, sig: unknown) {
   if (
     !uuid.safeParse(id).success ||
-    typeof expires !== 'string' ||
-    !/^[1-9]\d{0,15}$/.test(expires) ||
     typeof sig !== 'string' ||
     !/^[A-Za-z0-9_-]{43}$/.test(sig)
-  )
-    return false;
-  const timestamp = Number(expires);
-  if (
-    !Number.isSafeInteger(timestamp) ||
-    !Number.isSafeInteger(now) ||
-    timestamp <= now
   )
     return false;
   const supplied = Buffer.from(sig, 'base64url');
   if (supplied.length !== 32 || supplied.toString('base64url') !== sig)
     return false;
-  return timingSafeEqual(supplied, signature(id, expires, secret()));
+  return timingSafeEqual(supplied, signature(id, secret()));
 }

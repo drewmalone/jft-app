@@ -27,7 +27,7 @@ export function createStoredShare(ownerId: string, text: string): StoredShare {
   return storedShareSchema.parse({
     id,
     shareUrl,
-    createdAt: new Date().toISOString(),
+    createdAt: new Date(Date.now()).toISOString(),
     kind: 'text',
     text: input.text,
     reflection: { ...reflection },

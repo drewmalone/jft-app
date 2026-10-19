@@ -3,24 +3,27 @@ import { publicShareSchema } from '../model';
 import { shareRepository, type ShareRepository } from './repository';
 import { verifyShareLink } from './share-links';
 
+const lifetimeMs = 7 * 24 * 60 * 60 * 1000;
+
 /**
  * The public authorization boundary: verify before an unscoped repository read.
  * @param id - Untrusted record ID.
- * @param expires - Untrusted canonical expiry; duplicate/missing values fail validation.
  * @param sig - Untrusted signature.
  * @param repository - Defaults to the process store; tests may supply an isolated store.
- * @param now - Unix seconds for deterministic verification tests.
+ * @param now - Server time in Unix milliseconds, injectable for deterministic age tests.
  * @returns Only the reading snapshot and text, or null for every unavailable capability.
  * @throws On invalid server configuration or repository failure; never returns private fields.
  */
 export async function readPublicShare(
   id: string,
-  expires: unknown,
   sig: unknown,
   repository: ShareRepository = shareRepository,
-  now?: number
+  now = Date.now()
 ) {
-  if (!verifyShareLink(id, expires, sig, now)) return null;
+  if (!verifyShareLink(id, sig)) return null;
   const stored = await repository.findById(id);
-  return stored ? publicShareSchema.parse(stored) : null;
+  if (!stored) return null;
+  const age = now - Date.parse(stored.createdAt);
+  if (!Number.isFinite(age) || age < 0 || age >= lifetimeMs) return null;
+  return publicShareSchema.parse(stored);
 }

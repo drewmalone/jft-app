@@ -29,7 +29,7 @@ test('validates saved share contracts and omits server ownership', () => {
     createdAt: new Date().toISOString(),
     kind: 'text',
     text: 'Fictional thought.',
-    shareUrl: `/s/${crypto.randomUUID()}?expires=1800604800&sig=${'A'.repeat(43)}`,
+    shareUrl: `/s/${crypto.randomUUID()}?sig=${'A'.repeat(43)}`,
     reflection
   };
   assert.deepEqual(

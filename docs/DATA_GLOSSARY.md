@@ -17,7 +17,7 @@ Use these terms consistently across `jft-app` and `jft-harness`. App-specific se
 
 ## Public sharing terms
 
-- **Signed sharing link**: a URL carrying only a share UUID, expiration and purpose-bound HMAC. It authorizes public access to the original reading snapshot and text, not owner history. The server prepares one URL while saving and keeps it in the same in-memory share record; it does not track recipients or keep separate token records.
+- **Signed sharing link**: a URL carrying only a share UUID and purpose-bound HMAC; the server enforces age using the stored creation time. It authorizes public access to the original reading snapshot and text, not owner history. The server prepares one URL while saving and keeps it in the same in-memory share record; it does not track recipients or keep separate token records.
 - **Sharing secret**: independent server-only `SHARE_LINK_SECRET`, distinct from the session key. Production requires a randomly generated key; development may keep one random key in process memory. Rotation invalidates all old links.
 - **Expiration**: rejects subsequent reads; it neither deletes the share nor erases a recipient's copy. Fixed at seven days from saving. No immediate individual-link revocation exists.
 

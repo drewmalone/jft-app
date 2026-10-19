@@ -35,6 +35,7 @@ test('share icon uses the saved URL directly for native sharing and session-free
   });
   const saved = await save(page);
   const link = new URL(saved.shareUrl, baseURL).href;
+  expect([...new URL(link).searchParams.keys()]).toEqual(['sig']);
   const button = page.getByRole('button', {
     name: 'Share with fellow alcoholic',
     exact: true
@@ -89,7 +90,7 @@ test('share icon uses the saved URL directly for native sharing and session-free
     );
     for (const suffix of [
       '',
-      '?expires=1&sig=invalid',
+      '?sig=invalid',
       `${signed.search}&sig=duplicate`
     ]) {
       await reader.goto(`${signed.origin}${signed.pathname}${suffix}`);
@@ -101,7 +102,7 @@ test('share icon uses the saved URL directly for native sharing and session-free
     expect(
       (
         await recipient.request.get(
-          `/api/public/shares/${saved.id}?expires=1&sig=invalid`
+          `/api/public/shares/${saved.id}?sig=invalid`
         )
       ).status()
     ).toBe(404);

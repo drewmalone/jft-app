@@ -43,72 +43,48 @@ async function create() {
   };
 }
 
-test('versioned HMAC binds the exact ID and canonical expiry; rejects tampering and malformed credentials', (t) => {
-  t.mock.property(process, 'env', {
-    ...process.env,
-    SHARE_LINK_SECRET: key
-  });
+test('versioned HMAC binds the exact ID; URLs contain only a signature', (t) => {
+  t.mock.property(process, 'env', { ...process.env, SHARE_LINK_SECRET: key });
   const id = randomUUID();
-  const link = createShareLink(id, now);
-  assert.equal(link.expiresAt, now + 604800);
-  const query = parameters(link.url);
-  const expires = query.get('expires')!;
+  const { url } = createShareLink(id);
+  const query = parameters(url);
+  assert.deepEqual([...query.keys()], ['sig']);
   const sig = query.get('sig')!;
-  const expected = createHmac('sha256', key)
-    .update(`share:v1\n${id}\n${expires}`)
-    .digest('base64url');
-  assert.equal(sig, expected);
-  assert.equal(verifyShareLink(id, expires, sig, now), true);
-  assert.equal(verifyShareLink(randomUUID(), expires, sig, now), false);
   assert.equal(
-    verifyShareLink(id, String(Number(expires) + 1), sig, now),
+    sig,
+    createHmac('sha256', key).update(`share:v2\n${id}`).digest('base64url')
+  );
+  assert.equal(verifyShareLink(id, sig), true);
+  assert.equal(verifyShareLink(randomUUID(), sig), false);
+  assert.equal(
+    verifyShareLink(id, `${sig[0] === 'A' ? 'B' : 'A'}${sig.slice(1)}`),
     false
   );
-  assert.equal(
-    verifyShareLink(
-      id,
-      expires,
-      `${sig[0] === 'A' ? 'B' : 'A'}${sig.slice(1)}`,
-      now
-    ),
-    false
-  );
-  assert.equal(verifyShareLink(id, expires, sig, link.expiresAt), false);
   for (const bad of [
     undefined,
     null,
     [],
-    [expires, expires],
-    '',
-    '0',
-    '-1',
-    '1.5',
-    '1e10',
-    `0${expires}`,
-    ` ${expires}`,
-    '9007199254740992'
-  ])
-    assert.equal(verifyShareLink(id, bad, sig, now), false);
-  for (const bad of [
-    undefined,
-    [],
+    [sig, sig],
     '',
     sig + '=',
     sig.slice(1),
     '!'.repeat(43),
     'A'.repeat(44)
   ])
-    assert.equal(verifyShareLink(id, expires, bad, now), false);
-  assert.equal(verifyShareLink('invalid', expires, sig, now), false);
-  assert.throws(() => createShareLink('invalid', now));
-  assert.throws(() => createShareLink(id, NaN));
-  const differentPurpose = createHmac('sha256', key)
-    .update(`session:v1\n${id}\n${expires}`)
+    assert.equal(verifyShareLink(id, bad), false);
+  assert.equal(verifyShareLink('invalid', sig), false);
+  assert.throws(() => createShareLink('invalid'));
+  const otherPurpose = createHmac('sha256', key)
+    .update(`session:v2\n${id}`)
     .digest('base64url');
-  assert.equal(verifyShareLink(id, expires, differentPurpose, now), false);
+  assert.equal(verifyShareLink(id, otherPurpose), false);
+  const legacy = createHmac('sha256', key)
+    .update(`share:v1\n${id}\n${now + 604800}`)
+    .digest('base64url');
+  assert.equal(verifyShareLink(id, legacy), false);
 });
 
-test('separate process-stable development key, fixed one-week lifetime, and fail-closed production configuration', (t) => {
+test('separate process-stable development key, and fail-closed production configuration', (t) => {
   t.mock.property(process, 'env', {
     ...process.env,
     NODE_ENV: 'development',
@@ -116,71 +92,61 @@ test('separate process-stable development key, fixed one-week lifetime, and fail
     SHARE_LINK_SECRET: undefined
   });
   const id = randomUUID();
-  assert.deepEqual(createShareLink(id, now), createShareLink(id, now));
-  assert.equal(createShareLink(id, now).expiresAt, now + 604800);
+  assert.deepEqual(createShareLink(id), createShareLink(id));
   Object.assign(process.env, { NODE_ENV: 'production' });
   for (const value of [undefined, '', 'short']) {
     if (value === undefined) delete process.env.SHARE_LINK_SECRET;
     else process.env.SHARE_LINK_SECRET = value;
-    assert.throws(() => createShareLink(id, now));
-    assert.throws(() =>
-      verifyShareLink(id, String(now + 100), 'A'.repeat(43), now)
-    );
+    assert.throws(() => createShareLink(id));
+    assert.throws(() => verifyShareLink(id, 'A'.repeat(43)));
   }
   process.env.SHARE_LINK_SECRET = key;
   process.env.SESSION_SECRET = key;
-  assert.throws(() => createShareLink(id, now));
+  assert.throws(() => createShareLink(id));
   process.env.SESSION_SECRET = 'a-different-fictional-session-secret';
-  assert.ok(createShareLink(id, now).url);
+  assert.ok(createShareLink(id).url);
 });
 
-test('public service verifies before storage and projects only intended content from detached reads', async (t) => {
-  t.mock.property(process, 'env', {
-    ...process.env,
-    SHARE_LINK_SECRET: key
-  });
+test('public service authenticates before lookup and enforces seven days from stored creation time', async (t) => {
+  t.mock.property(process, 'env', { ...process.env, SHARE_LINK_SECRET: key });
+  t.mock.method(Date, 'now', () => now * 1000);
   const store = new InMemoryShareRepository();
   const saved = await store.create(
     randomUUID(),
     'Fictional public service text.'
   );
-  const link = createShareLink(saved.id, now);
-  const query = parameters(link.url);
+  const sig = parameters(saved.shareUrl).get('sig');
   const lookup = t.mock.method(store, 'findById');
   assert.equal(
-    await readPublicShare(
-      saved.id,
-      query.get('expires'),
-      'invalid',
-      store,
-      now
-    ),
+    await readPublicShare(saved.id, 'invalid', store, now * 1000),
     null
   );
   assert.equal(lookup.mock.callCount(), 0);
-  const projected = await readPublicShare(
-    saved.id,
-    query.get('expires'),
-    query.get('sig'),
-    store,
-    now
+  assert.deepEqual(await readPublicShare(saved.id, sig, store, now * 1000), {
+    reflection,
+    text: saved.text
+  });
+  const boundary = Date.parse(saved.createdAt) + 7 * 24 * 60 * 60 * 1000;
+  assert.ok(await readPublicShare(saved.id, sig, store, boundary - 1));
+  assert.equal(await readPublicShare(saved.id, sig, store, boundary), null);
+  assert.equal(await readPublicShare(saved.id, sig, store, boundary + 1), null);
+  assert.equal(
+    await readPublicShare(saved.id, sig, store, now * 1000 - 1),
+    null
   );
-  assert.deepEqual(projected, { reflection, text: saved.text });
-  assert.equal(lookup.mock.callCount(), 1);
-  const detached = await store.findById(saved.id);
-  detached!.text = 'Changed';
-  assert.equal((await store.findById(saved.id))?.text, saved.text);
-  // Same valid capability, absent underlying record (e.g. after restart or future deletion).
+  assert.equal(await readPublicShare(saved.id, sig, store, NaN), null);
   assert.equal(
     await readPublicShare(
       saved.id,
-      query.get('expires'),
-      query.get('sig'),
+      sig,
       new InMemoryShareRepository(),
-      now
+      now * 1000
     ),
     null
   );
+  const detached = await store.findById(saved.id);
+  detached!.createdAt = new Date(boundary).toISOString();
+  assert.equal(await readPublicShare(saved.id, sig, store, boundary), null);
 });
 
 test('saving creates one reusable owner-only URL; public reads have no session side effects', async (t) => {
@@ -188,12 +154,13 @@ test('saving creates one reusable owner-only URL; public reads have no session s
     ...process.env,
     SHARE_LINK_SECRET: key
   });
-  t.mock.method(Date, 'now', () => now * 1000);
+  let currentTime = now * 1000;
+  t.mock.method(Date, 'now', () => currentTime);
   const { share, cookie } = await create();
   const foreign = await create();
   const link = { url: share.shareUrl };
   const query = parameters(link.url);
-  assert.equal(Number(query.get('expires')), now + 604800);
+  assert.deepEqual([...query.keys()], ['sig']);
   assert.equal(link.url.includes(key), false);
   assert.equal(link.url.includes(share.text), false);
   const listed = await (await request('/api/shares', 'GET', cookie)).json();
@@ -230,15 +197,11 @@ test('saving creates one reusable owner-only URL; public reads have no session s
   const head = await request(publicPath, 'HEAD');
   assert.equal(head.status, 200);
   assert.equal(await head.text(), '');
-  const expired = createShareLink(share.id, now - 604800);
   for (const broken of [
-    `/api/public/shares/${share.id}?${parameters(expired.url)}`,
     `/api/public/shares/${share.id}`,
-    publicPath + '&expires=' + query.get('expires'),
     publicPath + '&sig=' + query.get('sig'),
     publicPath.replace(share.id, randomUUID()),
-    `/api/public/shares/${share.id}?expires=invalid&sig=invalid`,
-    `/api/public/shares/${share.id}?expires=${now}&sig=${query.get('sig')}`
+    `/api/public/shares/${share.id}?sig=invalid`
   ]) {
     const invalid = await request(broken);
     assert.equal(invalid.status, 404);
@@ -247,6 +210,16 @@ test('saving creates one reusable owner-only URL; public reads have no session s
     });
     assert.equal(invalid.headers.get('set-cookie'), null);
     assert.equal(invalid.headers.get('x-robots-tag'), 'noindex, nofollow');
+  }
+  currentTime = (now + 604800) * 1000;
+  for (const path of [
+    publicPath,
+    publicPath + '&expires=9999999999999999',
+    publicPath + '&createdAt=2099-01-01'
+  ]) {
+    const expired = await request(path);
+    assert.equal(expired.status, 404);
+    assert.equal(expired.headers.get('set-cookie'), null);
   }
 });
 

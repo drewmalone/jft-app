@@ -29,15 +29,11 @@ export const readPublicShareRoute = createRoute({
   tags: ['Shares'],
   summary: 'Read a share using an expiring signed capability',
   description:
-    'Verifies the ID, expiry and HMAC before reading storage. Invalid, expired and missing links all return the same 404. Never creates or requires a session.',
+    'Verifies the ID and HMAC before reading storage, then enforces seven days from the server-stored creation time. Invalid, expired and missing links all return the same 404. Never creates or requires a session.',
   security: [],
   request: {
     params: z.object({ id: z.string() }),
     query: z.object({
-      expires: z.string().optional().openapi({
-        description:
-          'Required canonical Unix expiration seconds. Missing, duplicate or malformed values return 404.'
-      }),
       sig: z.string().optional().openapi({
         description:
           'Required canonical base64url HMAC-SHA256 signature. Treat as a credential; never log.'
@@ -66,11 +62,9 @@ export const getPublicShare: RouteHandler<
   typeof readPublicShareRoute,
   SessionEnvironment
 > = async (c) => {
-  const expires = c.req.queries('expires') ?? [];
   const sig = c.req.queries('sig') ?? [];
   const share = await readPublicShare(
     c.req.valid('param').id,
-    expires.length === 1 ? expires[0] : undefined,
     sig.length === 1 ? sig[0] : undefined
   );
   return share ? c.json(share, 200) : c.json(errorBody('SHARE_NOT_FOUND'), 404);

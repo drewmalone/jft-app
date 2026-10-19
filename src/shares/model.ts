@@ -46,9 +46,7 @@ export const shareSchema = z.object({
   kind: z.literal('text'),
   reflection: reflectionSchema,
   text: nonblankText,
-  shareUrl: z
-    .string()
-    .regex(/^\/s\/[0-9a-fA-F-]+\?expires=[0-9]+&sig=[A-Za-z0-9_-]{43}$/)
+  shareUrl: z.string().regex(/^\/s\/[0-9a-fA-F-]+\?sig=[A-Za-z0-9_-]{43}$/)
 });
 
 /** Reading snapshot with an ISO calendar date; saved snapshots do not follow later edits. */
