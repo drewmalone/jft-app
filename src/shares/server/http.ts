@@ -1,5 +1,4 @@
 import 'server-only';
-import { InvalidSessionError } from './session';
 import type { ApiErrorCode } from '../errors';
 
 /** Raw JSON request limit, including whitespace and escaping; enforced on actual streamed bytes. */
@@ -18,7 +17,7 @@ export const apiFailures = {
   INVALID_SESSION: {
     status: 401,
     message:
-      'Your session is invalid or expired. Start a new session to continue; access to previous shares will not be restored.'
+      'Your session is invalid or expired. Clear site cookies to start a new session; access to previous shares will be lost.'
   },
   CROSS_ORIGIN_REQUEST: {
     status: 403,
@@ -71,12 +70,12 @@ export function error(code: ApiErrorCode, headers?: HeadersInit) {
 }
 
 /**
- * Translates the explicit session failure and hides all unexpected error details.
+ * Hides all unexpected error details. Missing owner credentials use explicit INVALID_SESSION responses.
  * @param cause - Error caught by the Hono dispatcher; never logged or returned raw.
  * @returns A coded JSON error; the dispatcher adds the private cache policy.
  */
 export function handleApiError(cause: Error): Response {
-  if (cause instanceof InvalidSessionError) return error('INVALID_SESSION');
+  void cause;
   // No request bodies, cookie values, or raw exception details enter logs/responses.
   return error('INTERNAL_ERROR');
 }

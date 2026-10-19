@@ -49,13 +49,6 @@ export function registerResourceMethods(app: OpenAPIHono<SessionEnvironment>) {
     );
   }
   app.openAPIRegistry.registerPath(headRoute(readPublicShareRoute));
-  app.openapi(
-    optionsRoute('/session/reset', 'POST, OPTIONS', 'sessionResetOptions'),
-    (c) => c.body(null, 204, { Allow: 'POST, OPTIONS' })
-  );
-  app.all('/session/reset', () =>
-    error('METHOD_NOT_ALLOWED', { Allow: 'POST, OPTIONS' })
-  );
   app.all('/shares', () =>
     error('METHOD_NOT_ALLOWED', { Allow: collectionAllow })
   );

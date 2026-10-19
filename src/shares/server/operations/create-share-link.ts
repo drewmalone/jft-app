@@ -8,7 +8,7 @@ import {
   sameOrigin,
   type SessionEnvironment
 } from '../middleware';
-import { privateHeaders, commonFailures, failed } from '../openapi';
+import { privateHeaders, ownerSessionFailures, failed } from '../openapi';
 import { errorBody } from '../http';
 import { readShareRoute } from './read-share';
 
@@ -35,7 +35,7 @@ export const createShareLinkRoute = createRoute({
     },
     403: failed(['CROSS_ORIGIN_REQUEST']),
     404: failed(['SHARE_NOT_FOUND']),
-    ...commonFailures
+    ...ownerSessionFailures
   }
 });
 /** Creates a capability only after owner-scoped lookup; signing failures become generic 500s. */

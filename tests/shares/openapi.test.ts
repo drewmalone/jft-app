@@ -165,8 +165,9 @@ test('actual create/list/detail and error responses conform to OpenAPI, includin
     '/api/shares',
     'doorknob-session=forged'
   );
-  assert.equal(invalid.headers.get('WWW-Authenticate'), SESSION_CHALLENGE);
-  assert.equal(invalid.headers.get('set-cookie'), null);
+  assert.equal(invalid.status, 200);
+  assert.equal(invalid.headers.get('WWW-Authenticate'), null);
+  assert.ok(invalid.headers.get('set-cookie'));
   await contract(invalid);
 });
 
@@ -242,7 +243,7 @@ test('HEAD enforces ownership/session rules with no bodies; OPTIONS and 405 adve
     assert.equal(head.status, 200);
     await contract(head, specPath, 'head');
     const unauthorized = await request('HEAD', path, 'doorknob-session=forged');
-    assert.equal(unauthorized.status, 401);
+    assert.equal(unauthorized.status, path === '/api/shares' ? 200 : 404);
     await contract(unauthorized, specPath, 'head');
     const options = await request('OPTIONS', path, 'doorknob-session=forged');
     assert.equal(options.status, 204);
@@ -325,7 +326,9 @@ test('error contracts reject codes belonging to a different HTTP status', async 
             'WWW-Authenticate': SESSION_CHALLENGE
           }
         }
-      )
+      ),
+      '/api/shares/{id}/link',
+      'post'
     )
   );
 });
@@ -374,20 +377,4 @@ test('signed-link and public responses conform to their generated contracts', as
     [publicPath, '/api/public/shares/{id}']
   ])
     await contract(await request('OPTIONS', path), schema, 'options');
-});
-
-test('explicit session recovery responses conform to the OpenAPI contract', async () => {
-  const path = '/api/session/reset';
-  const recovered = await request('POST', path, 'doorknob-session=forged');
-  assert.equal(recovered.status, 204);
-  assert.ok(recovered.headers.get('set-cookie'));
-  await contract(recovered, path, 'post');
-  await contract(
-    await request('POST', path, undefined, undefined, {
-      origin: 'https://elsewhere.example'
-    }),
-    path,
-    'post'
-  );
-  await contract(await request('OPTIONS', path), path, 'options');
 });

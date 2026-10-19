@@ -34,52 +34,38 @@ export type AnonymousSession = {
 };
 
 /**
- * Signals a malformed, expired, or incorrectly signed cookie.
- * The API error handler maps this to 401 without replacing the cookie or accessing shares.
- * Configuration/crypto failures use ordinary errors and map to 500 instead.
- */
-export class InvalidSessionError extends Error {}
-
-/**
- * Verifies a Hono-signed JSON payload, or issues an owner only when no cookie exists.
- * @param request - Incoming request with an optional untrusted session cookie.
- * @returns The owner and a new payload to serialize, or null for an existing session.
- * @throws InvalidSessionError for malformed, forged, or expired credentials.
- * @throws If signing configuration or cryptographic operations fail.
+ * Reuses a verified cookie, or starts a fresh empty owner for missing/stale credentials.
+ * This disposable prototype never restores ownership from an invalid cookie.
+ * @param request - Incoming request with an optional anonymous-session cookie.
+ * @returns Verified ownership, or a new random owner and cookie payload.
+ * @throws If signing configuration or cryptographic operations fail; no fallback for bad configuration.
  */
 export async function getSession(request: Request): Promise<AnonymousSession> {
+  const key = secret();
   const cookie = request.headers.get('cookie') ?? '';
   const supplied = parse(cookie, cookieName)[cookieName];
-  if (
-    supplied === undefined &&
-    cookie
-      .split(';')
-      .some((part) => part.trimStart().startsWith(`${cookieName}=`))
-  )
-    throw new InvalidSessionError();
-  if (supplied === undefined) {
-    secret(); // Fail closed before a route can write when configuration is invalid.
-    const payload: SessionPayload = {
-      ownerId: randomUUID(),
-      expiresAt: Math.floor(Date.now() / 1000) + lifetimeSeconds
-    };
-    return { ownerId: payload.ownerId, newSession: payload };
+  if (supplied !== undefined) {
+    const verified = (await parseSigned(cookie, key, cookieName))[cookieName];
+    if (typeof verified === 'string') {
+      let value: unknown;
+      try {
+        value = JSON.parse(verified);
+      } catch {
+        /* Invalid old cookie starts a new owner below. */
+      }
+      const parsed = payloadSchema.safeParse(value);
+      if (
+        parsed.success &&
+        parsed.data.expiresAt > Math.floor(Date.now() / 1000)
+      )
+        return { ownerId: parsed.data.ownerId, newSession: null };
+    }
   }
-  // Hono omits some malformed signatures; only a genuinely absent cookie bootstraps.
-  const verified = (await parseSigned(cookie, secret(), cookieName))[
-    cookieName
-  ];
-  if (typeof verified !== 'string') throw new InvalidSessionError();
-  let value: unknown;
-  try {
-    value = JSON.parse(verified);
-  } catch {
-    throw new InvalidSessionError();
-  }
-  const parsed = payloadSchema.safeParse(value);
-  if (!parsed.success || parsed.data.expiresAt <= Math.floor(Date.now() / 1000))
-    throw new InvalidSessionError();
-  return { ownerId: parsed.data.ownerId, newSession: null };
+  const payload: SessionPayload = {
+    ownerId: randomUUID(),
+    expiresAt: Math.floor(Date.now() / 1000) + lifetimeSeconds
+  };
+  return { ownerId: payload.ownerId, newSession: payload };
 }
 
 /**

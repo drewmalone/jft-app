@@ -17,8 +17,6 @@ import {
   getPublicShare
 } from './operations/read-public-share';
 
-import { resetSessionRoute, resetSession } from './operations/reset-session';
-
 const specificationAllow = 'GET, HEAD, OPTIONS';
 
 const app = new OpenAPIHono<SessionEnvironment>({
@@ -38,14 +36,13 @@ app.openapi(createShareRoute, createShare);
 app.openapi(readShareRoute, readShare);
 app.openapi(createShareLinkRoute, generateShareLink);
 app.openapi(readPublicShareRoute, getPublicShare);
-app.openapi(resetSessionRoute, resetSession);
 registerResourceMethods(app);
 app.openAPIRegistry.registerComponent('securitySchemes', 'AnonymousSession', {
   type: 'apiKey',
   in: 'cookie',
   name: 'doorknob-session',
   description:
-    'Signed HttpOnly cookie. No cookie bootstraps a new owner; invalid supplied credentials are rejected. 30-day absolute expiry, SameSite=Lax, Secure in production. Custom WWW-Authenticate scheme: DoorknobSession.'
+    'Signed HttpOnly cookie. Missing, invalid or expired cookies start a fresh empty owner; link generation requires an existing valid owner. 30-day absolute expiry, SameSite=Lax, Secure in production. Custom WWW-Authenticate scheme: DoorknobSession.'
 });
 app.options('/openapi.json', (c) =>
   c.newResponse(null, 204, { Allow: specificationAllow })

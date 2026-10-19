@@ -25,7 +25,7 @@ export const privateHeaders = {
   'Cache-Control': privateHeader,
   'Set-Cookie': cookieHeader
 };
-/** Missing credentials bootstrap a session; invalid supplied credentials still fail. */
+/** Private create/list/detail bootstrap a fresh owner for missing or invalid cookies. */
 export const sessionSecurity: Record<string, string[]>[] = [
   { AnonymousSession: [] },
   {}
@@ -54,17 +54,19 @@ export function failed(
     }
   };
 }
-/** Session and internal failures common to private operations. */
-export const commonFailures = {
+/** Internal failures common to private operations. */
+export const commonFailures = { 500: failed(['INTERNAL_ERROR']) };
+/** Link creation requires an existing valid owner rather than a fresh session. */
+export const ownerSessionFailures = {
+  ...commonFailures,
   401: failed(['INVALID_SESSION'], {
     'WWW-Authenticate': {
       required: true,
       schema: { type: 'string' as const, enum: [SESSION_CHALLENGE] },
       description:
-        'Private DoorknobSession scheme; send credentials via the session cookie, not an Authorization header.'
+        'Link generation requires an existing valid session cookie, not an Authorization header.'
     }
-  }),
-  500: failed(['INTERNAL_ERROR'])
+  })
 };
 /**
  * Derives bodyless HEAD documentation; Hono executes the corresponding GET handler.
