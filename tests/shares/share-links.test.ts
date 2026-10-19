@@ -46,8 +46,7 @@ async function create() {
 test('versioned HMAC binds the exact ID and canonical expiry; rejects tampering and malformed credentials', (t) => {
   t.mock.property(process, 'env', {
     ...process.env,
-    SHARE_LINK_SECRET: key,
-    SHARE_LINK_TTL_SECONDS: undefined
+    SHARE_LINK_SECRET: key
   });
   const id = randomUUID();
   const link = createShareLink(id, now);
@@ -109,23 +108,16 @@ test('versioned HMAC binds the exact ID and canonical expiry; rejects tampering 
   assert.equal(verifyShareLink(id, expires, differentPurpose, now), false);
 });
 
-test('separate process-stable development key, configurable lifetime, and fail-closed production configuration', (t) => {
+test('separate process-stable development key, fixed one-week lifetime, and fail-closed production configuration', (t) => {
   t.mock.property(process, 'env', {
     ...process.env,
     NODE_ENV: 'development',
     SESSION_SECRET: undefined,
-    SHARE_LINK_SECRET: undefined,
-    SHARE_LINK_TTL_SECONDS: undefined
+    SHARE_LINK_SECRET: undefined
   });
   const id = randomUUID();
   assert.deepEqual(createShareLink(id, now), createShareLink(id, now));
-  process.env.SHARE_LINK_TTL_SECONDS = '60';
-  assert.equal(createShareLink(id, now).expiresAt, now + 60);
-  for (const value of ['', '0', '-1', '1.5', '31536001', 'abc']) {
-    process.env.SHARE_LINK_TTL_SECONDS = value;
-    assert.throws(() => createShareLink(id, now));
-  }
-  delete process.env.SHARE_LINK_TTL_SECONDS;
+  assert.equal(createShareLink(id, now).expiresAt, now + 604800);
   Object.assign(process.env, { NODE_ENV: 'production' });
   for (const value of [undefined, '', 'short']) {
     if (value === undefined) delete process.env.SHARE_LINK_SECRET;
@@ -145,8 +137,7 @@ test('separate process-stable development key, configurable lifetime, and fail-c
 test('public service verifies before storage and projects only intended content from detached reads', async (t) => {
   t.mock.property(process, 'env', {
     ...process.env,
-    SHARE_LINK_SECRET: key,
-    SHARE_LINK_TTL_SECONDS: '60'
+    SHARE_LINK_SECRET: key
   });
   const store = new InMemoryShareRepository();
   const saved = await store.create(
@@ -192,43 +183,28 @@ test('public service verifies before storage and projects only intended content 
   );
 });
 
-test('link API enforces existing session, owner and same-origin; public API has no session side effects', async (t) => {
+test('saving creates one reusable owner-only URL; public reads have no session side effects', async (t) => {
   t.mock.property(process, 'env', {
     ...process.env,
-    SHARE_LINK_SECRET: key,
-    SHARE_LINK_TTL_SECONDS: '604800'
+    SHARE_LINK_SECRET: key
   });
   t.mock.method(Date, 'now', () => now * 1000);
   const { share, cookie } = await create();
   const foreign = await create();
-  const path = `/api/shares/${share.id}/link`;
-  for (const credential of [undefined, 'doorknob-session=invalid']) {
-    const response = await request(path, 'POST', credential);
-    assert.equal(response.status, 401);
-    assert.equal(response.headers.get('set-cookie'), null);
-  }
-  const other = await request(path, 'POST', foreign.cookie);
-  const missing = await request(
-    `/api/shares/${randomUUID()}/link`,
-    'POST',
-    cookie
-  );
-  assert.equal(other.status, 404);
-  assert.equal(missing.status, 404);
-  assert.deepEqual(await other.json(), await missing.json());
-  const crossOrigin = await request(path, 'POST', cookie, {
-    origin: 'https://elsewhere.example'
-  });
-  assert.equal(crossOrigin.status, 403);
-  const response = await request(path, 'POST', cookie);
-  assert.equal(response.status, 200);
-  assert.equal(response.headers.get('cache-control'), 'private, no-store');
-  const link = await response.json();
-  assert.deepEqual(Object.keys(link).sort(), ['expiresAt', 'url']);
-  assert.equal(link.expiresAt, now + 604800);
-  assert.equal(JSON.stringify(link).includes(key), false);
-  assert.equal(JSON.stringify(link).includes(share.text), false);
+  const link = { url: share.shareUrl };
   const query = parameters(link.url);
+  assert.equal(Number(query.get('expires')), now + 604800);
+  assert.equal(link.url.includes(key), false);
+  assert.equal(link.url.includes(share.text), false);
+  const listed = await (await request('/api/shares', 'GET', cookie)).json();
+  assert.equal(listed[0].shareUrl, share.shareUrl);
+  const crossOrigin = await dispatch(
+    new Request('http://localhost/api/shares', {
+      method: 'POST',
+      headers: { origin: 'https://elsewhere.example' }
+    })
+  );
+  assert.equal(crossOrigin.status, 403);
   const publicPath = `/api/public/shares/${share.id}?${query}`;
   for (const credential of [
     undefined,
@@ -279,14 +255,15 @@ test('production API signing failures remain generic and never return a link or 
     ...process.env,
     SESSION_SECRET: 'fictional-valid-session-secret-at-least-32-bytes'
   });
-  const { share, cookie } = await create();
   Object.assign(process.env, { NODE_ENV: 'production', SHARE_LINK_SECRET: '' });
-  const response = await request(
-    `/api/shares/${share.id}/link`,
-    'POST',
-    cookie
+  const response = await dispatch(
+    new Request('http://localhost/api/shares', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ text: 'A fictional unsaved share.' })
+    })
   );
-  // Session remains valid; the missing sharing key alone fails closed.
+  // A missing sharing key fails before storing the record.
   assert.equal(response.status, 500);
   assert.equal((await response.json()).error.code, 'INTERNAL_ERROR');
   assert.equal(response.headers.get('set-cookie'), null);

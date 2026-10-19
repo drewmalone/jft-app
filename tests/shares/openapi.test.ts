@@ -6,10 +6,7 @@ import Ajv2020, { type AnySchema } from 'ajv/dist/2020';
 import addFormats from 'ajv-formats';
 import { dispatch, getOpenApiDocument } from '../../src/shares/server/app';
 import { MAX_SHARE_TEXT_LENGTH } from '../../src/shares/model';
-import {
-  MAX_SHARE_REQUEST_BYTES,
-  SESSION_CHALLENGE
-} from '../../src/shares/server/http';
+import { MAX_SHARE_REQUEST_BYTES } from '../../src/shares/server/http';
 import {
   collectionAllow,
   detailAllow
@@ -320,20 +317,19 @@ test('error contracts reject codes belonging to a different HTTP status', async 
       Response.json(
         { error: { code: 'INTERNAL_ERROR', message: 'Fictional error.' } },
         {
-          status: 401,
+          status: 404,
           headers: {
-            'Cache-Control': 'private, no-store',
-            'WWW-Authenticate': SESSION_CHALLENGE
+            'Cache-Control': 'private, no-store'
           }
         }
       ),
-      '/api/shares/{id}/link',
-      'post'
+      '/api/shares/{id}',
+      'get'
     )
   );
 });
 
-test('signed-link and public responses conform to their generated contracts', async (t) => {
+test('save-time link and public responses conform to generated contracts', async (t) => {
   t.mock.property(process, 'env', {
     ...process.env,
     SHARE_LINK_SECRET: 'fictional-contract-sharing-key-at-least-32-bytes'
@@ -344,24 +340,9 @@ test('signed-link and public responses conform to their generated contracts', as
     undefined,
     JSON.stringify({ text: 'A fictional shared contract thought.' })
   );
-  const cookie = cookieFrom(created);
-  const saved = await created.json();
-  const linkPath = `/api/shares/${saved.id}/link`;
-  const generated = await request('POST', linkPath, cookie);
-  const link = await generated.clone().json();
-  assert.equal(generated.status, 200);
-  await contract(generated, '/api/shares/{id}/link', 'post');
-  await contract(
-    await request('POST', linkPath),
-    '/api/shares/{id}/link',
-    'post'
-  );
-  await contract(
-    await request('POST', '/api/shares/invalid/link', cookie),
-    '/api/shares/{id}/link',
-    'post'
-  );
-  const publicPath = `/api/public/shares/${saved.id}?${new URL(link.url, 'http://localhost').searchParams}`;
+  const saved = await created.clone().json();
+  await contract(created, '/api/shares', 'post');
+  const publicPath = `/api/public/shares/${saved.id}?${new URL(saved.shareUrl, 'http://localhost').searchParams}`;
   await contract(await request('GET', publicPath), '/api/public/shares/{id}');
   await contract(
     await request('HEAD', publicPath),
@@ -372,9 +353,9 @@ test('signed-link and public responses conform to their generated contracts', as
     await request('GET', `/api/public/shares/${saved.id}`),
     '/api/public/shares/{id}'
   );
-  for (const [path, schema] of [
-    [linkPath, '/api/shares/{id}/link'],
-    [publicPath, '/api/public/shares/{id}']
-  ])
-    await contract(await request('OPTIONS', path), schema, 'options');
+  await contract(
+    await request('OPTIONS', publicPath),
+    '/api/public/shares/{id}',
+    'options'
+  );
 });

@@ -65,14 +65,3 @@ export const jsonBody: MiddlewareHandler = async (c, next) => {
     await next();
   });
 };
-
-/** Requires an existing valid owner session without bootstrapping a recipient session. */
-export const existingSession: MiddlewareHandler<SessionEnvironment> = async (
-  c,
-  next
-) => {
-  const session = await getSession(c.req.raw);
-  if (session.newSession) return error('INVALID_SESSION');
-  c.set('ownerId', session.ownerId);
-  await next();
-};

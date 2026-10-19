@@ -17,15 +17,15 @@ Use these terms consistently across `jft-app` and `jft-harness`. App-specific se
 
 ## Public sharing terms
 
-- **Signed sharing link**: a URL carrying only a share UUID, expiration and purpose-bound HMAC. It authorizes public access to the original reading snapshot and text, not owner history. The app does not persist links or track recipients; the browser holds generated links in screen memory until navigation.
+- **Signed sharing link**: a URL carrying only a share UUID, expiration and purpose-bound HMAC. It authorizes public access to the original reading snapshot and text, not owner history. The server prepares one URL while saving and keeps it in the same in-memory share record; it does not track recipients or keep separate token records.
 - **Sharing secret**: independent server-only `SHARE_LINK_SECRET`, distinct from the session key. Production requires a randomly generated key; development may keep one random key in process memory. Rotation invalidates all old links.
-- **Expiration**: rejects subsequent reads; it neither deletes the share nor erases a recipient's copy. Seven days by default. No immediate individual-link revocation exists.
+- **Expiration**: rejects subsequent reads; it neither deletes the share nor erases a recipient's copy. Fixed at seven days from saving. No immediate individual-link revocation exists.
 
 ## App data lifecycle
 
 1. Writing changes React state only. The app sends the draft to the same-origin BFF when the person chooses **Save privately**.
 2. The server validates the input and signed session, attaches metadata/current reading, and stores an owner-associated record in process memory. A lost response can make the client uncertain whether a write occurred; see [failed-write semantics](API.md#retention-and-failed-write-semantics).
-3. The server returns a share without an `ownerId` field. History/detail requests send the cookie, check ownership, and return that owner's records to browser memory for display. Saving does not send the share to another person. Intentionally generated signed links allow anyone holding one to fetch only that reading snapshot and text; no harness or model provider is involved.
+3. The server returns a share without an `ownerId` field. History/detail requests send the cookie, check ownership, and return that owner's records to browser memory for display. Saving does not send the share to another person. Save-time signed links allow anyone holding one to fetch only that reading snapshot and text; no harness or model provider is involved.
 4. Access loss and deletion are different events:
 
 | Event                                      | Effect on access                                                                          | Effect on data                                                                |
@@ -36,7 +36,7 @@ Use these terms consistently across `jft-app` and `jft-harness`. App-specific se
 | Restart/replace the Node process           | A valid configured-key cookie can still authenticate, but its old records no longer exist | All shares in that process are lost; an ephemeral development key also resets |
 | Route a request to another process/replica | Only records in that process can be found                                                 | Maps are separate; no synchronization or durable backing store exists         |
 
-There is no per-share delete endpoint, backup, disk storage, encryption at rest, or migration/import of v0.1 test data. The Map retains records until process exit and is unsuitable for reliable serverless/multi-instance persistence. Clearing cookies is not a deletion mechanism. Signed public links grant bearer access until expiration or loss of the underlying record. They are not stored or individually revocable; clearing owner cookies does not invalidate them. Recipients can forward links or retain copies; expiry cannot recall content. Future share deletion will invalidate all links, but no delete endpoint exists in v0.3.
+There is no per-share delete endpoint, backup, disk storage, encryption at rest, or migration/import of v0.1 test data. The Map retains records until process exit and is unsuitable for reliable serverless/multi-instance persistence. Clearing cookies is not a deletion mechanism. Signed public links grant bearer access until expiration or loss of the underlying record. They are stored only in the share record and are not individually revocable; clearing owner cookies does not invalidate them. Recipients can forward links or retain copies; expiry cannot recall content. Future share deletion will invalidate all links, but no delete endpoint exists in v0.3.
 
 ## Documentation rules
 

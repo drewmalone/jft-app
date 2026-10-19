@@ -3,7 +3,7 @@ import { createRoute, type RouteConfig, z } from '@hono/zod-openapi';
 import type { HeadersObject } from 'openapi3-ts/oas31';
 import type { ApiErrorCode } from '../errors';
 import { shareSchema } from '../model';
-import { apiFailures, SESSION_CHALLENGE } from './http';
+import { apiFailures } from './http';
 
 /** Owner-free share response schema reused by resource contracts. */
 export const share = shareSchema.openapi('Share', {
@@ -56,18 +56,6 @@ export function failed(
 }
 /** Internal failures common to private operations. */
 export const commonFailures = { 500: failed(['INTERNAL_ERROR']) };
-/** Link creation requires an existing valid owner rather than a fresh session. */
-export const ownerSessionFailures = {
-  ...commonFailures,
-  401: failed(['INVALID_SESSION'], {
-    'WWW-Authenticate': {
-      required: true,
-      schema: { type: 'string' as const, enum: [SESSION_CHALLENGE] },
-      description:
-        'Link generation requires an existing valid session cookie, not an Authorization header.'
-    }
-  })
-};
 /**
  * Derives bodyless HEAD documentation; Hono executes the corresponding GET handler.
  * @param route - GET operation whose authorization and headers HEAD inherits.

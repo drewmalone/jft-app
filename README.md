@@ -31,31 +31,18 @@ Production requires both `SESSION_SECRET` and a separate `SHARE_LINK_SECRET` and
 
 ## Sharing with another person
 
-After saving a share or opening it from **Past shares**, choose **Share with another alcoholic**. This explicitly requests a signed URL; saving alone stays private. Read the access explanation, then use **Copy link** or **Send share**. Device sharing and automatic clipboard access depend on browser support and a secure context. When unavailable or denied, select and manually copy the displayed link. A closed native sharing interface does not confirm delivery.
+Save a share, then tap the three-node share icon on its card. It opens the device's share sheet directly. Browsers without native sharing copy the link; if clipboard access is unavailable, a small selectable link field appears. The same icon is available in past-share details. Saving prepares the URL but never sends it to anyone.
 
-Anyone holding the link can read the original reading snapshot and written thoughts at `/s/{shareId}?expires=...&sig=...`, without an account or session. They cannot use it to browse private history. Recipients can forward the link, copy the text, or save a screenshot. Treat links as credentials; never paste them into logs, analytics, public issue reports, or Git.
-
-Links expire after seven days by default. There is **no immediate revocation and no delete endpoint** in v0.3. Future deletion of the underlying share will invalidate all its links; no link records or recipient tracking exist. Signing-key changes invalidate every link made with the old key. Expiration only restricts subsequent server access; it cannot recall copies. Restarting the server erases the in-memory shares, so even otherwise-valid links stop working.
-
-### Sharing configuration
-
-| Variable                 | Purpose                                                                                                                                                                                                   |
-| ------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `SESSION_SECRET`         | Existing anonymous-cookie key; required in production, at least 32 bytes.                                                                                                                                 |
-| `SHARE_LINK_SECRET`      | Independent, cryptographically random signing key of at least 32 bytes; required in production. Must differ from `SESSION_SECRET`. Generate with Node crypto as above. Never use a `NEXT_PUBLIC_` prefix. |
-| `SHARE_LINK_TTL_SECONDS` | Optional integer duration, 1–31,536,000 seconds; default 604,800 (seven days). Invalid values fail link creation closed.                                                                                  |
-
-Development without a configured sharing key uses one random process-stable key, including across hot reloads. An explicitly empty/short sharing key fails closed, as does missing production configuration. Signing errors return a generic API 500 without exposing configuration; recipient pages display the unavailable message. No secret is shipped to client code. Next development request logging is disabled so token-bearing URLs are not recorded; configure any hosting proxy/access logging to redact query strings too. No analytics or third-party tracking is used on recipient pages.
+Recipients can read the original reading and thoughts without an account. They cannot browse the sender's history. Production requires an independent random `SHARE_LINK_SECRET` of at least 32 bytes, separate from `SESSION_SECRET`; development generates one per process. Never log signed URLs. Technical lifetime and storage details are in [architecture](docs/ARCHITECTURE.md#signed-sharing-boundary).
 
 ### Manual check across two browser sessions
 
-1. Run `npm run dev`; write fictional text and **Save privately** in browser A. Confirm there is no signed link until you choose **Share with another alcoholic**.
-2. Copy the generated link, or use **Send share** if supported. Check the expiry and bearer-access explanation.
-3. Open the link in a fresh private window or separate browser B. Confirm the reading date/title/body and written thoughts appear without a login. The recipient page has no private-history navigation and creates no session cookie.
-4. In browser B, opening the home page and **Past shares** must show its own empty history. Knowing the sender's share ID must not grant private detail access or let B generate new links.
-5. Change the ID, `expires`, or `sig`, remove a parameter, or duplicate it. Confirm the public API returns generic 404 and the recipient page says **This share is unavailable**. For an expiry check, start with `SHARE_LINK_TTL_SECONDS=5`, create a new link, wait over five seconds, and reopen it.
-6. In A, open the saved entry through **Past shares** and create another link. Test copy permission denial or an unsupported browser; the manual link field stays usable. Cancel native sharing and confirm no delivery claim appears.
-7. Restart the server; previous shares and links are unavailable. These checks use fictional content only.
+1. Run `npm run dev`, write fictional text, and **Save privately** in browser A.
+2. Tap the share icon. Confirm it opens native sharing or copies the link directly. If both APIs are unavailable, copy from the fallback field.
+3. Open the link in a fresh private browser B. Confirm the original reading and written thoughts appear without a login or session cookie.
+4. In B, the home page's **Past shares** is empty and the sender's private detail returns 404.
+5. In A, open the entry from **Past shares** and tap its icon; it uses the same URL without requesting a new link.
+6. Tamper with a URL parameter and confirm the recipient page says **This share is unavailable**. Restart the server and confirm its in-memory shares are gone.
 
 ## Writing and reviewing shares
 
@@ -75,7 +62,7 @@ A signed, HttpOnly, SameSite=Lax cookie identifies the anonymous session. It exp
 
 **This storage is for local development. Restarting the server clears all shares. Multiple processes, replicas, and serverless instances such as Vercel do not share the Map and cannot provide reliable persistence.** No disk storage, database, encryption at rest, backup, account recovery, or durable deployment is provided. Unsaved drafts live only in React memory and disappear on refresh. The development signing secret also resets on process restart unless configured. There is no per-share deletion or expiry job; cookie loss does not remove records from the running Map. See [the data lifecycle](docs/DATA_GLOSSARY.md#app-data-lifecycle).
 
-Signed sharing links are optional: private saving never creates one automatically. No audio, transcription, AI, registration, real reading feeds, or harness integration are included.
+Signed sharing links are optional: saving prepares a URL but never sends it automatically. No audio, transcription, AI, registration, real reading feeds, or harness integration are included.
 
 ## Validation
 

@@ -45,7 +45,10 @@ export const shareSchema = z.object({
   createdAt: z.iso.datetime({ offset: true }),
   kind: z.literal('text'),
   reflection: reflectionSchema,
-  text: nonblankText
+  text: nonblankText,
+  shareUrl: z
+    .string()
+    .regex(/^\/s\/[0-9a-fA-F-]+\?expires=[0-9]+&sig=[A-Za-z0-9_-]{43}$/)
 });
 
 /** Reading snapshot with an ISO calendar date; saved snapshots do not follow later edits. */
@@ -57,11 +60,4 @@ export type Share = z.infer<typeof shareSchema>;
 export const publicShareSchema = shareSchema.pick({
   reflection: true,
   text: true
-});
-/** Link response with relative same-origin URL and expiration in Unix seconds. */
-export const shareLinkSchema = z.object({
-  url: z
-    .string()
-    .regex(/^\/s\/[0-9a-fA-F-]+\?expires=[0-9]+&sig=[A-Za-z0-9_-]{43}$/),
-  expiresAt: z.number().int().positive().max(Number.MAX_SAFE_INTEGER)
 });

@@ -9,10 +9,6 @@ import { registerResourceMethods } from './resource-methods';
 import { openApiConfiguration } from './openapi';
 
 import {
-  createShareLinkRoute,
-  generateShareLink
-} from './operations/create-share-link';
-import {
   readPublicShareRoute,
   getPublicShare
 } from './operations/read-public-share';
@@ -34,7 +30,6 @@ app.onError(handleApiError);
 app.openapi(listSharesRoute, listShares);
 app.openapi(createShareRoute, createShare);
 app.openapi(readShareRoute, readShare);
-app.openapi(createShareLinkRoute, generateShareLink);
 app.openapi(readPublicShareRoute, getPublicShare);
 registerResourceMethods(app);
 app.openAPIRegistry.registerComponent('securitySchemes', 'AnonymousSession', {
@@ -42,7 +37,7 @@ app.openAPIRegistry.registerComponent('securitySchemes', 'AnonymousSession', {
   in: 'cookie',
   name: 'doorknob-session',
   description:
-    'Signed HttpOnly cookie. Missing, invalid or expired cookies start a fresh empty owner; link generation requires an existing valid owner. 30-day absolute expiry, SameSite=Lax, Secure in production. Custom WWW-Authenticate scheme: DoorknobSession.'
+    'Signed HttpOnly cookie. Missing, invalid or expired cookies start a fresh empty owner. 30-day absolute expiry, SameSite=Lax, Secure in production.'
 });
 app.options('/openapi.json', (c) =>
   c.newResponse(null, 204, { Allow: specificationAllow })

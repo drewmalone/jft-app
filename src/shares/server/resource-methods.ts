@@ -6,7 +6,6 @@ import { headRoute, optionsRoute } from './openapi';
 import { listSharesRoute } from './operations/list-shares';
 import { readShareRoute } from './operations/read-share';
 
-import { createShareLinkRoute } from './operations/create-share-link';
 import { readPublicShareRoute } from './operations/read-public-share';
 
 /** Supported collection methods, shared by discovery and rejected-method responses. */
@@ -34,7 +33,6 @@ export function registerResourceMethods(app: OpenAPIHono<SessionEnvironment>) {
   app.openAPIRegistry.registerPath(headRoute(listSharesRoute));
   app.openAPIRegistry.registerPath(headRoute(readShareRoute));
   for (const [route, allow, name] of [
-    [createShareLinkRoute, 'POST, OPTIONS', 'shareLinkOptions'],
     [readPublicShareRoute, 'GET, HEAD, OPTIONS', 'publicShareOptions']
   ] as const) {
     app.openapi(

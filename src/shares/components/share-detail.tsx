@@ -1,4 +1,5 @@
 import type { Share } from '../model';
+import { ShareButton } from './share-button';
 import { dateLabel } from '../dates';
 
 /**
@@ -9,7 +10,10 @@ import { dateLabel } from '../dates';
 export function ShareDetail({ share }: { share: Share }) {
   return (
     <article className="share-card mt-8 rounded-xl border border-[var(--line)] p-6 sm:p-8">
-      <p className="eyebrow">{dateLabel(share.createdAt)}</p>
+      <div className="flex items-center justify-between gap-4">
+        <p className="eyebrow">{dateLabel(share.createdAt)}</p>
+        <ShareButton url={share.shareUrl} />
+      </div>
       <h2 className="mt-4 font-serif text-2xl leading-snug">
         {share.reflection.title}
       </h2>

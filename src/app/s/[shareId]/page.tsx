@@ -65,7 +65,7 @@ export default async function SharedReflection({
           <>
             <h1 className="font-serif text-4xl">This share is unavailable</h1>
             <p className="mt-4 leading-relaxed text-[var(--muted)]">
-              The link may have expired or the share may no longer be available.
+              This share is no longer available.
             </p>
           </>
         )}

@@ -47,13 +47,11 @@ Responses carry `Cache-Control: private, no-store`. Share/error bodies use JSON;
 
 Messages are intended for display. Branch on `error.code` and the HTTP status, never by matching message text. The fetch client exposes these as `ShareApiError.code`, `.status`, and `.message` and does not retry writes. Non-JSON HTTP failures retain their status with a safe fallback message.
 
-Link-generation 401 includes `WWW-Authenticate: DoorknobSession realm="doorknob"`. This is an application-specific HTTP authentication scheme for this private BFF, not a registered interoperable login protocol. Credentials are still carried only in the signed cookie; the server does not accept an Authorization/Bearer header. The challenge advertises the required session mechanism without pretending the credential is an OAuth bearer token. OpenAPI models this transport as an `apiKey` security scheme in a cookie. Its anonymous alternative permits fresh cookie issuance for private create/list/detail. Invalid supplied owner IDs are never accepted; link generation still requires an existing valid session.
+## Save-time sharing URL
 
-## Generate a signed sharing link
+Create/list/detail responses include `shareUrl`, a signed relative URL such as `/s/{id}?expires={unixSeconds}&sig={base64urlMAC}`. It is generated once when the record is constructed, before storage. Resolve it against the application origin for native sharing or copying. Reads return the original URL without renewal. There is no separate link-generation endpoint or extra sharing request. Treat URLs as bearer credentials and never log them.
 
-`POST /api/shares/{id}/link` requires an existing valid owner cookie. It does not bootstrap a new session and needs no request body. A supplied foreign Origin returns 403 before session processing. Missing/invalid sessions return 401; missing or foreign-owned shares return the same 404. Signing configuration failures return generic 500. No response exposes signing keys or changes stored content.
-
-Success is **200** with `{ "url": "/s/{id}?expires={unixSeconds}&sig={base64urlMAC}", "expiresAt": 1800604800 }` (illustrative placeholder URL). `expiresAt` is absolute Unix seconds, equal to `expires` in the URL. Resolve this relative URL against the application origin before copying/sending it. Treat it as a credential, never log it. Duration defaults to seven days and is configured with `SHARE_LINK_TTL_SECONDS`; see [configuration](../README.md#sharing-configuration). No link or recipient record is persisted. OPTIONS advertises `POST, OPTIONS`; other methods return coded 405 with Allow.
+The fixed server-side lifetime is seven days from saving. Expiration has no configuration, response metadata field, or UI label. Invalid sharing-key configuration fails creation with generic 500 before storing the record. Public responses exclude `shareUrl` and all owner metadata.
 
 ## Read a public share
 
@@ -86,6 +84,7 @@ Success is **201 Created** with a share and a relative `Location: /api/shares/{i
   "id": "95eff0e1-bca7-4fd1-83d2-42ba330aab22",
   "createdAt": "2026-10-18T12:00:00.000Z",
   "kind": "text",
+  "shareUrl": "/s/95eff0e1-bca7-4fd1-83d2-42ba330aab22?expires=1800604800&sig=<signature>",
   "text": "A fictional thought.\nOne small step.",
   "reflection": {
     "id": "acceptance-2025-04-23",
@@ -118,7 +117,6 @@ Success is **200 OK** with the same share shape as creation. The ID selects a re
 | 201    | —                      | Confirmed creation; clear the saved draft and show confirmation                       |
 | 400    | INVALID_JSON           | The JSON body cannot be parsed                                                        |
 | 400    | INVALID_SHARE          | Text is missing, blank, too long, or extra fields were supplied                       |
-| 401    | INVALID_SESSION        | Link generation requires an existing valid owner session; includes WWW-Authenticate   |
 | 403    | CROSS_ORIGIN_REQUEST   | POST supplied a foreign Origin                                                        |
 | 404    | SHARE_NOT_FOUND        | Detail record is absent or inaccessible to this owner                                 |
 | 405    | METHOD_NOT_ALLOWED     | This resource does not implement that App Router HTTP method; includes Allow          |
@@ -126,11 +124,11 @@ Success is **200 OK** with the same share shape as creation. The ID selects a re
 | 415    | UNSUPPORTED_MEDIA_TYPE | POST content type is missing, invalid, or not application/json                        |
 | 500    | INTERNAL_ERROR         | Configuration, repository, or other internal operation failed; details remain private |
 
-On failed saves, retain the draft. Correct 400/413 input, use JSON for 415, and check the same-origin/proxy setup for 403. A link-generation 401 requires an owning session; private reads with invalid cookies start a fresh owner, not account recovery. 500 is generic: resolve the server/connection problem and consider the ambiguous-write caveat below before retrying.
+On failed saves, retain the draft. Correct 400/413 input, use JSON for 415, and check the same-origin/proxy setup for 403. Private reads with invalid cookies start a fresh owner, not account recovery. 500 is generic: resolve the server/connection problem and consider the ambiguous-write caveat below before retrying.
 
-500 can occur on private share operations; 401 applies to link generation only; OPTIONS and the specification do not require a session. Media types are parsed with the `content-type` library: valid case-insensitive spellings such as `Application/JSON; Charset="UTF-8"` are accepted; syntactically invalid headers and other JSON subtypes are not accepted. A valid header is normalized before the OpenAPI JSON validator runs. POST also compares a supplied Origin to the browser-facing Host and request protocol. A missing Origin is allowed for nonbrowser clients. There is no cross-origin API/CORS support. Deploy behind HTTPS and a proxy that preserves or correctly supplies the original Host and protocol; do not rewrite these to an unrelated internal hostname.
+500 can occur on private share operations; OPTIONS and the specification do not require a session. Media types are parsed with the `content-type` library: valid case-insensitive spellings such as `Application/JSON; Charset="UTF-8"` are accepted; syntactically invalid headers and other JSON subtypes are not accepted. A valid header is normalized before the OpenAPI JSON validator runs. POST also compares a supplied Origin to the browser-facing Host and request protocol. A missing Origin is allowed for nonbrowser clients. There is no cross-origin API/CORS support. Deploy behind HTTPS and a proxy that preserves or correctly supplies the original Host and protocol; do not rewrite these to an unrelated internal hostname.
 
-A new session cookie can accompany a controlled POST validation error because the middleware establishes a session first. Foreign-origin rejections, rejected link-generation credentials, and internal 500 failures do not issue a cookie. [Session middleware](../src/shares/server/middleware.ts) and [HTTP errors](../src/shares/server/http.ts) own this behavior. POST origin validation runs first: a foreign Origin receives 403 without reading, creating, or replacing a session, even if a supplied cookie is invalid. For accepted origins, verified or fresh anonymous ownership is established before media-type, size, JSON, and schema checks. Invalid cookies never supply ownership.
+A new session cookie can accompany a controlled POST validation error because the middleware establishes a session first. Foreign-origin rejections and internal 500 failures do not issue a cookie. [Session middleware](../src/shares/server/middleware.ts) and [HTTP errors](../src/shares/server/http.ts) own this behavior. POST origin validation runs first: a foreign Origin receives 403 without reading, creating, or replacing a session, even if a supplied cookie is invalid. For accepted origins, verified or fresh anonymous ownership is established before media-type, size, JSON, and schema checks. Invalid cookies never supply ownership.
 
 ## HEAD, OPTIONS, and unsupported methods
 

@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { shareSchema, shareLinkSchema } from './model';
+import { shareSchema } from './model';
 import { apiErrorSchema, type ApiErrorCode } from './errors';
 
 /** Structured HTTP failure; the controller may branch on code/status without parsing messages. */
@@ -84,19 +84,5 @@ export async function saveShare(text: string) {
 export async function readShare(id: string) {
   return shareSchema.parse(
     await request(`/api/shares/${encodeURIComponent(id)}`)
-  );
-}
-
-/**
- * Intentionally generates a bearer link for an owned saved share, without retrying POST.
- * @param id - Saved share ID; the server enforces ownership.
- * @returns A validated relative link and expiration in Unix seconds.
- * @throws On network, authorization, HTTP, or response-validation failure.
- */
-export async function generateShareLink(id: string) {
-  return shareLinkSchema.parse(
-    await request(`/api/shares/${encodeURIComponent(id)}/link`, {
-      method: 'POST'
-    })
   );
 }

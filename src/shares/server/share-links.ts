@@ -20,13 +20,6 @@ function secret() {
   return (processState.doorknobShareLinkSecret ??=
     randomBytes(32).toString('base64'));
 }
-function lifetime() {
-  const value = process.env.SHARE_LINK_TTL_SECONDS;
-  if (value === undefined) return defaultLifetime;
-  if (!/^[1-9]\d{0,9}$/.test(value) || Number(value) > 365 * 24 * 60 * 60)
-    throw new Error('SHARE_LINK_TTL_SECONDS must be 1–31536000.');
-  return Number(value);
-}
 function signature(id: string, expires: string, key: string) {
   return createHmac('sha256', key)
     .update(`share:v1\n${id}\n${expires}`)
@@ -38,14 +31,14 @@ function signature(id: string, expires: string, key: string) {
  * @param id - Owned share UUID, never reflection text.
  * @param now - Unix seconds, injectable for deterministic tests.
  * @returns A same-origin relative bearer URL and Unix expiration timestamp.
- * @throws On invalid ID, clock, lifetime, or signing configuration. Never log the result.
+ * @throws On invalid ID, clock, or signing configuration. Never log the result.
  */
 export function createShareLink(
   id: string,
   now = Math.floor(Date.now() / 1000)
 ) {
   uuid.parse(id);
-  const expiresAt = now + lifetime();
+  const expiresAt = now + defaultLifetime;
   if (!Number.isSafeInteger(now) || now < 0 || !Number.isSafeInteger(expiresAt))
     throw new Error('Invalid clock.');
   const expires = String(expiresAt);
