@@ -1,14 +1,7 @@
 import type { Share } from '../model';
 import { ShareHistoryItem } from './share-history-item';
 
-/**
- * History request state: only loaded carries shares, and only an empty loaded list
- * means no records exist. failed carries a displayable message, not partial results.
- */
-export type ShareHistoryState =
-  | { status: 'loading' }
-  | { status: 'failed'; message: string }
-  | { status: 'loaded'; shares: Share[] };
+import type { ShareHistoryState } from '../use-share-history';
 
 type ShareHistoryProps = {
   history: ShareHistoryState;

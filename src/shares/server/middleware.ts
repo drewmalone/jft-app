@@ -17,7 +17,7 @@ export const anonymousSession: MiddlewareHandler<SessionEnvironment> = async (
   c.set('ownerId', session.ownerId);
   await next();
   // Validation responses may issue a cookie; internal failures must not establish one.
-  if (c.res.status < 500) await setSessionCookie(c.res, session.credential);
+  if (c.res.status < 500) await setSessionCookie(c.res, session.newSession);
 };
 
 const limitShareBody = bodyLimit({

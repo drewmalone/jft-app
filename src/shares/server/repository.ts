@@ -1,14 +1,5 @@
 import 'server-only';
-import { randomUUID } from 'node:crypto';
-import { z } from 'zod';
-import { createShareSchema, reflection, shareSchema } from '../model';
-
-const storedShareSchema = shareSchema.extend({ ownerId: z.uuid() });
-/**
- * Persisted share and its anonymous owner, for server-side use only.
- * Route handlers project this to the shared Share schema before returning JSON.
- */
-export type StoredShare = z.infer<typeof storedShareSchema>;
+import { createStoredShare, type StoredShare } from './create-stored-share';
 
 /**
  * Persistence boundary for private shares; every operation is scoped to an owner.
@@ -42,41 +33,44 @@ export interface ShareRepository {
   findByOwner(id: string, ownerId: string): Promise<StoredShare | null>;
 }
 
-// A process global also survives development module reloads and route bundles.
-const processState = globalThis as typeof globalThis & {
-  doorknobShares?: Map<string, StoredShare>;
-};
-const shares = (processState.doorknobShares ??= new Map());
-
 /**
- * Process-global Map implementation for local development, shared across route bundles.
- * Reads clone records; equal timestamps retain newest insertion first. Restarts erase
- * all records, and replicas/serverless instances do not share or synchronize this Map.
+ * Isolated in-memory implementation. Reads return clones and every lookup checks ownership.
+ * Instances do not share data. The application exports one process-wide instance below.
  */
-export const shareRepository: ShareRepository = {
-  async create(ownerId, text) {
-    const input = createShareSchema.parse({ text });
-    const share = storedShareSchema.parse({
-      id: randomUUID(),
-      createdAt: new Date().toISOString(),
-      kind: 'text',
-      text: input.text,
-      reflection: { ...reflection },
-      ownerId
-    });
-    shares.set(share.id, share);
+export class InMemoryShareRepository implements ShareRepository {
+  #shares = new Map<string, StoredShare>();
+
+  /** {@inheritDoc ShareRepository.create} */
+  async create(ownerId: string, text: string): Promise<StoredShare> {
+    const share = createStoredShare(ownerId, text);
+    this.#shares.set(share.id, share);
     return structuredClone(share);
-  },
-  async listByOwner(ownerId) {
+  }
+
+  /** {@inheritDoc ShareRepository.listByOwner} */
+  async listByOwner(ownerId: string): Promise<StoredShare[]> {
     return structuredClone(
-      [...shares.values()]
+      [...this.#shares.values()]
         .filter((share) => share.ownerId === ownerId)
         .reverse()
         .sort((a, b) => Date.parse(b.createdAt) - Date.parse(a.createdAt))
     );
-  },
-  async findByOwner(id, ownerId) {
-    const share = shares.get(id);
+  }
+
+  /** {@inheritDoc ShareRepository.findByOwner} */
+  async findByOwner(id: string, ownerId: string): Promise<StoredShare | null> {
+    const share = this.#shares.get(id);
     return share?.ownerId === ownerId ? structuredClone(share) : null;
   }
+}
+
+const processState = globalThis as typeof globalThis & {
+  doorknobShareRepository?: ShareRepository;
 };
+
+/**
+ * One store across requests, development reloads, and route bundles in this process.
+ * Restarts erase data; replicas/serverless instances do not share this instance.
+ */
+export const shareRepository: ShareRepository =
+  (processState.doorknobShareRepository ??= new InMemoryShareRepository());

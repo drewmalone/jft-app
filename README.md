@@ -87,7 +87,8 @@ src/
     share-app.tsx       React state, requests, and screen transitions
     api.ts              browser fetch and response validation
     components/         reading, form, history, and detail presentation
-    model.ts            shared Zod schemas, text limit, and placeholder reading
+    model.ts            shared Zod schemas, inferred types, and text limit
+    reflection-fixture.ts fictional daily reading
     errors.ts           shared stable error codes and envelope
     server/
       operations/       create, list, read contracts and typed handlers

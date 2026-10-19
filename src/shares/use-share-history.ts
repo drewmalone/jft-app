@@ -3,7 +3,15 @@
 import { useEffect, useRef, useState } from 'react';
 import { readShares } from './api';
 import type { Share } from './model';
-import type { ShareHistoryState } from './components/share-history';
+
+/**
+ * History request state: only loaded carries shares, and only an empty loaded list
+ * means no records exist. failed carries a displayable message, not partial results.
+ */
+export type ShareHistoryState =
+  | { status: 'loading' }
+  | { status: 'failed'; message: string }
+  | { status: 'loaded'; shares: Share[] };
 
 /**
  * Owns history requests and the initial session bootstrap independently of the draft.

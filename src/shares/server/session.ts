@@ -22,14 +22,15 @@ const payloadSchema = z.strictObject({
   ownerId: z.uuid(),
   expiresAt: z.number().int().positive().max(Number.MAX_SAFE_INTEGER)
 });
-type SessionPayload = z.infer<typeof payloadSchema>;
+/** Validated owner/absolute expiry payload; types alone do not prove authenticity. */
+export type SessionPayload = z.infer<typeof payloadSchema>;
 
-/** Session boundary result; the serialized credential is a bearer secret, not share data. */
+/** Session boundary result; the new payload is server-only signing material. */
 export type AnonymousSession = {
   /** Verified or server-generated owner; safe to use for repository ownership checks. */
   ownerId: SessionPayload['ownerId'];
-  /** New JSON payload for signing, or null for an existing session. Never log or return in JSON. */
-  credential: string | null;
+  /** New typed payload for signing, or null for an existing session. Never log or return in JSON. */
+  newSession: SessionPayload | null;
 };
 
 /**
@@ -62,7 +63,7 @@ export async function getSession(request: Request): Promise<AnonymousSession> {
       ownerId: randomUUID(),
       expiresAt: Math.floor(Date.now() / 1000) + lifetimeSeconds
     };
-    return { ownerId: payload.ownerId, credential: JSON.stringify(payload) };
+    return { ownerId: payload.ownerId, newSession: payload };
   }
   // Hono omits some malformed signatures; only a genuinely absent cookie bootstraps.
   const verified = (await parseSigned(cookie, secret(), cookieName))[
@@ -78,31 +79,36 @@ export async function getSession(request: Request): Promise<AnonymousSession> {
   const parsed = payloadSchema.safeParse(value);
   if (!parsed.success || parsed.data.expiresAt <= Math.floor(Date.now() / 1000))
     throw new InvalidSessionError();
-  return { ownerId: parsed.data.ownerId, credential: null };
+  return { ownerId: parsed.data.ownerId, newSession: null };
 }
 
 /**
  * Attaches a newly issued host-only cookie to the supplied response in place.
  * Uses HttpOnly, SameSite=Lax, path /, a 30-day Max-Age, and Secure in production.
  * @param response - Response to mutate before returning it to the browser.
- * @param credential - Payload issued by getSession; null leaves cookies unchanged.
- * @throws If cookie serialization fails; the API error handler converts that failure to 500.
- * @remarks Existing sessions are not refreshed. This helper does not verify values;
- * callers must never pass an arbitrary client-provided string as a credential.
+ * @param newSession - Server-created payload from getSession; null leaves cookies unchanged.
+ * @throws On payload validation, signing configuration, crypto, or serialization failure; the API returns 500.
+ * @remarks Existing sessions are not refreshed. Shape validation does not establish trust;
+ * callers must supply server-created payloads, never client-provided ownership.
  */
 export async function setSessionCookie(
   response: Response,
-  credential: string | null
+  newSession: SessionPayload | null
 ) {
-  if (credential)
+  if (newSession)
     response.headers.append(
       'Set-Cookie',
-      await serializeSigned(cookieName, credential, secret(), {
-        httpOnly: true,
-        secure: process.env.NODE_ENV === 'production',
-        sameSite: 'lax',
-        path: '/',
-        maxAge: lifetimeSeconds
-      })
+      await serializeSigned(
+        cookieName,
+        JSON.stringify(payloadSchema.parse(newSession)),
+        secret(),
+        {
+          httpOnly: true,
+          secure: process.env.NODE_ENV === 'production',
+          sameSite: 'lax',
+          path: '/',
+          maxAge: lifetimeSeconds
+        }
+      )
     );
 }

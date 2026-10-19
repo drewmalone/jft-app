@@ -13,6 +13,11 @@ import { AppFooter } from '../components/app-footer';
 
 type Screen =
   { view: 'today' | 'past' } | { view: 'saved' | 'detail'; share: Share };
+type DetailState =
+  | { status: 'idle' }
+  | { status: 'loading' }
+  | { status: 'failed'; message: string };
+
 const screenCopy = {
   today: {
     title: 'Write your share',
@@ -48,10 +53,9 @@ export function ShareApp() {
   const [saving, setSaving] = useState(false);
   const savePending = useRef(false);
   const detailRequest = useRef(0);
-  const [detailState, setDetailState] = useState<{
-    status: 'idle' | 'loading' | 'failed';
-    message?: string;
-  }>({ status: 'idle' });
+  const [detailState, setDetailState] = useState<DetailState>({
+    status: 'idle'
+  });
   const heading = useRef<HTMLHeadingElement>(null);
   const navigated = useRef(false);
 
