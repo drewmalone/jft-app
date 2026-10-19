@@ -8,7 +8,7 @@ import { error, MAX_SHARE_REQUEST_BYTES } from './http';
 /** Request-local owner established by the protected operation's session middleware. */
 export type SessionEnvironment = { Variables: { ownerId: string } };
 
-/** Verifies ownership before validation; only non-500 responses issue new cookies. */
+/** Verifies ownership after the origin check and before body validation; only non-500 responses issue new cookies. */
 export const anonymousSession: MiddlewareHandler<SessionEnvironment> = async (
   c,
   next
@@ -52,5 +52,16 @@ export const jsonBody: MiddlewareHandler = async (c, next) => {
   headers.set('content-type', 'application/json');
   headers.delete('content-length');
   c.req.raw = new Request(c.req.raw, { headers });
-  return limitShareBody(c, next);
+  return limitShareBody(c, async () => {
+    // Cache the parsed JSON for Hono's Zod validator; classify syntax errors here,
+    // rather than assigning domain meaning to every HTTPException(400).
+    try {
+      await c.req.json();
+    } catch (cause) {
+      if (!(cause instanceof SyntaxError)) throw cause;
+      c.res = error('INVALID_JSON');
+      return;
+    }
+    await next();
+  });
 };

@@ -353,3 +353,115 @@ test('background history does not block saving or overwrite fresh history', asyn
   await oldResponse;
   await expect(page.getByRole('listitem')).toHaveCount(1);
 });
+
+test('failed bootstrap blocks saves through retry and navigation until the session is ready', async ({
+  page
+}) => {
+  let release!: () => void;
+  const pending = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  let reads = 0;
+  let writes = 0;
+  await page.route('**/api/shares', async (route) => {
+    if (route.request().method() === 'POST') writes++;
+    if (route.request().method() === 'GET') {
+      reads++;
+      if (reads === 1) {
+        await route.fulfill({
+          status: 500,
+          contentType: 'application/json',
+          body: JSON.stringify({
+            error: { code: 'INTERNAL_ERROR', message: 'Please try again.' }
+          })
+        });
+        return;
+      }
+      if (reads === 2) await pending;
+    }
+    await route.continue();
+  });
+  await page.goto('/');
+  const draft = 'A fictional draft during session initialization.';
+  await page.getByRole('textbox').fill(draft);
+  const save = page.getByRole('button', { name: 'Save privately' });
+  await expect(page.getByRole('alert')).toContainText(
+    'private session could not be prepared'
+  );
+  await expect(save).toBeDisabled();
+  await page
+    .locator('form')
+    .evaluate((form: HTMLFormElement) => form.requestSubmit());
+  await page.getByRole('button', { name: 'Try again' }).click();
+  await expect(page.getByRole('status')).toHaveText(
+    'Preparing your private session…'
+  );
+  await page
+    .getByRole('banner')
+    .getByRole('button', { name: 'Past shares', exact: true })
+    .click();
+  await expect(page.getByRole('status')).toHaveText('Loading your shares…');
+  await page
+    .getByRole('banner')
+    .getByRole('button', { name: 'Today’s reflection', exact: true })
+    .click();
+  await page
+    .locator('form')
+    .evaluate((form: HTMLFormElement) => form.requestSubmit());
+  await expect(save).toBeDisabled();
+  await expect(page.getByRole('textbox')).toHaveValue(draft);
+  expect(writes).toBe(0);
+  await expect.poll(() => reads).toBe(2);
+  release();
+  await expect(save).toBeEnabled();
+  await save.click();
+  await expect(
+    page.getByRole('heading', { name: 'Your share has been saved.' })
+  ).toBeVisible();
+  expect(writes).toBe(1);
+  await page
+    .getByRole('main')
+    .getByRole('button', { name: 'Past shares', exact: true })
+    .click();
+  await expect(page.getByRole('listitem')).toHaveCount(1);
+  await expect(page.getByRole('listitem')).toContainText(draft);
+});
+
+test('a top-level cross-site form cannot overwrite the owning session cookie', async ({
+  page,
+  baseURL
+}) => {
+  const created = await page.context().request.post('/api/shares', {
+    data: { text: 'A fictional share protected from cookie replacement.' }
+  });
+  expect(created.status()).toBe(201);
+  const share = await created.json();
+  const original = (await page.context().cookies()).find(
+    (cookie) => cookie.name === 'doorknob-session'
+  );
+  expect(original).toBeDefined();
+  await page.route('http://foreign.example/form', (route) =>
+    route.fulfill({
+      contentType: 'text/html',
+      body: `<form method="post" action="${baseURL}/api/shares"><input name="text" value="Fictional foreign form"><button>Send form</button></form>`
+    })
+  );
+  await page.goto('http://foreign.example/form');
+  const rejected = page.waitForResponse(
+    (response) =>
+      response.request().method() === 'POST' &&
+      response.url() === `${baseURL}/api/shares`
+  );
+  await page.getByRole('button', { name: 'Send form' }).click();
+  const response = await rejected;
+  expect(response.status()).toBe(403);
+  expect(await response.request().headerValue('cookie')).toBeNull();
+  expect(await response.headerValue('set-cookie')).toBeNull();
+  const after = (await page.context().cookies()).find(
+    (cookie) => cookie.name === 'doorknob-session'
+  );
+  expect(after?.value).toBe(original?.value);
+  expect(
+    await (await page.context().request.get(`/api/shares/${share.id}`)).json()
+  ).toEqual(share);
+});

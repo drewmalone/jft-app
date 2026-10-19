@@ -210,7 +210,9 @@ paths:
       tags:
         - Shares
       summary: Save a private text share
-      description: POST is not idempotent. A supplied Origin must match Host/protocol.
+      description:
+        POST is not idempotent. A supplied Origin must match Host/protocol;
+        origin rejection precedes session handling and never issues a cookie.
       security:
         - AnonymousSession: []
         - {}

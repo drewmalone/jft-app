@@ -16,14 +16,14 @@ import { anonymousSession, sameOrigin, jsonBody } from '../middleware';
 
 /** Creation contract; runtime input validation and OpenAPI generation use the same Zod object. */
 export const createShareRoute = createRoute({
-  middleware: [anonymousSession, sameOrigin, jsonBody] as const,
+  middleware: [sameOrigin, anonymousSession, jsonBody] as const,
   method: 'post',
   path: '/shares',
   operationId: 'createShare',
   tags: ['Shares'],
   summary: 'Save a private text share',
   description:
-    'POST is not idempotent. A supplied Origin must match Host/protocol.',
+    'POST is not idempotent. A supplied Origin must match Host/protocol; origin rejection precedes session handling and never issues a cookie.',
   security: sessionSecurity,
   request: {
     body: {

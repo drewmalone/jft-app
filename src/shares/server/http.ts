@@ -1,5 +1,4 @@
 import 'server-only';
-import { HTTPException } from 'hono/http-exception';
 import { InvalidSessionError } from './session';
 import type { ApiErrorCode } from '../errors';
 
@@ -45,6 +44,15 @@ export const apiFailures = {
 } as const satisfies Record<ApiErrorCode, { status: number; message: string }>;
 
 /**
+ * Builds a typed error envelope shared by Hono and Web Response serialization.
+ * @param code - Stable failure identifier from the server error catalog.
+ * @returns The code and its safe display message, preserving the code's literal type.
+ */
+export function errorBody<Code extends ApiErrorCode>(code: Code) {
+  return { error: { code, message: apiFailures[code].message } };
+}
+
+/**
  * Creates a consistent error from a stable code; status and message cannot drift independently.
  * @param code - Failure definition, without sensitive exception details.
  * @param headers - Optional protocol headers, for example Allow on 405.
@@ -53,28 +61,22 @@ export const apiFailures = {
  */
 export function error(code: ApiErrorCode, headers?: HeadersInit) {
   const failure = apiFailures[code];
-  const result = Response.json(
-    { error: { code, message: failure.message } },
-    { status: failure.status, headers }
-  );
+  const result = Response.json(errorBody(code), {
+    status: failure.status,
+    headers
+  });
   if (code === 'INVALID_SESSION')
     result.headers.set('WWW-Authenticate', SESSION_CHALLENGE);
   return result;
 }
 
 /**
- * Translates expected library/session failures and hides unexpected error details.
+ * Translates the explicit session failure and hides all unexpected error details.
  * @param cause - Error caught by the Hono dispatcher; never logged or returned raw.
  * @returns A coded JSON error; the dispatcher adds the private cache policy.
  */
 export function handleApiError(cause: Error): Response {
   if (cause instanceof InvalidSessionError) return error('INVALID_SESSION');
-  if (cause instanceof HTTPException) {
-    if (cause.status === 404) return error('SHARE_NOT_FOUND');
-    if (cause.status === 400) return error('INVALID_JSON');
-    if (cause.status === 415) return error('UNSUPPORTED_MEDIA_TYPE');
-    if (cause.status === 413) return error('PAYLOAD_TOO_LARGE');
-  }
   // No request bodies, cookie values, or raw exception details enter logs/responses.
   return error('INTERNAL_ERROR');
 }

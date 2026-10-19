@@ -5,7 +5,7 @@ Doorknob v0.2 keeps the React frontend and Next.js Backend for Frontend (BFF) in
 ## Responsibilities
 
 - `src/app/page.tsx` and `layout.tsx` supply the route entry, metadata, and shared styling. Existing mobile-first components, logo, ivory/navy palette, focus styles, and typography remain in place.
-- `src/shares/share-app.tsx` owns screens, the React draft, save/detail requests, and heading focus. A ref prevents duplicate submits synchronously. `use-share-history.ts` owns the history state type, loading, stale-response protection, and initial session bootstrap. Presentation consumes that state type; the hook does not depend on a component. Detail loading uses a discriminated union so failure always includes a message. Only bootstrap blocks saving; subsequent history refreshes are independent. It reuses the bootstrap promise across Strict Mode effects, while entering Past shares after initialization always fetches fresh history. Confirmed saves clear the draft without maintaining a second history cache.
+- `src/shares/share-app.tsx` owns screens, the React draft, save/detail requests, and heading focus. A ref prevents duplicate submits synchronously. `use-share-history.ts` owns the history state type, loading, stale-response protection, and initial session bootstrap. Presentation consumes that state type; the hook does not depend on a component. Detail loading uses a discriminated union so failure always includes a message. Saving stays blocked until bootstrap succeeds; failure preserves the draft and provides retry on the writing screen. Bootstrap retries share one in-flight request, and the submit handler enforces readiness as well as the button. After readiness, history refreshes are independent of saving. It reuses the bootstrap promise across Strict Mode effects, while entering Past shares after initialization always fetches fresh history. Confirmed saves clear the draft without maintaining a second history cache.
 - `src/shares/components/` presents the reading, form, history, and detail. `src/components/` owns the header/footer. Presentation components do not access persistence.
 - `src/shares/api.ts` uses browser `fetch` with same-origin credentials and no caching. It validates responses with shared Zod schemas and preserves HTTP status even when an error response is not JSON. It sends only text on creation and fetches details by ID instead of opening a cached history record.
 - `src/shares/model.ts` owns shared input/response schemas and their inferred types. `reflection-fixture.ts` supplies the fictional reading to both the UI and server-side share construction. Types are inferred from Zod. The strict creation schema rejects client metadata and ownership fields. Response parsing omits server ownership.
@@ -14,7 +14,7 @@ Doorknob v0.2 keeps the React frontend and Next.js Backend for Frontend (BFF) in
 - `src/shares/server/openapi.ts` supplies shared contract schemas, headers, HEAD/OPTIONS helpers, and document metadata. `app.ts` directly registers operation contracts/handlers, installs shared validation/error handling and cache policy, and serves the specification. Next.js entry files remain adapters with pointers to their operation modules; neither operation modules nor specification generation import Next entry files. `scripts/generate-openapi.ts` serializes the same document to committed `docs/openapi.yaml`.
 - `src/shares/errors.ts` owns stable failure codes/the runtime error envelope. The fetch client preserves codes and status in `ShareApiError`; messages remain display text.
 - `src/shares/server/repository.ts` defines the asynchronous, owner-scoped `ShareRepository` interface and `InMemoryShareRepository` class. Each instance encapsulates a private Map; tests can instantiate independent stores. `create-stored-share.ts` owns stored-record validation and construction: trimming text, generating metadata, and capturing the reading before storage. Every retrieval takes an owner ID, so there is no unscoped private lookup. Returned records are cloned to prevent callers mutating stored snapshots.
-- `src/shares/server/session.ts` handles anonymous signed cookies. `http.ts` owns the status/message mapping and protocol/size constants. `middleware.ts` enforces sessions and POST origin/media-type/body limits. `http.ts` translates failures; `app.ts` installs that handler and applies cache policy once at dispatch. The custom DoorknobSession challenge describes cookie credentials, not OAuth or public share tokens. These modules import `server-only` to prevent client bundling.
+- `src/shares/server/session.ts` handles anonymous signed cookies. `http.ts` owns the status/message mapping and protocol/size constants. `middleware.ts` enforces sessions and POST origin/media-type/body limits. `http.ts` owns the typed error-body builder and translates explicit session failures; JSON syntax errors are classified at the body-parsing boundary, while unexpected errors (including arbitrary HTTP exceptions) become generic 500 responses; `app.ts` installs that handler and applies cache policy once at dispatch. The custom DoorknobSession challenge describes cookie credentials, not OAuth or public share tokens. These modules import `server-only` to prevent client bundling.
 - `src/shares/dates.ts` preserves saved timestamp/local timezone and reading calendar date/UTC behavior.
 
 ## HTTP contract
@@ -27,8 +27,9 @@ Doorknob v0.2 keeps the React frontend and Next.js Backend for Frontend (BFF) in
 flowchart TD
   Browser[Browser fetch] --> Next[Next.js Route Handler]
   Next --> App[OpenAPIHono dispatcher]
-  App --> Session[Validate or issue anonymous session]
-  Session --> Input[POST origin, media type, byte limit, Zod validation]
+  App --> Origin[POST same-origin check]
+  Origin --> Session[Validate or issue anonymous session]
+  Session --> Input[POST media type, byte limit, JSON syntax, Zod validation]
   Input --> Repository[Owner-scoped Map repository]
   Repository --> Output[Project saved records through Share schema]
   Output --> Browser
@@ -36,7 +37,7 @@ flowchart TD
   Contract --> Document[GET /api/openapi.json]
 ```
 
-GET/HEAD skip POST input validation. OPTIONS and rejected methods skip session creation. A supplied invalid credential wins over POST input failures. The cookie is attached to successful/non-500 action responses for newly issued sessions; 401 and internal failures do not issue replacements.
+GET/HEAD skip POST input validation. OPTIONS and rejected methods skip session creation. POST origin checks precede sessions, so a rejected cross-site form cannot replace an owner cookie. For accepted origins, invalid credentials win over body validation failures. The cookie is attached to successful/non-500 action responses for newly issued sessions; foreign-origin rejections, 401, and internal failures do not issue replacements.
 
 Media types use `content-type` parsing rather than handwritten regular expressions. The app normalizes valid application/json before the library validator. It strips the incoming Content-Length from the internal Request so Hono's body-limit middleware counts actual bytes, including streams; it buffers at most 64 KiB. Shared input validation limits raw text to 10,000 Unicode code points before trimming, matching the generated maxLength constraint. Whitespace-only rejection remains a Zod semantic rule described in the contract.
 

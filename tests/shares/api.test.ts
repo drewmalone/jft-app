@@ -233,3 +233,26 @@ test('validates signed JSON payloads before trusting session ownership', async (
     assert.equal((await GET(request('GET', cookie))).status, 401);
   }
 });
+
+test('foreign-origin form writes never establish or replace a session', async () => {
+  for (const cookie of [
+    undefined,
+    await session(),
+    'doorknob-session=forged'
+  ]) {
+    const response = await POST(
+      new NextRequest('http://localhost/api/shares', {
+        method: 'POST',
+        headers: {
+          origin: 'https://foreign.example',
+          'content-type': 'application/x-www-form-urlencoded',
+          ...(cookie ? { cookie } : {})
+        },
+        body: 'text=A+fictional+cross-site+form'
+      })
+    );
+    assert.equal(response.status, 403);
+    assert.equal(response.headers.get('set-cookie'), null);
+    assert.equal((await response.json()).error.code, 'CROSS_ORIGIN_REQUEST');
+  }
+});

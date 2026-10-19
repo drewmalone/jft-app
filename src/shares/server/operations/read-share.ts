@@ -10,7 +10,7 @@ import {
   commonFailures,
   failed
 } from '../openapi';
-import { apiFailures } from '../http';
+import { errorBody } from '../http';
 import { anonymousSession } from '../middleware';
 
 const idParams = z.object({
@@ -60,15 +60,6 @@ export const readShare: RouteHandler<
 > = async (c) => {
   const { id } = c.req.valid('param');
   const share = await shareRepository.findByOwner(id, c.get('ownerId'));
-  if (!share)
-    return c.json(
-      {
-        error: {
-          code: 'SHARE_NOT_FOUND' as const,
-          message: apiFailures.SHARE_NOT_FOUND.message
-        }
-      },
-      404
-    );
+  if (!share) return c.json(errorBody('SHARE_NOT_FOUND'), 404);
   return c.json(shareSchema.parse(share), 200);
 };

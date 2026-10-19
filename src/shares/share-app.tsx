@@ -48,7 +48,7 @@ export function ShareApp() {
   const [screen, setScreen] = useState<Screen>({ view: 'today' });
   const { view } = screen;
   const [text, setText] = useState('');
-  const { history, initializing, refresh: loadHistory } = useShareHistory();
+  const { history, sessionReady, refresh: loadHistory } = useShareHistory();
   const [saveError, setSaveError] = useState('');
   const [saving, setSaving] = useState(false);
   const savePending = useRef(false);
@@ -73,7 +73,7 @@ export function ShareApp() {
     detailRequest.current++;
     setDetailState({ status: 'idle' });
     setScreen(next);
-    if (next.view === 'past' && !initializing) void loadHistory();
+    if (next.view === 'past' && sessionReady) void loadHistory();
     window.scrollTo({ top: 0 });
   }
   async function openShare(id: string) {
@@ -93,7 +93,7 @@ export function ShareApp() {
   }
   async function save(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (savePending.current) return;
+    if (savePending.current || !sessionReady) return;
     if (!text.trim()) {
       setSaveError('Write a few words before saving your share.');
       return;
@@ -157,10 +157,30 @@ export function ShareApp() {
             {history.message}
           </p>
         )}
+        {view === 'today' &&
+          !sessionReady &&
+          (history.status === 'failed' ? (
+            <div className="mt-6">
+              <p role="alert">
+                Your private session could not be prepared. Your words are still
+                here. {history.message}
+              </p>
+              <button
+                className="secondary mt-4 w-full"
+                onClick={() => void loadHistory()}
+              >
+                Try again
+              </button>
+            </div>
+          ) : (
+            <p role="status" className="mt-6">
+              Preparing your private session…
+            </p>
+          ))}
         {view === 'today' && (
           <ShareForm
             text={text}
-            disabled={saving || initializing}
+            disabled={saving || !sessionReady}
             saving={saving}
             error={saveError}
             onTextChange={setText}

@@ -42,7 +42,7 @@ npm run check
 
 Group source by responsibility under `src/` and mirror those groups under `tests/`. Use direct imports, with no barrel files or path aliases. Keep abstractions proportional to the current milestone.
 
-Prettier owns formatting; `.editorconfig` supplies matching editor defaults. Use TSDoc for exported functions and types, explaining contracts and escaping failures. Document meaningful parameters, return values, ownership/trust requirements, and side effects at the source. For asynchronous functions, `@throws` describes promise rejections; for Route Handlers and wrappers that catch errors, document returned HTTP failures under `@returns`. Keep presentation-component comments proportional to their state/callback responsibilities rather than repeating markup.
+ESLint uses Next.js 16’s native flat configurations for Core Web Vitals and TypeScript; keep `eslint-config-next` aligned with the Next.js major version. Prettier owns formatting; `.editorconfig` supplies matching editor defaults. Use TSDoc for exported functions and types, explaining contracts and escaping failures. Document meaningful parameters, return values, ownership/trust requirements, and side effects at the source. For asynchronous functions, `@throws` describes promise rejections; for Route Handlers and wrappers that catch errors, document returned HTTP failures under `@returns`. Keep presentation-component comments proportional to their state/callback responsibilities rather than repeating markup.
 
 When updating a feature, review its documentation together:
 
