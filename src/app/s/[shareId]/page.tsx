@@ -1,5 +1,7 @@
 import type { Metadata } from 'next';
 import Image from 'next/image';
+import Link from 'next/link';
+import { ThoughtsText } from '../../../shares/components/thoughts-text';
 import { readPublicShare } from '../../../shares/server/public-shares';
 import { readingDateLabel } from '../../../shares/dates';
 
@@ -56,9 +58,7 @@ export default async function SharedReflection({
               className="share-card mt-10 rounded-xl border border-[var(--line)] p-6 sm:p-8"
             >
               <h2 className="eyebrow">Their thoughts</h2>
-              <p className="mt-4 whitespace-pre-wrap break-words font-serif text-xl leading-relaxed">
-                {share.text}
-              </p>
+              <ThoughtsText key={shareId} text={share.text} />
             </section>
           </>
         ) : (
@@ -69,6 +69,9 @@ export default async function SharedReflection({
             </p>
           </>
         )}
+        <Link href="/" prefetch={false} className="primary mt-7 w-full">
+          Write your share
+        </Link>
       </main>
     </div>
   );

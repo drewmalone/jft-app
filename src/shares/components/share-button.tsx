@@ -53,13 +53,14 @@ export function ShareButton({ url }: { url: string }) {
       <button
         ref={button}
         type="button"
-        aria-label="Share"
-        title="Share"
+        aria-label="Share with fellow alcoholic"
+        title="Share with fellow alcoholic"
         disabled={pending}
         onClick={() => void share()}
         className="secondary w-full"
       >
         <svg
+          className="shrink-0"
           width="22"
           height="22"
           viewBox="0 0 24 24"
@@ -73,7 +74,7 @@ export function ShareButton({ url }: { url: string }) {
           <circle cx="18" cy="5" r="3" />
           <circle cx="18" cy="19" r="3" />
         </svg>
-        <span>Share</span>
+        <span>Share with fellow alcoholic</span>
       </button>
       {status && (
         <p role="status" className="mt-2 text-sm">

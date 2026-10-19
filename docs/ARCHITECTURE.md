@@ -71,13 +71,15 @@ v0.1 browser persistence, compatibility fixtures, and storage-only tests are rem
 
 ## Signed sharing boundary
 
-`createStoredShare` generates a signed relative `shareUrl` once, before storing the record. The owner receives it in the existing create/list/detail responses; reads never regenerate it. There is no separate link-generation endpoint, request, token table, or recipient tracking. The labeled Share button beneath the written thoughts includes the standard share icon and invokes native sharing immediately with the already available URL, preserving browser user activation. Without native sharing it copies the URL; only clipboard failure reveals a selectable field. Cancellation is silent. No sharing panel, expiry label, or delivery claim is shown.
+`createStoredShare` generates a signed relative `shareUrl` once, before storing the record. The owner receives it in the existing create/list/detail responses; reads never regenerate it. There is no separate link-generation endpoint, request, token table, or recipient tracking. The labeled Share with fellow alcoholic button beneath the written thoughts includes the standard share icon and invokes native sharing immediately with the already available URL, preserving browser user activation. Without native sharing it copies the URL; only clipboard failure reveals a selectable field. Cancellation is silent. No sharing panel, expiry label, or delivery claim is shown.
 
 `share-links.ts` signs `share:v1\n{id}\n{expires}` using Node HMAC-SHA256 and an independent server-only `SHARE_LINK_SECRET`. The fixed lifetime is seven days from saving, without configuration or UI controls. Verification requires a UUID, canonical safe-integer Unix expiry, canonical unpadded base64url MAC, and `timingSafeEqual`. There is no reflection text in the URL. Invalid production signing configuration fails before the record is written. Development uses one random process-stable sharing key.
 
 `public-shares.ts` verifies before calling trusted `findById` and returns only `reflection` and `text`. The public API and server-rendered recipient page never require or create session cookies. Invalid, expired, duplicate, tampered, and missing links receive the same API 404; the page shows a generic unavailable message. Private detail/history still require the owning session and omit owner IDs from responses.
 
 Public responses use private/no-store caching, noindex/nofollow and no-referrer headers. The recipient page has static generic metadata and no tracking. Development URL logging is disabled; hosting proxies must redact query strings separately. Anyone holding a link can forward it or retain copies. There is no per-link revocation, regeneration, or deletion endpoint. Links stop working after a week, loss of the underlying record, or signing-key change; already received copies cannot be recalled. Restarts erase the in-memory shares. This remains disposable local storage.
+
+`ThoughtsText` renders a 240-character preview for long thoughts on owner and recipient pages. Read more/Show less toggles the complete escaped text locally, without another request; short text needs no toggle. New share IDs reset the collapsed state. The recipient's **Write your share** link opens `/` with prefetch disabled, so simply viewing a public share still never bootstraps a session.
 
 ## Verification
 

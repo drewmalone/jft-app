@@ -1,4 +1,5 @@
 import type { Share } from '../model';
+import { ThoughtsText } from './thoughts-text';
 import { ShareButton } from './share-button';
 import { dateLabel } from '../dates';
 
@@ -19,9 +20,7 @@ export function ShareDetail({ share }: { share: Share }) {
       </p>
       <div className="my-6 border-t border-[var(--line)]" />
       <p className="eyebrow">Your thoughts</p>
-      <p className="mt-3 whitespace-pre-wrap break-words font-serif text-xl leading-relaxed">
-        {share.text}
-      </p>
+      <ThoughtsText key={share.id} text={share.text} />
       <ShareButton url={share.shareUrl} />
     </article>
   );
