@@ -27,7 +27,9 @@ export default defineConfig({
     reuseExistingServer: false,
     // Synthetic secret for the isolated production test process.
     env: {
-      SESSION_SECRET: 'fictional-playwright-session-secret-at-least-32-bytes'
+      SESSION_SECRET: 'fictional-playwright-session-secret-at-least-32-bytes',
+      SHARE_LINK_SECRET:
+        'fictional-playwright-share-link-secret-at-least-32-bytes'
     }
   }
 });

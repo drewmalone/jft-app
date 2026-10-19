@@ -1,6 +1,6 @@
-# Private share API
+# Share API
 
-This is the HTTP contract for the Next.js BFF in `jft-app`. It is for the current browser's private shares. There are no public links, share tokens, login endpoints, or client-selected owners. See [architecture](ARCHITECTURE.md) for implementation boundaries and [the README](../README.md#getting-started) for server setup.
+This is the HTTP contract for the Next.js BFF in `jft-app`. It supports the current browser's private shares and intentional signed-link sharing. There are no login endpoints or client-selected owners. See [architecture](ARCHITECTURE.md) for implementation boundaries and [the README](../README.md#getting-started) for server setup.
 
 ## OpenAPI contract and libraries
 
@@ -28,7 +28,7 @@ No generated client or interactive documentation UI is required to consume the d
 
 ## Session and response conventions
 
-The server reads the `doorknob-session` cookie. If it is absent, a supported endpoint creates a random anonymous owner and issues a signed cookie with its response. A malformed, expired, or incorrectly signed cookie produces 401 before accessing shares; it is not silently replaced. Cookie-based clients must retain and resend the cookie. Browser code uses same-origin credentials; nonbrowser clients need a cookie jar.
+The server reads the `doorknob-session` cookie. If it is absent, a private create/list/detail endpoint creates a random anonymous owner and issues a signed cookie with its response. A malformed, expired, or incorrectly signed cookie produces 401 before accessing shares; it is not silently replaced. Cookie-based clients must retain and resend the cookie. Browser code uses same-origin credentials; nonbrowser clients need a cookie jar.
 
 The cookie is HttpOnly, host-only, SameSite=Lax, and scoped to `/`. It has an absolute 30-day lifetime, with Secure added in production. Successful reads do not refresh its expiry. When the browser drops an expired cookie, its next request starts a new owner; an expired credential explicitly sent by a client receives 401. Tabs sharing site cookies share an owner. Isolation requires separate cookie jars, such as a normal profile and a private profile; multiple private windows may share cookies with one another.
 
@@ -48,6 +48,22 @@ Responses carry `Cache-Control: private, no-store`. Share/error bodies use JSON;
 Messages are intended for display. Branch on `error.code` and the HTTP status, never by matching message text. The fetch client exposes these as `ShareApiError.code`, `.status`, and `.message` and does not retry writes. Non-JSON HTTP failures retain their status with a safe fallback message.
 
 401 includes `WWW-Authenticate: DoorknobSession realm="doorknob"`. This is an application-specific HTTP authentication scheme for this private BFF, not a registered interoperable login protocol. Credentials are still carried only in the signed cookie; the server does not accept an Authorization/Bearer header. The challenge advertises the required session mechanism without pretending the credential is an OAuth bearer token. OpenAPI models this transport as an `apiKey` security scheme in a cookie. Its anonymous alternative permits initial cookie issuance; it never makes an invalid supplied cookie acceptable.
+
+## Generate a signed sharing link
+
+`POST /api/shares/{id}/link` requires an existing valid owner cookie. It does not bootstrap a new session and needs no request body. A supplied foreign Origin returns 403 before session processing. Missing/invalid sessions return 401; missing or foreign-owned shares return the same 404. Signing configuration failures return generic 500. No response exposes signing keys or changes stored content.
+
+Success is **200** with `{ "url": "/s/{id}?expires={unixSeconds}&sig={base64urlMAC}", "expiresAt": 1800604800 }` (illustrative placeholder URL). `expiresAt` is absolute Unix seconds, equal to `expires` in the URL. Resolve this relative URL against the application origin before copying/sending it. Treat it as a credential, never log it. Duration defaults to seven days and is configured with `SHARE_LINK_TTL_SECONDS`; see [configuration](../README.md#sharing-configuration). No link or recipient record is persisted. OPTIONS advertises `POST, OPTIONS`; other methods return coded 405 with Allow.
+
+## Read a public share
+
+`GET /api/public/shares/{id}?expires={unixSeconds}&sig={signature}` requires the signed capability, **no session**. Existing cookies are ignored, including invalid ones; this endpoint never issues or replaces them. The signature covers `share:v1`, the exact UUID, and expiration. Canonical expiration is a positive decimal safe integer; the signature is canonical unpadded base64url HMAC-SHA256 (43 characters). Missing, duplicate, malformed, tampered, expired and nonexistent capabilities return **404/SHARE_NOT_FOUND**, without reading storage for failed verification. Unexpected signing configuration/repository failures return generic 500.
+
+Success is **200** with only `{ "reflection": { "id": "...", "date": "2025-04-23", "title": "...", "body": "..." }, "text": "A fictional thought." }`. It excludes owner ID, share creation metadata, kind and private history. Responses, including failures, carry `Cache-Control: private, no-store`, `X-Robots-Tag: noindex, nofollow` and `Referrer-Policy: no-referrer`. HEAD verifies the same capability with no body. OPTIONS advertises `GET, HEAD, OPTIONS`; other methods return coded 405 with Allow. No CORS permission is granted.
+
+The recipient HTML page is `/s/{id}` with the same query parameters and service boundary. Valid links show the original reading date/title/body and written thoughts. Unavailable links show a generic message (HTML 200); this is a minimal reading page, not private-history navigation. Pages have dynamic private/no-store caching and noindex/no-referrer headers and metadata. No session is established. No content-specific metadata or external tracking is added.
+
+These are bearer links: recipients may forward, copy, or save content. There is no immediate revocation, token storage, link version counter, revoke endpoint, or delete endpoint. Future deletion of a share will invalidate its links by removing the record. Expiration does not remove records or recall received copies. A process restart loses all records. [Architecture](ARCHITECTURE.md#signed-sharing-boundary) describes the trust boundary and tradeoffs.
 
 ## Create a share
 

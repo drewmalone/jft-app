@@ -123,18 +123,18 @@ export function optionsRoute(path: string, allow: string, operationId: string) {
 export const openApiConfiguration = {
   openapi: '3.1.0' as const,
   info: {
-    title: 'Doorknob private share BFF',
-    version: '0.2.0',
+    title: 'Doorknob share BFF',
+    version: '0.3.0',
     contact: { url: 'https://github.com/drewmalone/jft-app/issues' },
     description:
-      'Local-development process-memory persistence. Restarts erase shares; serverless instances/replicas do not share data. No public sharing links or login.'
+      'Local-development process-memory persistence. Restarts erase shares; serverless instances/replicas do not share data. Owner-scoped private shares and expiring signed public reading links. No login or immediate link revocation.'
   },
   servers: [{ url: '/', description: 'Same origin as the application.' }],
   tags: [
     {
       name: 'Shares',
       description:
-        'Private resources scoped to a signed anonymous session cookie.'
+        'Private resources scoped to a signed anonymous session cookie, and public reads authorized by signed expiring capabilities.'
     }
   ]
 };

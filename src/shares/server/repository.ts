@@ -2,7 +2,7 @@ import 'server-only';
 import { createStoredShare, type StoredShare } from './create-stored-share';
 
 /**
- * Persistence boundary for private shares; every operation is scoped to an owner.
+ * Persistence boundary. Private reads are owner-scoped; findById is trusted server access.
  * Callers must obtain owner IDs from getSession, never from request bodies.
  * Implementations return detached records so callers cannot mutate storage.
  */
@@ -31,10 +31,17 @@ export interface ShareRepository {
    * @throws If the persistence implementation cannot complete the read.
    */
   findByOwner(id: string, ownerId: string): Promise<StoredShare | null>;
+  /**
+   * Trusted server lookup after signed public-link authorization only.
+   * @param id - ID authenticated by the public-share access service.
+   * @returns A detached server record, or null; never return this record directly to clients.
+   * @throws If persistence cannot complete the read.
+   */
+  findById(id: string): Promise<StoredShare | null>;
 }
 
 /**
- * Isolated in-memory implementation. Reads return clones and every lookup checks ownership.
+ * Isolated in-memory implementation. Reads return clones; private lookups check ownership.
  * Instances do not share data. The application exports one process-wide instance below.
  */
 export class InMemoryShareRepository implements ShareRepository {
@@ -55,6 +62,12 @@ export class InMemoryShareRepository implements ShareRepository {
         .reverse()
         .sort((a, b) => Date.parse(b.createdAt) - Date.parse(a.createdAt))
     );
+  }
+
+  /** {@inheritDoc ShareRepository.findById} */
+  async findById(id: string): Promise<StoredShare | null> {
+    const share = this.#shares.get(id);
+    return share ? structuredClone(share) : null;
   }
 
   /** {@inheritDoc ShareRepository.findByOwner} */

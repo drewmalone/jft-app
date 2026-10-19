@@ -8,11 +8,25 @@ import { readShareRoute, readShare } from './operations/read-share';
 import { registerResourceMethods } from './resource-methods';
 import { openApiConfiguration } from './openapi';
 
+import {
+  createShareLinkRoute,
+  generateShareLink
+} from './operations/create-share-link';
+import {
+  readPublicShareRoute,
+  getPublicShare
+} from './operations/read-public-share';
+
 const specificationAllow = 'GET, HEAD, OPTIONS';
 
 const app = new OpenAPIHono<SessionEnvironment>({
-  defaultHook: (result) => {
-    if (!result.success) return error('INVALID_SHARE');
+  defaultHook: (result, c) => {
+    if (!result.success)
+      return error(
+        c.req.path.startsWith('/api/public/shares/')
+          ? 'SHARE_NOT_FOUND'
+          : 'INVALID_SHARE'
+      );
   }
 }).basePath('/api');
 
@@ -20,6 +34,8 @@ app.onError(handleApiError);
 app.openapi(listSharesRoute, listShares);
 app.openapi(createShareRoute, createShare);
 app.openapi(readShareRoute, readShare);
+app.openapi(createShareLinkRoute, generateShareLink);
+app.openapi(readPublicShareRoute, getPublicShare);
 registerResourceMethods(app);
 app.openAPIRegistry.registerComponent('securitySchemes', 'AnonymousSession', {
   type: 'apiKey',
@@ -47,6 +63,10 @@ app.notFound(() => new Response(null, { status: 404 }));
 export async function dispatch(request: Request): Promise<Response> {
   const response = await app.fetch(request);
   response.headers.set('Cache-Control', 'private, no-store');
+  if (new URL(request.url).pathname.startsWith('/api/public/shares/')) {
+    response.headers.set('X-Robots-Tag', 'noindex, nofollow');
+    response.headers.set('Referrer-Policy', 'no-referrer');
+  }
   return response;
 }
 

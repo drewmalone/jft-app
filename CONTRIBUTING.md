@@ -10,7 +10,7 @@ npm ci
 npm run dev
 ```
 
-Development generates an ephemeral anonymous-session signing secret. Production requires a random `SESSION_SECRET` of at least 32 bytes; see the README. Never commit `.env` files, credentials, or personal recovery text.
+Development generates separate ephemeral session and sharing-link signing secrets. Production requires independent random `SESSION_SECRET` and `SHARE_LINK_SECRET` values of at least 32 bytes each; see the README. Never commit `.env` files, credentials, or personal recovery text.
 
 ## Commands
 

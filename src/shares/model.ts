@@ -52,3 +52,16 @@ export const shareSchema = z.object({
 export type Reflection = z.infer<typeof reflectionSchema>;
 /** Validated API share without ownerId; its TypeScript shape alone does not grant access. */
 export type Share = z.infer<typeof shareSchema>;
+
+/** Public projection: no ID, owner, creation metadata, or history. Authorization is server-only. */
+export const publicShareSchema = shareSchema.pick({
+  reflection: true,
+  text: true
+});
+/** Link response with relative same-origin URL and expiration in Unix seconds. */
+export const shareLinkSchema = z.object({
+  url: z
+    .string()
+    .regex(/^\/s\/[0-9a-fA-F-]+\?expires=[0-9]+&sig=[A-Za-z0-9_-]{43}$/),
+  expiresAt: z.number().int().positive().max(Number.MAX_SAFE_INTEGER)
+});

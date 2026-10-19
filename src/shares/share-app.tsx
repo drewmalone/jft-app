@@ -6,6 +6,7 @@ import { readShare, saveShare } from './api';
 import { ShareForm } from './components/share-form';
 import { ShareHistory } from './components/share-history';
 import { useShareHistory } from './use-share-history';
+import { ShareLinkControls } from './components/share-link-controls';
 import { ShareDetail } from './components/share-detail';
 import { ReflectionReading } from './components/reflection-reading';
 import { AppHeader } from '../components/app-header';
@@ -215,6 +216,10 @@ export function ShareApp() {
         {(screen.view === 'saved' || screen.view === 'detail') && (
           <>
             <ShareDetail share={screen.share} />
+            <ShareLinkControls
+              key={`${screen.view}:${screen.share.id}`}
+              id={screen.share.id}
+            />
             <button
               className="primary mt-7 w-full"
               onClick={() => navigate({ view: 'today' })}
