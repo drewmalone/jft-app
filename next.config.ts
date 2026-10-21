@@ -3,6 +3,9 @@ import type { NextConfig } from 'next';
 const config: NextConfig = {
   // Bearer URLs must never enter development access logs or browser log forwarding.
   logging: false,
+  turbopack: {
+    root: import.meta.dirname
+  },
   async headers() {
     return ['/s/:path*', '/api/public/shares/:path*'].map((source) => ({
       source,
