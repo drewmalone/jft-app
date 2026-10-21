@@ -31,7 +31,7 @@ Production requires `SESSION_SECRET` and sets Secure cookies. Missing or short p
 
 ## Sharing with another person
 
-Save a share, then tap **Share with another alcoholic** beneath your thoughts on the card. It opens the device's share sheet directly. Browsers without native sharing copy the link; if clipboard access is unavailable, an inline selectable link field appears. The same button and share icon are available in past-share details. Saving prepares the URL but never sends it to anyone.
+Save a share, then tap **Share with fellow alcoholic** beneath your thoughts on the card. It opens the device's share sheet directly. Browsers without native sharing copy the link; if clipboard access is unavailable, an inline selectable link field appears. The same button and share icon are available in past-share details. Saving prepares the URL but never sends it to anyone.
 
 Long thoughts show a short preview ending in `...`; **Read more** expands them and **Show less** collapses them on both owner and recipient screens. Recipients can read the original reading and thoughts without an account, then choose **Write your own share** to open the homepage. They cannot browse the sender's history. Sharing URLs contain only a cryptographically random UUID. Anyone who learns that UUID can read that share during its lifetime; treat the full URL and share IDs as credentials and never log them. No separate sharing secret is required. Technical lifetime and storage details are in [architecture](docs/ARCHITECTURE.md#public-sharing-boundary).
 

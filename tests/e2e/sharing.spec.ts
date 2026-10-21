@@ -38,7 +38,7 @@ test('share icon uses the saved URL directly for native sharing and session-free
   expect(new URL(link).pathname).toBe(`/s/${saved.id}`);
   expect(new URL(link).search).toBe('');
   const button = page.getByRole('button', {
-    name: 'Share with another alcoholic',
+    name: 'Share with fellow alcoholic',
     exact: true
   });
   await button.click();
@@ -135,7 +135,7 @@ test('unsupported native sharing copies directly, with manual copying only when 
   });
   const saved = await save(page);
   const button = page.getByRole('button', {
-    name: 'Share with another alcoholic',
+    name: 'Share with fellow alcoholic',
     exact: true
   });
   await button.click();
@@ -190,7 +190,7 @@ test('native cancellation stays silent and native failures fall back to copying'
   });
   await save(page);
   const button = page.getByRole('button', {
-    name: 'Share with another alcoholic',
+    name: 'Share with fellow alcoholic',
     exact: true
   });
   await button.click();
@@ -230,7 +230,7 @@ test('long thoughts expand locally on owner and recipient pages, and recipients 
   const saved = await (await response).json();
   await expect(
     page.getByRole('button', {
-      name: 'Share with another alcoholic',
+      name: 'Share with fellow alcoholic',
       exact: true
     })
   ).toBeVisible();
