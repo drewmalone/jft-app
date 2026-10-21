@@ -1,8 +1,9 @@
 import { test, expect } from '@playwright/test';
 import { spawn } from 'node:child_process';
 import { once } from 'node:events';
+import { resolve } from 'node:path';
 
-// A separate process exercises real production error handling without changing other tests' keys.
+// A test-only repository fails once in an isolated production process, then lets retry recover.
 test('server failures use a retryable error page and sanitized diagnostics', async ({
   page
 }, testInfo) => {
@@ -10,6 +11,8 @@ test('server failures use a retryable error page and sanitized diagnostics', asy
   const server = spawn(
     process.execPath,
     [
+      '--import',
+      resolve('tests/e2e/fixtures/retryable-repository.mjs'),
       'node_modules/next/dist/bin/next',
       'start',
       '--hostname',
@@ -20,8 +23,7 @@ test('server failures use a retryable error page and sanitized diagnostics', asy
     {
       env: {
         ...process.env,
-        SESSION_SECRET: 'fictional-error-test-session-key-at-least-32-bytes',
-        SHARE_LINK_SECRET: 'short'
+        SESSION_SECRET: 'fictional-error-test-session-key-at-least-32-bytes'
       },
       stdio: ['ignore', 'pipe', 'pipe']
     }
@@ -46,9 +48,8 @@ test('server failures use a retryable error page and sanitized diagnostics', asy
         { timeout: 10000 }
       )
       .toBe(200);
-    const sig = 'A'.repeat(43);
     const response = await page.goto(
-      `${base}/s/95eff0e1-bca7-4fd1-83d2-42ba330aab22?sig=${sig}`
+      `${base}/s/95eff0e1-bca7-4fd1-83d2-42ba330aab22`
     );
     expect(response?.status()).toBe(500);
     await expect(
@@ -68,9 +69,13 @@ test('server failures use a retryable error page and sanitized diagnostics', asy
     await expect
       .poll(() => output)
       .toContain('The shared reflection could not be loaded.');
-    expect(output).not.toContain(sig);
-    expect(output).not.toContain('SHARE_LINK_SECRET');
-    expect(output).not.toContain('sig=');
+    expect(output).not.toContain('95eff0e1-bca7-4fd1-83d2-42ba330aab22');
+    expect(output).not.toContain('Fictional raw repository failure');
+    await page.getByRole('button', { name: 'Try again' }).click();
+    await expect(
+      page.getByRole('heading', { name: 'This share is unavailable' })
+    ).toBeVisible();
+    expect(await page.context().cookies()).toEqual([]);
   } finally {
     if (server.exitCode === null && server.signalCode === null) {
       const exited = once(server, 'exit');

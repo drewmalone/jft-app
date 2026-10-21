@@ -17,17 +17,14 @@ export const metadata: Metadata = {
 
 /** Session-free server-rendered reading; only the public access service may load content. */
 export default async function SharedReflection({
-  params,
-  searchParams
+  params
 }: {
   params: Promise<{ shareId: string }>;
-  searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
   const { shareId } = await params;
-  const { sig } = await searchParams;
   let share;
   try {
-    share = await readPublicShare(shareId, sig);
+    share = await readPublicShare(shareId);
   } catch {
     // Let Next handle unexpected failures, with no request, content, or raw cause in diagnostics.
     throw new Error('The shared reflection could not be loaded.');

@@ -117,14 +117,14 @@ export const openApiConfiguration = {
     version: '0.3.0',
     contact: { url: 'https://github.com/drewmalone/jft-app/issues' },
     description:
-      'Local-development process-memory persistence. Restarts erase shares; serverless instances/replicas do not share data. Owner-scoped private shares and expiring signed public reading links. No login or immediate link revocation.'
+      'Local-development process-memory persistence. Restarts erase shares; serverless instances/replicas do not share data. Owner-scoped private shares and expiring UUID public reading links. No login or immediate link revocation.'
   },
   servers: [{ url: '/', description: 'Same origin as the application.' }],
   tags: [
     {
       name: 'Shares',
       description:
-        'Private resources scoped to a signed anonymous session cookie, and public reads authorized by signed expiring capabilities.'
+        'Private resources scoped to a signed anonymous session cookie, and public reads authorized by expiring bearer UUIDs.'
     }
   ]
 };

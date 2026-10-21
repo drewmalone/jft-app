@@ -32,8 +32,8 @@ export interface ShareRepository {
    */
   findByOwner(id: string, ownerId: string): Promise<StoredShare | null>;
   /**
-   * Trusted server lookup after signed public-link authorization only.
-   * @param id - ID authenticated by the public-share access service.
+   * Trusted server lookup for public-link reads; callers must enforce the saved lifetime.
+   * @param id - Bearer UUID validated by the public-share access service.
    * @returns A detached server record, or null; never return this record directly to clients.
    * @throws If persistence cannot complete the read.
    */

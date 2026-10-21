@@ -329,11 +329,7 @@ test('error contracts reject codes belonging to a different HTTP status', async 
   );
 });
 
-test('save-time link and public responses conform to generated contracts', async (t) => {
-  t.mock.property(process, 'env', {
-    ...process.env,
-    SHARE_LINK_SECRET: 'fictional-contract-sharing-key-at-least-32-bytes'
-  });
+test('save-time link and public responses conform to generated contracts', async () => {
   const created = await request(
     'POST',
     '/api/shares',
@@ -342,7 +338,7 @@ test('save-time link and public responses conform to generated contracts', async
   );
   const saved = await created.clone().json();
   await contract(created, '/api/shares', 'post');
-  const publicPath = `/api/public/shares/${saved.id}?${new URL(saved.shareUrl, 'http://localhost').searchParams}`;
+  const publicPath = `/api/public/shares/${saved.id}`;
   await contract(await request('GET', publicPath), '/api/public/shares/{id}');
   await contract(
     await request('HEAD', publicPath),
@@ -350,7 +346,7 @@ test('save-time link and public responses conform to generated contracts', async
     'head'
   );
   await contract(
-    await request('GET', `/api/public/shares/${saved.id}`),
+    await request('GET', '/api/public/shares/invalid'),
     '/api/public/shares/{id}'
   );
   await contract(

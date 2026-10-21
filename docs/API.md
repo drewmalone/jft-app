@@ -1,6 +1,6 @@
 # Share API
 
-This is the HTTP contract for the Next.js BFF in `jft-app`. It supports the current browser's private shares and intentional signed-link sharing. There are no login endpoints or client-selected owners. See [architecture](ARCHITECTURE.md) for implementation boundaries and [the README](../README.md#getting-started) for server setup.
+This is the HTTP contract for the Next.js BFF in `jft-app`. It supports the current browser's private shares and UUID-link sharing. There are no login endpoints or client-selected owners. See [architecture](ARCHITECTURE.md) for implementation boundaries and [the README](../README.md#getting-started) for server setup.
 
 ## OpenAPI contract and libraries
 
@@ -49,19 +49,19 @@ Messages are intended for display. Branch on `error.code` and the HTTP status, n
 
 ## Save-time sharing URL
 
-Create/list/detail responses include `shareUrl`, a signed relative URL such as `/s/{id}?sig={base64urlMAC}`. It is generated once when the record is constructed, before storage. Resolve it against the application origin for native sharing or copying. Reads return the original URL without renewal. There is no separate link-generation endpoint or extra sharing request. Treat URLs as bearer credentials and never log them.
+Create/list/detail responses include `shareUrl`, a relative URL such as `/s/{id}`. It is generated once when the record is constructed, before storage. Resolve it against the application origin for native sharing or copying. Reads return the original URL without renewal. There is no separate link-generation endpoint or extra sharing request. Treat URLs as bearer credentials and never log them.
 
-The server rejects public reads seven days after the stored `createdAt` timestamp. The URL contains only `sig`; adding or changing an `expires` query parameter has no effect. Expiration has no configuration, response metadata field, or UI label. Invalid sharing-key configuration fails creation with generic 500 before storing the record. Public responses exclude `shareUrl` and all owner metadata.
+The server rejects public reads seven days after the stored `createdAt` timestamp. The URL has no query parameters; adding or changing an `expires` query parameter has no effect. Expiration has no configuration, response metadata field, or UI label. Public responses exclude `shareUrl` and all owner metadata.
 
 ## Read a public share
 
-`GET /api/public/shares/{id}?sig={signature}` requires the signed capability, **no session**. Existing cookies are ignored, including invalid ones; this endpoint never issues or replaces them. The signature covers `share:v2` and the exact UUID. It is canonical unpadded base64url HMAC-SHA256 (43 characters). Signature verification precedes storage lookup; the server then checks the stored creation time before returning content. No client-provided timestamp controls lifetime. Missing, duplicate, malformed, tampered, expired and nonexistent capabilities return **404/SHARE_NOT_FOUND**, without reading storage for failed verification. Unexpected signing configuration/repository failures return generic 500.
+`GET /api/public/shares/{id}` requires the cryptographically random UUIDv4, **no session**. The UUID itself is the bearer credential; every saved share can be read by someone who knows its ID during its lifetime. Existing cookies are ignored, including invalid ones; this endpoint never issues or replaces them. The server validates the UUID before storage lookup, then checks the stored creation time before returning content. No client-provided timestamp controls lifetime. Malformed UUIDs, expired shares and nonexistent records return **404/SHARE_NOT_FOUND**. Repository failures return generic 500. No signature or separate sharing secret is used.
 
-Success is **200** with only `{ "reflection": { "id": "...", "date": "2025-04-23", "title": "...", "body": "..." }, "text": "A fictional thought." }`. It excludes owner ID, share creation metadata, kind and private history. Responses, including failures, carry `Cache-Control: private, no-store`, `X-Robots-Tag: noindex, nofollow` and `Referrer-Policy: no-referrer`. HEAD verifies the same capability with no body. OPTIONS advertises `GET, HEAD, OPTIONS`; other methods return coded 405 with Allow. No CORS permission is granted.
+Success is **200** with only `{ "reflection": { "id": "...", "date": "2025-04-23", "title": "...", "body": "..." }, "text": "A fictional thought." }`. It excludes owner ID, share creation metadata, kind and private history. Responses, including failures, carry `Cache-Control: private, no-store`, `X-Robots-Tag: noindex, nofollow` and `Referrer-Policy: no-referrer`. HEAD performs the same UUID and lifetime checks with no body. OPTIONS advertises `GET, HEAD, OPTIONS`; other methods return coded 405 with Allow. No CORS permission is granted.
 
-The recipient HTML page is `/s/{id}` with the same query parameters and service boundary. Valid links show the original reading date/title/body and written thoughts. Unavailable links show a generic message (HTML 200); unexpected server failures use a separate retryable error boundary with sanitized diagnostics and an initial HTTP 500 response; this is a minimal reading page, not private-history navigation. Pages have dynamic private/no-store caching and noindex/no-referrer headers and metadata. No session is established. No content-specific metadata or external tracking is added.
+The recipient HTML page is `/s/{id}` with the same UUID and service boundary. Valid links show the original reading date/title/body and written thoughts. Unavailable links show a generic message (HTML 200); unexpected server failures use a separate retryable error boundary with sanitized diagnostics and an initial HTTP 500 response; this is a minimal reading page, not private-history navigation. Pages have dynamic private/no-store caching and noindex/no-referrer headers and metadata. No session is established. No content-specific metadata or external tracking is added.
 
-These are bearer links: recipients may forward, copy, or save content. There is no immediate revocation, token storage, link version counter, revoke endpoint, or delete endpoint. Future deletion of a share will invalidate its links by removing the record. Expiration does not remove records or recall received copies. A process restart loses all records. [Architecture](ARCHITECTURE.md#signed-sharing-boundary) describes the trust boundary and tradeoffs.
+These are bearer links: recipients may forward, copy, or save content. There is no immediate revocation, token storage, link version counter, revoke endpoint, or delete endpoint. Future deletion of a share will invalidate its links by removing the record. Expiration does not remove records or recall received copies. A process restart loses all records. [Architecture](ARCHITECTURE.md#public-sharing-boundary) describes the trust boundary and tradeoffs.
 
 ## Create a share
 
@@ -84,7 +84,7 @@ Success is **201 Created** with a share and a relative `Location: /api/shares/{i
   "id": "95eff0e1-bca7-4fd1-83d2-42ba330aab22",
   "createdAt": "2026-10-18T12:00:00.000Z",
   "kind": "text",
-  "shareUrl": "/s/95eff0e1-bca7-4fd1-83d2-42ba330aab22?sig=<signature>",
+  "shareUrl": "/s/95eff0e1-bca7-4fd1-83d2-42ba330aab22",
   "text": "A fictional thought.\nOne small step.",
   "reflection": {
     "id": "acceptance-2025-04-23",
@@ -107,7 +107,7 @@ Success is **200 OK** with an array of this session's shares, newest creation ti
 
 `GET /api/shares/:id`
 
-Success is **200 OK** with the same share shape as creation. The ID selects a record but grants no access by itself. IDs with no corresponding record (including non-UUID strings) and IDs belonging to a different owner all return **404 Not Found** with the same error message. An invalid cookie starts a fresh owner, which cannot read a previous owner's share and therefore receives 404.
+Success is **200 OK** with the same share shape as creation. This private endpoint requires the owner session. The same UUID also grants public read access through `/s/{id}` for seven days, so it must be treated as a credential. IDs with no corresponding record (including non-UUID strings) and IDs belonging to a different owner all return **404 Not Found** with the same error message. An invalid cookie starts a fresh owner, which cannot read a previous owner's share and therefore receives 404.
 
 ## Status and stable error codes
 

@@ -1,26 +1,26 @@
 import 'server-only';
 import { publicShareSchema } from '../model';
 import { shareRepository, type ShareRepository } from './repository';
-import { verifyShareLink } from './share-links';
+import { z } from 'zod';
+
+const shareId = z.uuid({ version: 'v4' });
 
 const lifetimeMs = 7 * 24 * 60 * 60 * 1000;
 
 /**
- * The public authorization boundary: verify before an unscoped repository read.
+ * The public authorization boundary: validate the bearer UUID before reading storage.
  * @param id - Untrusted record ID.
- * @param sig - Untrusted signature.
  * @param repository - Defaults to the process store; tests may supply an isolated store.
  * @param now - Server time in Unix milliseconds, injectable for deterministic age tests.
- * @returns Only the reading snapshot and text, or null for every unavailable capability.
- * @throws On invalid server configuration or repository failure; never returns private fields.
+ * @returns Only the reading snapshot and text, or null for every unavailable link.
+ * @throws On repository failure or invalid stored content; never returns private fields.
  */
 export async function readPublicShare(
   id: string,
-  sig: unknown,
   repository: ShareRepository = shareRepository,
   now = Date.now()
 ) {
-  if (!verifyShareLink(id, sig)) return null;
+  if (!shareId.safeParse(id).success) return null;
   const stored = await repository.findById(id);
   if (!stored) return null;
   const age = now - Date.parse(stored.createdAt);

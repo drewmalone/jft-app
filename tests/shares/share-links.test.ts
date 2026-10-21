@@ -1,20 +1,12 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { createHmac, randomUUID } from 'node:crypto';
-import {
-  createShareLink,
-  verifyShareLink
-} from '../../src/shares/server/share-links';
+import { randomUUID } from 'node:crypto';
 import { readPublicShare } from '../../src/shares/server/public-shares';
 import { InMemoryShareRepository } from '../../src/shares/server/repository';
 import { dispatch } from '../../src/shares/server/app';
 import { reflection } from '../../src/shares/reflection-fixture';
 
 const now = 1_800_000_000;
-const key = 'fictional-link-unit-test-key-at-least-32-bytes';
-function parameters(url: string) {
-  return new URL(url, 'http://localhost').searchParams;
-}
 function request(
   path: string,
   method = 'GET',
@@ -43,126 +35,45 @@ async function create() {
   };
 }
 
-test('versioned HMAC binds the exact ID; URLs contain only a signature', (t) => {
-  t.mock.property(process, 'env', { ...process.env, SHARE_LINK_SECRET: key });
-  const id = randomUUID();
-  const { url } = createShareLink(id);
-  const query = parameters(url);
-  assert.deepEqual([...query.keys()], ['sig']);
-  const sig = query.get('sig')!;
-  assert.equal(
-    sig,
-    createHmac('sha256', key).update(`share:v2\n${id}`).digest('base64url')
-  );
-  assert.equal(verifyShareLink(id, sig), true);
-  assert.equal(verifyShareLink(randomUUID(), sig), false);
-  assert.equal(
-    verifyShareLink(id, `${sig[0] === 'A' ? 'B' : 'A'}${sig.slice(1)}`),
-    false
-  );
-  for (const bad of [
-    undefined,
-    null,
-    [],
-    [sig, sig],
-    '',
-    sig + '=',
-    sig.slice(1),
-    '!'.repeat(43),
-    'A'.repeat(44)
-  ])
-    assert.equal(verifyShareLink(id, bad), false);
-  assert.equal(verifyShareLink('invalid', sig), false);
-  assert.throws(() => createShareLink('invalid'));
-  const otherPurpose = createHmac('sha256', key)
-    .update(`session:v2\n${id}`)
-    .digest('base64url');
-  assert.equal(verifyShareLink(id, otherPurpose), false);
-  const legacy = createHmac('sha256', key)
-    .update(`share:v1\n${id}\n${now + 604800}`)
-    .digest('base64url');
-  assert.equal(verifyShareLink(id, legacy), false);
-});
-
-test('separate process-stable development key, and fail-closed production configuration', (t) => {
-  t.mock.property(process, 'env', {
-    ...process.env,
-    NODE_ENV: 'development',
-    SESSION_SECRET: undefined,
-    SHARE_LINK_SECRET: undefined
-  });
-  const id = randomUUID();
-  assert.deepEqual(createShareLink(id), createShareLink(id));
-  Object.assign(process.env, { NODE_ENV: 'production' });
-  for (const value of [undefined, '', 'short']) {
-    if (value === undefined) delete process.env.SHARE_LINK_SECRET;
-    else process.env.SHARE_LINK_SECRET = value;
-    assert.throws(() => createShareLink(id));
-    assert.throws(() => verifyShareLink(id, 'A'.repeat(43)));
-  }
-  process.env.SHARE_LINK_SECRET = key;
-  process.env.SESSION_SECRET = key;
-  assert.throws(() => createShareLink(id));
-  process.env.SESSION_SECRET = 'a-different-fictional-session-secret';
-  assert.ok(createShareLink(id).url);
-});
-
-test('public service authenticates before lookup and enforces seven days from stored creation time', async (t) => {
-  t.mock.property(process, 'env', { ...process.env, SHARE_LINK_SECRET: key });
+test('public service validates UUIDs before lookup and enforces seven days from stored creation time', async (t) => {
   t.mock.method(Date, 'now', () => now * 1000);
   const store = new InMemoryShareRepository();
   const saved = await store.create(
     randomUUID(),
     'Fictional public service text.'
   );
-  const sig = parameters(saved.shareUrl).get('sig');
   const lookup = t.mock.method(store, 'findById');
-  assert.equal(
-    await readPublicShare(saved.id, 'invalid', store, now * 1000),
-    null
-  );
+  assert.equal(await readPublicShare('invalid', store, now * 1000), null);
   assert.equal(lookup.mock.callCount(), 0);
-  assert.deepEqual(await readPublicShare(saved.id, sig, store, now * 1000), {
+  assert.deepEqual(await readPublicShare(saved.id, store, now * 1000), {
     reflection,
     text: saved.text
   });
   const boundary = Date.parse(saved.createdAt) + 7 * 24 * 60 * 60 * 1000;
-  assert.ok(await readPublicShare(saved.id, sig, store, boundary - 1));
-  assert.equal(await readPublicShare(saved.id, sig, store, boundary), null);
-  assert.equal(await readPublicShare(saved.id, sig, store, boundary + 1), null);
+  assert.ok(await readPublicShare(saved.id, store, boundary - 1));
+  assert.equal(await readPublicShare(saved.id, store, boundary), null);
+  assert.equal(await readPublicShare(saved.id, store, boundary + 1), null);
+  assert.equal(await readPublicShare(saved.id, store, now * 1000 - 1), null);
+  assert.equal(await readPublicShare(saved.id, store, NaN), null);
   assert.equal(
-    await readPublicShare(saved.id, sig, store, now * 1000 - 1),
-    null
-  );
-  assert.equal(await readPublicShare(saved.id, sig, store, NaN), null);
-  assert.equal(
-    await readPublicShare(
-      saved.id,
-      sig,
-      new InMemoryShareRepository(),
-      now * 1000
-    ),
+    await readPublicShare(saved.id, new InMemoryShareRepository(), now * 1000),
     null
   );
   const detached = await store.findById(saved.id);
   detached!.createdAt = new Date(boundary).toISOString();
-  assert.equal(await readPublicShare(saved.id, sig, store, boundary), null);
+  assert.equal(await readPublicShare(saved.id, store, boundary), null);
 });
 
-test('saving creates one reusable owner-only URL; public reads have no session side effects', async (t) => {
-  t.mock.property(process, 'env', {
-    ...process.env,
-    SHARE_LINK_SECRET: key
-  });
+test('saving creates one reusable UUID URL; public reads have no session side effects', async (t) => {
   let currentTime = now * 1000;
   t.mock.method(Date, 'now', () => currentTime);
   const { share, cookie } = await create();
   const foreign = await create();
-  const link = { url: share.shareUrl };
-  const query = parameters(link.url);
-  assert.deepEqual([...query.keys()], ['sig']);
-  assert.equal(link.url.includes(key), false);
-  assert.equal(link.url.includes(share.text), false);
+  assert.equal(share.shareUrl, `/s/${share.id}`);
+  assert.match(
+    share.id,
+    /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/
+  );
   const listed = await (await request('/api/shares', 'GET', cookie)).json();
   assert.equal(listed[0].shareUrl, share.shareUrl);
   const crossOrigin = await dispatch(
@@ -172,7 +83,7 @@ test('saving creates one reusable owner-only URL; public reads have no session s
     })
   );
   assert.equal(crossOrigin.status, 403);
-  const publicPath = `/api/public/shares/${share.id}?${query}`;
+  const publicPath = `/api/public/shares/${share.id}`;
   for (const credential of [
     undefined,
     'doorknob-session=invalid',
@@ -198,10 +109,8 @@ test('saving creates one reusable owner-only URL; public reads have no session s
   assert.equal(head.status, 200);
   assert.equal(await head.text(), '');
   for (const broken of [
-    `/api/public/shares/${share.id}`,
-    publicPath + '&sig=' + query.get('sig'),
-    publicPath.replace(share.id, randomUUID()),
-    `/api/public/shares/${share.id}?sig=invalid`
+    '/api/public/shares/invalid',
+    publicPath.replace(share.id, randomUUID())
   ]) {
     const invalid = await request(broken);
     assert.equal(invalid.status, 404);
@@ -214,8 +123,8 @@ test('saving creates one reusable owner-only URL; public reads have no session s
   currentTime = (now + 604800) * 1000;
   for (const path of [
     publicPath,
-    publicPath + '&expires=9999999999999999',
-    publicPath + '&createdAt=2099-01-01'
+    publicPath + '?expires=9999999999999999',
+    publicPath + '?createdAt=2099-01-01'
   ]) {
     const expired = await request(path);
     assert.equal(expired.status, 404);
@@ -223,21 +132,13 @@ test('saving creates one reusable owner-only URL; public reads have no session s
   }
 });
 
-test('production API signing failures remain generic and never return a link or issue cookies', async (t) => {
-  t.mock.property(process, 'env', {
-    ...process.env,
-    SESSION_SECRET: 'fictional-valid-session-secret-at-least-32-bytes'
+test('repository failures propagate without returning content', async (t) => {
+  const store = new InMemoryShareRepository();
+  t.mock.method(store, 'findById', async () => {
+    throw new Error('Fictional repository failure');
   });
-  Object.assign(process.env, { NODE_ENV: 'production', SHARE_LINK_SECRET: '' });
-  const response = await dispatch(
-    new Request('http://localhost/api/shares', {
-      method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ text: 'A fictional unsaved share.' })
-    })
+  await assert.rejects(
+    readPublicShare(randomUUID(), store),
+    /Fictional repository failure/
   );
-  // A missing sharing key fails before storing the record.
-  assert.equal(response.status, 500);
-  assert.equal((await response.json()).error.code, 'INTERNAL_ERROR');
-  assert.equal(response.headers.get('set-cookie'), null);
 });

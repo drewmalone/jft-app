@@ -2,7 +2,6 @@ import 'server-only';
 import { randomUUID } from 'node:crypto';
 import { z } from 'zod';
 import { createShareSchema, shareSchema } from '../model';
-import { createShareLink } from './share-links';
 import { reflection } from '../reflection-fixture';
 
 const storedShareSchema = shareSchema.extend({ ownerId: z.uuid() });
@@ -23,10 +22,9 @@ export function createStoredShare(ownerId: string, text: string): StoredShare {
   const input = createShareSchema.parse({ text });
   z.uuid().parse(ownerId);
   const id = randomUUID();
-  const { url: shareUrl } = createShareLink(id);
   return storedShareSchema.parse({
     id,
-    shareUrl,
+    shareUrl: `/s/${id}`,
     createdAt: new Date(Date.now()).toISOString(),
     kind: 'text',
     text: input.text,

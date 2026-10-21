@@ -26,24 +26,18 @@ export const publicHeaders = {
   }
 };
 const unavailable = { ...failed(['SHARE_NOT_FOUND']), headers: publicHeaders };
-/** Public capability contract. Broad input schemas let all malformed credentials receive generic 404. */
+/** Public bearer-link contract; invalid IDs receive a generic 404. */
 export const readPublicShareRoute = createRoute({
   method: 'get',
   path: '/public/shares/{id}',
   operationId: 'readPublicShare',
   tags: ['Shares'],
-  summary: 'Read a share using an expiring signed capability',
+  summary: 'Read a share using an expiring UUID link',
   description:
-    'Verifies the ID and HMAC before reading storage, then enforces seven days from the server-stored creation time. Invalid, expired and missing links all return the same 404. Never creates or requires a session.',
+    'Validates the UUID and enforces seven days from the server-stored creation time. Invalid, expired and missing links all return the same 404. Never creates or requires a session.',
   security: [],
   request: {
-    params: z.object({ id: z.string() }),
-    query: z.object({
-      sig: z.string().optional().openapi({
-        description:
-          'Required canonical base64url HMAC-SHA256 signature. Treat as a credential; never log.'
-      })
-    })
+    params: z.object({ id: z.uuid({ version: 'v4' }) })
   },
   responses: {
     200: {
@@ -62,16 +56,12 @@ export const readPublicShareRoute = createRoute({
     500: { ...failed(['INTERNAL_ERROR']), headers: publicHeaders }
   }
 });
-/** Reads only through the authorization service, rejecting duplicate credential parameters. */
+/** Reads only through the public access service. */
 export const getPublicShare: RouteHandler<
   typeof readPublicShareRoute,
   SessionEnvironment
 > = async (c) => {
-  const sig = c.req.queries('sig') ?? [];
-  const share = await readPublicShare(
-    c.req.valid('param').id,
-    sig.length === 1 ? sig[0] : undefined
-  );
+  const share = await readPublicShare(c.req.valid('param').id);
   return share ? c.json(share, 200) : c.json(errorBody('SHARE_NOT_FOUND'), 404);
 };
 

@@ -35,7 +35,8 @@ test('share icon uses the saved URL directly for native sharing and session-free
   });
   const saved = await save(page);
   const link = new URL(saved.shareUrl, baseURL).href;
-  expect([...new URL(link).searchParams.keys()]).toEqual(['sig']);
+  expect(new URL(link).pathname).toBe(`/s/${saved.id}`);
+  expect(new URL(link).search).toBe('');
   const button = page.getByRole('button', {
     name: 'Share with fellow alcoholic',
     exact: true
@@ -72,8 +73,7 @@ test('share icon uses the saved URL directly for native sharing and session-free
       reader.getByText('April 23, 2025', { exact: false })
     ).toBeVisible();
     expect(await recipient.cookies()).toEqual([]);
-    const signed = new URL(link);
-    const publicPath = `/api/public/shares/${saved.id}${signed.search}`;
+    const publicPath = `/api/public/shares/${saved.id}`;
     const publicResponse = await recipient.request.get(publicPath);
     expect(await publicResponse.json()).toEqual({
       reflection,
@@ -87,23 +87,15 @@ test('share icon uses the saved URL directly for native sharing and session-free
     expect(await (await recipient.request.get('/api/shares')).json()).toEqual(
       []
     );
-    for (const suffix of [
-      '',
-      '?sig=invalid',
-      `${signed.search}&sig=duplicate`
-    ]) {
-      await reader.goto(`${signed.origin}${signed.pathname}${suffix}`);
+    for (const id of ['invalid', '95eff0e1-bca7-4fd1-83d2-42ba330aab22']) {
+      await reader.goto(`/s/${id}`);
       await expect(
         reader.getByRole('heading', { name: 'This share is unavailable' })
       ).toBeVisible();
       await expect(reader.getByLabel('Shared thoughts')).toHaveCount(0);
     }
     expect(
-      (
-        await recipient.request.get(
-          `/api/public/shares/${saved.id}?sig=invalid`
-        )
-      ).status()
+      (await recipient.request.get('/api/public/shares/invalid')).status()
     ).toBe(404);
   } finally {
     await recipient.close();
