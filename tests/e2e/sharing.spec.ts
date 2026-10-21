@@ -11,7 +11,7 @@ async function save(page: Page) {
   );
   await page.getByRole('button', { name: 'Save privately' }).click();
   await expect(
-    page.getByRole('heading', { name: 'Your share has been saved.' })
+    page.getByRole('heading', { name: 'Your share is saved.' })
   ).toBeVisible();
   return (await response).json();
 }
@@ -38,7 +38,7 @@ test('share icon uses the saved URL directly for native sharing and session-free
   expect(new URL(link).pathname).toBe(`/s/${saved.id}`);
   expect(new URL(link).search).toBe('');
   const button = page.getByRole('button', {
-    name: 'Share with fellow alcoholic',
+    name: 'Share with another alcoholic',
     exact: true
   });
   await button.click();
@@ -47,9 +47,12 @@ test('share icon uses the saved URL directly for native sharing and session-free
   );
   expect(linkRequests).toBe(0);
   await expect(page.getByLabel('Sharing link')).toHaveCount(0);
+  await expect(page.getByText(/expires|revoked/i)).toHaveCount(0);
   await expect(
-    page.getByText(/expires|anyone with this link|revoked/i)
-  ).toHaveCount(0);
+    page.getByText('Anyone with this link can view your share.', {
+      exact: true
+    })
+  ).toBeVisible();
   const recipient = await browser.newContext();
   try {
     const reader = await recipient.newPage();
@@ -132,7 +135,7 @@ test('unsupported native sharing copies directly, with manual copying only when 
   });
   const saved = await save(page);
   const button = page.getByRole('button', {
-    name: 'Share with fellow alcoholic',
+    name: 'Share with another alcoholic',
     exact: true
   });
   await button.click();
@@ -187,7 +190,7 @@ test('native cancellation stays silent and native failures fall back to copying'
   });
   await save(page);
   const button = page.getByRole('button', {
-    name: 'Share with fellow alcoholic',
+    name: 'Share with another alcoholic',
     exact: true
   });
   await button.click();
@@ -227,7 +230,7 @@ test('long thoughts expand locally on owner and recipient pages, and recipients 
   const saved = await (await response).json();
   await expect(
     page.getByRole('button', {
-      name: 'Share with fellow alcoholic',
+      name: 'Share with another alcoholic',
       exact: true
     })
   ).toBeVisible();
@@ -271,14 +274,14 @@ test('long thoughts expand locally on owner and recipient pages, and recipients 
     await expect(thoughts.getByText(preview)).toBeVisible();
     expect(await recipient.cookies()).toEqual([]);
     const write = reader.getByRole('link', {
-      name: 'Write your share',
+      name: 'Write your own share',
       exact: true
     });
     await expect(write).toHaveAttribute('href', '/');
     await write.click();
     await expect(reader).toHaveURL(new URL('/', baseURL).href);
     await expect(
-      reader.getByRole('heading', { name: 'Write your share', exact: true })
+      reader.getByRole('heading', { name: 'Your thoughts', exact: true })
     ).toBeVisible();
     await reader
       .getByRole('textbox')

@@ -1,6 +1,6 @@
 # Doorknob v0.3
 
-Doorknob is a mobile-first recovery reflection app. Read a daily reflection, write a text share, save it privately through the Next.js Backend for Frontend (BFF), revisit past shares, and intentionally send an expiring reading link to another person.
+Doorknob is a mobile-first recovery reflection app. Read the sample reflection, write a text share, save it through the Next.js Backend for Frontend (BFF), revisit past shares, and optionally send a reading link to another person.
 
 ## Getting started
 
@@ -31,9 +31,13 @@ Production requires `SESSION_SECRET` and sets Secure cookies. Missing or short p
 
 ## Sharing with another person
 
-Save a share, then tap **Share with fellow alcoholic** beneath your thoughts on the card. It opens the device's share sheet directly. Browsers without native sharing copy the link; if clipboard access is unavailable, an inline selectable link field appears. The same button and share icon are available in past-share details. Saving prepares the URL but never sends it to anyone.
+Save a share, then tap **Share with another alcoholic** beneath your thoughts on the card. It opens the device's share sheet directly. Browsers without native sharing copy the link; if clipboard access is unavailable, an inline selectable link field appears. The same button and share icon are available in past-share details. Saving prepares the URL but never sends it to anyone.
 
-Long thoughts show a short preview ending in `...`; **Read more** expands them and **Show less** collapses them on both owner and recipient screens. Recipients can read the original reading and thoughts without an account, then choose **Write your share** to open the homepage. They cannot browse the sender's history. Sharing URLs contain only a cryptographically random UUID. Anyone who learns that UUID can read that share during its lifetime; treat the full URL and share IDs as credentials and never log them. No separate sharing secret is required. Technical lifetime and storage details are in [architecture](docs/ARCHITECTURE.md#public-sharing-boundary).
+Long thoughts show a short preview ending in `...`; **Read more** expands them and **Show less** collapses them on both owner and recipient screens. Recipients can read the original reading and thoughts without an account, then choose **Write your own share** to open the homepage. They cannot browse the sender's history. Sharing URLs contain only a cryptographically random UUID. Anyone who learns that UUID can read that share during its lifetime; treat the full URL and share IDs as credentials and never log them. No separate sharing secret is required. Technical lifetime and storage details are in [architecture](docs/ARCHITECTURE.md#public-sharing-boundary).
+
+The reading is a fixed fictional sample dated April 23, 2025, labeled as a sample in the UI. Saved dates and times describe when each share was created, using the viewer’s local time zone. History leads with the user’s thoughts and retains the reading title as context.
+
+A sharing URL is created at save time; anyone holding it can view the share while it remains available. The UI therefore describes browser-session access and link access rather than promising that saving alone keeps a share inaccessible through its URL.
 
 ### Manual check across two browser sessions
 

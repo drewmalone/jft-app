@@ -23,7 +23,7 @@ export function ShareForm({
   const helpId = `${fieldId}-help`;
   const errorId = `${fieldId}-error`;
   return (
-    <form onSubmit={onSave} className="mt-7">
+    <form onSubmit={onSave} className="mt-5">
       <label htmlFor={fieldId} className="sr-only">
         Your thoughts about today&apos;s reading
       </label>
@@ -33,14 +33,14 @@ export function ShareForm({
         value={text}
         readOnly={saving}
         onChange={(event) => onTextChange(event.target.value)}
-        placeholder="Start wherever you are…"
+        placeholder="Start writing…"
         className="share-textarea"
       />
       <p
         id={helpId}
         className="mt-3 flex items-start gap-2 text-xs leading-relaxed text-[var(--muted)]"
       >
-        <LockIcon /> Saved privately on the server for this browser session.
+        <LockIcon /> Saved for this browser session.
       </p>
       {error && (
         <p
@@ -52,7 +52,7 @@ export function ShareForm({
         </p>
       )}
       <button
-        className="primary mt-7 w-full"
+        className="primary mt-5 w-full"
         disabled={disabled || !text.trim()}
         type="submit"
       >

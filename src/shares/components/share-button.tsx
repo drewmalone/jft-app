@@ -53,11 +53,11 @@ export function ShareButton({ url }: { url: string }) {
     <div className="mt-6">
       <button
         type="button"
-        aria-label="Share with fellow alcoholic"
-        title="Share with fellow alcoholic"
+        aria-label="Share with another alcoholic"
+        title="Share with another alcoholic"
         disabled={pending}
         onClick={() => void share()}
-        className="secondary w-full"
+        className="primary w-full"
       >
         <svg
           className="shrink-0"
@@ -74,8 +74,11 @@ export function ShareButton({ url }: { url: string }) {
           <circle cx="18" cy="5" r="3" />
           <circle cx="18" cy="19" r="3" />
         </svg>
-        <span>Share with fellow alcoholic</span>
+        <span>Share with another alcoholic</span>
       </button>
+      <p className="mt-3 text-xs leading-relaxed text-[var(--muted)]">
+        Anyone with this link can view your share.
+      </p>
       {status && (
         <p role="status" className="mt-2 text-sm">
           {status}

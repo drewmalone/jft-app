@@ -20,16 +20,16 @@ type DetailState =
 
 const screenCopy = {
   today: {
-    title: 'Write your share',
-    description: "What's on your mind about today's reading?"
+    title: 'Your thoughts',
+    description: 'What stood out to you today?'
   },
   past: {
     title: 'Past shares',
-    description: 'Your personal history. A little space to look back.'
+    description: ''
   },
   saved: {
-    title: 'Your share has been saved.',
-    description: 'Thank you for making space for yourself today.'
+    title: 'Your share is saved.',
+    description: ''
   },
   detail: {
     title: 'Your share',
@@ -124,11 +124,11 @@ export function ShareApp() {
           navigationView === 'today' ? 'Today’s reflection' : 'Past shares'
         }
       />
-      <main className="mx-auto max-w-xl px-6 pb-12 pt-10 sm:px-8 sm:pt-14">
+      <main className="mx-auto max-w-xl px-6 pb-12 pt-8 sm:px-8 sm:pt-14">
         {view === 'today' && <ReflectionReading />}
         {view === 'saved' && (
           <div
-            className="check mx-auto mb-7 flex h-16 w-16 items-center justify-center rounded-full text-3xl"
+            className="check mx-auto mb-5 flex h-12 w-12 items-center justify-center rounded-full text-2xl"
             aria-hidden="true"
           >
             ✓
@@ -137,15 +137,17 @@ export function ShareApp() {
         <h1
           ref={heading}
           tabIndex={-1}
-          className={`font-serif text-[40px] leading-[1.1] tracking-[-0.045em] outline-none sm:text-5xl ${view === 'today' ? 'mt-12' : ''} ${view === 'saved' ? 'text-center' : ''}`}
+          className={`font-serif leading-[1.1] tracking-[-0.035em] outline-none ${view === 'saved' ? 'text-center text-3xl sm:text-4xl' : 'text-[36px] sm:text-5xl'} ${view === 'today' ? 'mt-8 sm:mt-12' : ''}`}
         >
           {title}
         </h1>
-        <p
-          className={`mt-3 text-[16px] leading-relaxed text-[var(--muted)] ${view === 'saved' ? 'text-center' : ''}`}
-        >
-          {description}
-        </p>
+        {description && (
+          <p
+            className={`mt-3 text-[16px] leading-relaxed text-[var(--muted)] ${view === 'saved' ? 'text-center' : ''}`}
+          >
+            {description}
+          </p>
+        )}
         {view === 'past' && history.status === 'failed' && (
           <p
             role="alert"
@@ -213,7 +215,7 @@ export function ShareApp() {
           <>
             <ShareDetail share={screen.share} />
             <button
-              className="primary mt-7 w-full"
+              className="secondary mt-7 w-full"
               onClick={() => navigate({ view: 'today' })}
             >
               Today&apos;s reflection
