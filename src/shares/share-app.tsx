@@ -137,7 +137,7 @@ export function ShareApp() {
         <h1
           ref={heading}
           tabIndex={-1}
-          className={`font-serif leading-[1.1] tracking-[-0.035em] outline-none ${view === 'saved' ? 'text-center text-3xl sm:text-4xl' : 'text-[36px] sm:text-5xl'} ${view === 'today' ? 'mt-8 sm:mt-12' : ''}`}
+          className={`font-serif leading-[1.1] tracking-[-0.035em] outline-none ${view === 'today' ? 'text-2xl tracking-normal' : view === 'saved' ? 'text-center text-3xl sm:text-4xl' : 'text-[36px] sm:text-5xl'} ${view === 'today' ? 'mt-8 sm:mt-12' : ''}`}
         >
           {title}
         </h1>
