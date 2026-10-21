@@ -33,14 +33,13 @@ const screenCopy = {
   },
   detail: {
     title: 'Your share',
-    description: 'A moment you made space for yourself.'
+    description: ''
   }
 };
 
-/**
- * Keep the draft through navigation and failures; clear it only after a confirmed save.
- * Views and drafts live in React state and reset on refresh.
- */
+const draftStorageKey = 'doorknob:share-draft';
+
+/** Keep a tab-local draft across refresh and navigation; clear only after a confirmed save. */
 export function ShareApp() {
   const [screen, setScreen] = useState<Screen>({ view: 'today' });
   const { view } = screen;
@@ -55,6 +54,27 @@ export function ShareApp() {
   });
   const heading = useRef<HTMLHeadingElement>(null);
   const navigated = useRef(false);
+
+  useEffect(() => {
+    try {
+      const draft = window.sessionStorage.getItem(draftStorageKey);
+      // Restore browser-only storage after hydration so the initial render matches the server.
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      if (draft !== null) setText(draft);
+    } catch {
+      // Storage may be unavailable; writing and saving still work in component memory.
+    }
+  }, []);
+
+  function updateDraft(nextText: string) {
+    setText(nextText);
+    try {
+      if (nextText) window.sessionStorage.setItem(draftStorageKey, nextText);
+      else window.sessionStorage.removeItem(draftStorageKey);
+    } catch {
+      // A storage restriction must never prevent editing or a confirmed save.
+    }
+  }
 
   useEffect(
     () => () => {
@@ -100,7 +120,7 @@ export function ShareApp() {
     setSaveError('');
     try {
       const share = await saveShare(text);
-      setText('');
+      updateDraft('');
       navigate({ view: 'saved', share });
     } catch (cause) {
       setSaveError(
@@ -182,7 +202,7 @@ export function ShareApp() {
             disabled={saving || !sessionReady}
             saving={saving}
             error={saveError}
-            onTextChange={setText}
+            onTextChange={updateDraft}
             onSave={save}
           />
         )}
