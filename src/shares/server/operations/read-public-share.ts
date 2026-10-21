@@ -11,7 +11,6 @@ import { failed, privateHeaders } from '../openapi';
 import { errorBody } from '../http';
 import type { SessionEnvironment } from '../middleware';
 
-/** Privacy headers on public content and unavailable responses; no session cookie is used. */
 export const publicHeaders = {
   'Cache-Control': privateHeaders['Cache-Control'],
   'X-Robots-Tag': {
@@ -26,7 +25,7 @@ export const publicHeaders = {
   }
 };
 const unavailable = { ...failed(['SHARE_NOT_FOUND']), headers: publicHeaders };
-/** Public bearer-link contract; invalid IDs receive a generic 404. */
+
 export const readPublicShareRoute = createRoute({
   method: 'get',
   path: '/public/shares/{id}',
@@ -56,7 +55,7 @@ export const readPublicShareRoute = createRoute({
     500: { ...failed(['INTERNAL_ERROR']), headers: publicHeaders }
   }
 });
-/** Reads only through the public access service. */
+
 export const getPublicShare: RouteHandler<
   typeof readPublicShareRoute,
   SessionEnvironment
@@ -65,7 +64,7 @@ export const getPublicShare: RouteHandler<
   return share ? c.json(share, 200) : c.json(errorBody('SHARE_NOT_FOUND'), 404);
 };
 
-/** Hono's operation-specific validation hook keeps malformed public credentials indistinguishable. */
+/** Malformed public IDs get the same 404 as missing or expired records. */
 export const publicShareValidation = ((result, c) => {
   if (!result.success) return c.json(errorBody('SHARE_NOT_FOUND'), 404);
 }) satisfies RouteHook<typeof readPublicShareRoute, SessionEnvironment>;

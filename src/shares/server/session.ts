@@ -22,23 +22,18 @@ const payloadSchema = z.strictObject({
   ownerId: z.uuid(),
   expiresAt: z.number().int().positive().max(Number.MAX_SAFE_INTEGER)
 });
-/** Validated owner/absolute expiry payload; types alone do not prove authenticity. */
+
 export type SessionPayload = z.infer<typeof payloadSchema>;
 
-/** Session boundary result; the new payload is server-only signing material. */
 export type AnonymousSession = {
-  /** Verified or server-generated owner; safe to use for repository ownership checks. */
   ownerId: SessionPayload['ownerId'];
-  /** New typed payload for signing, or null for an existing session. Never log or return in JSON. */
+  /** Server-created signing payload, or null to keep the existing cookie. */
   newSession: SessionPayload | null;
 };
 
 /**
- * Reuses a verified cookie, or starts a fresh empty owner for missing/stale credentials.
- * This disposable prototype never restores ownership from an invalid cookie.
- * @param request - Incoming request with an optional anonymous-session cookie.
- * @returns Verified ownership, or a new random owner and cookie payload.
- * @throws If signing configuration or cryptographic operations fail; no fallback for bad configuration.
+ * Invalid credentials start a fresh owner; never recover ownership from their payload.
+ * Configuration/crypto failures propagate instead of silently replacing the session.
  */
 export async function getSession(request: Request): Promise<AnonymousSession> {
   const key = secret();
@@ -63,13 +58,8 @@ export async function getSession(request: Request): Promise<AnonymousSession> {
 }
 
 /**
- * Attaches a newly issued host-only cookie to the supplied response in place.
- * Uses HttpOnly, SameSite=Lax, path /, a 30-day Max-Age, and Secure in production.
- * @param response - Response to mutate before returning it to the browser.
- * @param newSession - Server-created payload from getSession; null leaves cookies unchanged.
- * @throws On payload validation, signing configuration, crypto, or serialization failure; the API returns 500.
- * @remarks Existing sessions are not refreshed. Shape validation does not establish trust;
- * callers must supply server-created payloads, never client-provided ownership.
+ * Sign only server-created payloads from getSession; shape validation is not authentication.
+ * Existing sessions are not renewed.
  */
 export async function setSessionCookie(
   response: Response,

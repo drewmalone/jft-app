@@ -8,12 +8,8 @@ const shareId = z.uuid({ version: 'v4' });
 const lifetimeMs = 7 * 24 * 60 * 60 * 1000;
 
 /**
- * The public authorization boundary: validate the bearer UUID before reading storage.
- * @param id - Untrusted record ID.
- * @param repository - Defaults to the process store; tests may supply an isolated store.
- * @param now - Server time in Unix milliseconds, injectable for deterministic age tests.
- * @returns Only the reading snapshot and text, or null for every unavailable link.
- * @throws On repository failure or invalid stored content; never returns private fields.
+ * The UUID is a bearer credential. Enforce age from storage, never from client input,
+ * and return only the reading and text. Missing/expired links return null; failures throw.
  */
 export async function readPublicShare(
   id: string,

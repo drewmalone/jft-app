@@ -3,11 +3,7 @@ import { ThoughtsText } from './thoughts-text';
 import { ShareButton } from './share-button';
 import { dateLabel } from '../dates';
 
-/**
- * Presents a confirmed share and its original reading snapshot as escaped text.
- * The controller supplies a validated creation/detail response; this component does
- * not fetch, authorize, or read current reflection content in place of the snapshot.
- */
+/** Render the saved reading snapshot, not the current reading. */
 export function ShareDetail({ share }: { share: Share }) {
   return (
     <article className="share-card mt-8 rounded-xl border border-[var(--line)] p-6 sm:p-8">

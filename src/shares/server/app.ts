@@ -44,13 +44,7 @@ app.all('/openapi.json', () =>
 );
 app.notFound(() => new Response(null, { status: 404 }));
 
-/**
- * Dispatches a Next.js Web Request through the OpenAPI-defined BFF.
- * @param request - Incoming share/spec request; session credentials remain in cookies.
- * @returns A Web Response; supported failures use stable codes and private/no-store.
- * HEAD reuses GET authorization/headers with no body. OPTIONS and unsupported methods
- * do not establish sessions; 405 includes Allow. Unexpected failures become generic 500.
- */
+/** Apply cache/privacy headers to every API response, including failures. */
 export async function dispatch(request: Request): Promise<Response> {
   const response = await app.fetch(request);
   response.headers.set('Cache-Control', 'private, no-store');
@@ -61,11 +55,6 @@ export async function dispatch(request: Request): Promise<Response> {
   return response;
 }
 
-/**
- * Generates the OpenAPI 3.1 contract from the same Zod route definitions used at runtime.
- * @returns Public schema/HTTP metadata only; never includes live records or credentials.
- * @throws If the OpenAPI library cannot represent a registered schema.
- */
 export function getOpenApiDocument() {
   return app.getOpenAPI31Document(openApiConfiguration);
 }

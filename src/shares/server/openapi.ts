@@ -5,7 +5,6 @@ import type { ApiErrorCode } from '../errors';
 import { shareSchema } from '../model';
 import { apiFailures } from './http';
 
-/** Owner-free share response schema reused by resource contracts. */
 export const share = shareSchema.openapi('Share', {
   additionalProperties: false
 });
@@ -20,22 +19,17 @@ const cookieHeader = {
     'Issued only for a new anonymous session. HttpOnly, SameSite=Lax, path /, 30-day Max-Age; Secure in production. No rolling renewal.',
   schema: { type: 'string' as const }
 };
-/** Cache/cookie response headers shared by private operations. */
+
 export const privateHeaders = {
   'Cache-Control': privateHeader,
   'Set-Cookie': cookieHeader
 };
-/** Private create/list/detail bootstrap a fresh owner for missing or invalid cookies. */
+
 export const sessionSecurity: Record<string, string[]>[] = [
   { AnonymousSession: [] },
   {}
 ];
-/**
- * Builds an error response contract restricted to the supplied codes.
- * @param codes - Codes allowed for this HTTP status.
- * @param extraHeaders - Additional protocol response headers.
- * @returns The JSON error schema and documented headers.
- */
+/** Restrict each HTTP error response to its allowed codes. */
 export function failed(
   codes: [ApiErrorCode, ...ApiErrorCode[]],
   extraHeaders: HeadersObject = {}
@@ -54,13 +48,9 @@ export function failed(
     }
   };
 }
-/** Internal failures common to private operations. */
+
 export const commonFailures = { 500: failed(['INTERNAL_ERROR']) };
-/**
- * Derives bodyless HEAD documentation; Hono executes the corresponding GET handler.
- * @param route - GET operation whose authorization and headers HEAD inherits.
- * @returns Contract metadata with no runtime middleware or response body schemas.
- */
+/** HEAD inherits GET checks and headers; document it without response bodies. */
 export function headRoute(route: RouteConfig) {
   const { middleware: _middleware, ...contract } = route;
   void _middleware;
@@ -80,13 +70,6 @@ export function headRoute(route: RouteConfig) {
   });
 }
 
-/**
- * Declares unauthenticated method discovery for a resource.
- * @param path - OpenAPI resource path.
- * @param allow - Methods advertised by OPTIONS and 405.
- * @param operationId - Unique specification operation name.
- * @returns Bodyless OPTIONS contract; the resource binds its handler.
- */
 export function optionsRoute(path: string, allow: string, operationId: string) {
   return createRoute({
     method: 'options',
@@ -109,7 +92,6 @@ export function optionsRoute(path: string, allow: string, operationId: string) {
   });
 }
 
-/** Configuration for the generated OpenAPI 3.1 document; contains no live share/session data. */
 export const openApiConfiguration = {
   openapi: '3.1.0' as const,
   info: {

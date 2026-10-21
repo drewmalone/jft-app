@@ -3,7 +3,7 @@ import type { ApiErrorCode } from '../errors';
 
 /** Raw JSON request limit, including whitespace and escaping; enforced on actual streamed bytes. */
 export const MAX_SHARE_REQUEST_BYTES = 64 * 1024;
-/** Status/message definitions shared by error responses and OpenAPI descriptions. */
+
 export const apiFailures = {
   INVALID_JSON: { status: 400, message: 'Invalid JSON body.' },
   INVALID_SHARE: {
@@ -34,22 +34,10 @@ export const apiFailures = {
   }
 } as const satisfies Record<ApiErrorCode, { status: number; message: string }>;
 
-/**
- * Builds a typed error envelope shared by Hono and Web Response serialization.
- * @param code - Stable failure identifier from the server error catalog.
- * @returns The code and its safe display message, preserving the code's literal type.
- */
 export function errorBody<Code extends ApiErrorCode>(code: Code) {
   return { error: { code, message: apiFailures[code].message } };
 }
 
-/**
- * Creates a consistent error from a stable code; status and message cannot drift independently.
- * @param code - Failure definition, without sensitive exception details.
- * @param headers - Optional protocol headers, for example Allow on 405.
- * @returns A JSON error; the dispatcher applies cache policy.
- * @throws If response construction fails.
- */
 export function error(code: ApiErrorCode, headers?: HeadersInit) {
   const failure = apiFailures[code];
   const result = Response.json(errorBody(code), {
@@ -59,13 +47,8 @@ export function error(code: ApiErrorCode, headers?: HeadersInit) {
   return result;
 }
 
-/**
- * Hides all unexpected error details.
- * @param cause - Error caught by the Hono dispatcher; never logged or returned raw.
- * @returns A coded JSON error; the dispatcher adds the private cache policy.
- */
+/** Never log or return raw errors: they may contain content or credentials. */
 export function handleApiError(cause: Error): Response {
   void cause;
-  // No request bodies, cookie values, or raw exception details enter logs/responses.
   return error('INTERNAL_ERROR');
 }
