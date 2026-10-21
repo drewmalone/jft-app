@@ -15,6 +15,10 @@ test('retains a draft through About, browser Back, refresh, and a failed save; c
     .click();
   await expect(page.getByRole('textbox')).toHaveValue(text);
   await page.getByRole('link', { name: 'About Doorknob' }).click();
+  await expect(page).toHaveURL(/\/about$/);
+  await expect(
+    page.getByRole('heading', { name: 'The Story of the Doorknob' })
+  ).toBeVisible();
   await page.goBack();
   await expect(page.getByRole('textbox')).toHaveValue(text);
   await page.reload();
