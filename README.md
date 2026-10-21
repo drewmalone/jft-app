@@ -1,4 +1,4 @@
-# Doorknob v0.3
+# Doorknob v0.4
 
 Doorknob is a mobile-first recovery reflection app. Read the sample reflection, write a text share, save it through the Next.js Backend for Frontend (BFF), revisit past shares, and optionally send a reading link to another person.
 
@@ -66,7 +66,7 @@ A signed, HttpOnly, SameSite=Lax cookie identifies the anonymous session. It exp
 
 **This storage is for local development. Restarting the server clears all shares. Multiple processes, replicas, and serverless instances such as Vercel do not share the Map and cannot provide reliable persistence.** No disk storage, database, encryption at rest, backup, account recovery, or durable deployment is provided. Unsaved drafts are retained in this tab’s `sessionStorage` across refresh and About-page navigation, and cleared after a successful save or when that tab’s session storage is cleared. Drafts are not sent to the server until saving. If browser storage is unavailable, editing and saving still work in memory, but draft recovery after leaving the page is unavailable. The development signing secret also resets on process restart unless configured. There is no per-share deletion or expiry job; cookie loss does not remove records from the running Map. See [the data lifecycle](docs/DATA_GLOSSARY.md#app-data-lifecycle).
 
-Signed sharing links are optional: saving prepares a URL but never sends it automatically. No audio, transcription, AI, registration, real reading feeds, or harness integration are included.
+Signed sharing links are optional: saving prepares a URL but never sends it automatically. No audio recording or storage, AI, registration, real reading feeds, or harness integration are included.
 
 ## Validation
 
@@ -160,3 +160,23 @@ unpatched `braces` dependency chain in the development ESLint and Spectral tooli
 published braces version is 3.0.3, which remains affected. Do not use
 `npm audit fix --force`: its proposed Next.js lint configuration downgrade is not
 a compatible fix for this project. Revisit when the upstream tooling is patched.
+
+## Speak your share
+
+On Today’s Reflection, tap **Record your share**, allow microphone access, and speak. The control shows when access is pending or the microphone is listening. Final words appear in the editable textbox; **Still recognizing** shows provisional words that are never saved or placed in draft recovery. Tap **Stop listening**, review and edit, then **Save privately**. Recording again adds a paragraph to the same draft. Automatic browser stops retain final text and allow another explicit start. Navigation cancels recognition. At 10,000 Unicode code points, dictation stops and retains the accepted draft; shorten it to add more.
+
+The browser’s standard or prefixed Web Speech API supplies recognition in your browser language (en-US fallback). Support and behavior vary across Chrome, Safari, operating systems, and device settings. Continuous/interim options are requests, not guarantees. Silence, calls, backgrounding, time limits, permission settings, and network/service failures can end recognition. Unsupported browsers retain normal typing and saving. Recognition generally needs HTTPS (localhost is suitable for local development); API presence does not guarantee service availability.
+
+**Privacy:** your browser may send microphone audio to its vendor or an online speech service. Offline/local processing is not guaranteed. Doorknob does not capture, upload, or store raw audio. Only finalized words enter the existing tab-local sessionStorage draft; only an explicit save sends text to Doorknob’s BFF. Review [draft and share retention](docs/DATA_GLOSSARY.md) before using sensitive text.
+
+### Physical iPhone and Android checks
+
+Use fictional recovery text and a trusted HTTPS development deployment reachable by the phone. A desktop LAN HTTP URL is not equivalent to localhost on the phone. No deployment or audio service is configured by this milestone.
+
+1. On iPhone Safari and Android Chrome, note OS/browser versions and open Today’s Reflection. Confirm no microphone prompt appears until tapping Record.
+2. Type a sentence, grant microphone permission, dictate, observe listening/provisional text, then stop. Confirm final words appear once, earlier typing remains, and saving waits for stop/finalization.
+3. Edit words, record again, and verify the new paragraph appends. Refresh after stopping to check draft recovery. Save privately; check history, open the share, and open its link in a separate private browser.
+4. Test denial, later permission recovery, silence with no words, long pauses, network interruption, switching apps, a call interruption if practical, and leaving for Past shares while listening. Confirm the microphone stops and finalized text survives; restart only with another tap.
+5. Test a browser without recognition and confirm typing/saving work. Check narrow layout, large text settings, keyboard focus, and VoiceOver/TalkBack announcements. Test near the text limit with fictional text.
+
+Automated Node and mobile/desktop Playwright tests use deterministic API mocks, never a real microphone or live recognition service. Physical-device behavior must be checked separately. See [the replaceable engine contract](docs/ARCHITECTURE.md#speech-input).

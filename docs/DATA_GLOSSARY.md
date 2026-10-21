@@ -46,3 +46,7 @@ There is no per-share delete endpoint, backup, disk storage, encryption at rest,
 - “Private” describes session ownership checks. It does not promise encryption at rest, durable storage, account authentication, or recovery. Cookie signing supplies integrity, not confidentiality.
 
 [API reference](API.md) owns HTTP/cookie usage and failure semantics. [Architecture](ARCHITECTURE.md) owns the server/client boundaries. The harness's provider and trace behavior remains documented in its own README; this glossary does not establish a shared retention system.
+
+## Speech input data
+
+Browser-managed speech recognition may send microphone audio to a browser vendor or recognition service; local/offline processing is not guaranteed. Doorknob itself does not record, upload, or store audio. Provisional recognition text exists only in component memory and is discarded when recognition ends. Final segments become ordinary editable draft text and follow the existing tab-local sessionStorage recovery lifecycle. Only Save privately sends that text to the BFF; saved dictated shares have the same text model, retention, owner history, and sharing-link behavior as typed shares. Navigation/unmount aborts recognition; no background recording or automatic saving is provided.
