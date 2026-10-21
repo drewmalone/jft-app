@@ -1,5 +1,4 @@
 import { useId, type FormEvent } from 'react';
-import { LockIcon } from './lock-icon';
 
 type ShareFormProps = {
   text: string;
@@ -20,7 +19,6 @@ export function ShareForm({
   onSave
 }: ShareFormProps) {
   const fieldId = useId();
-  const helpId = `${fieldId}-help`;
   const errorId = `${fieldId}-error`;
   return (
     <form onSubmit={onSave} className="mt-5">
@@ -29,19 +27,13 @@ export function ShareForm({
       </label>
       <textarea
         id={fieldId}
-        aria-describedby={error ? `${helpId} ${errorId}` : helpId}
+        aria-describedby={error ? errorId : undefined}
         value={text}
         readOnly={saving}
         onChange={(event) => onTextChange(event.target.value)}
         placeholder="Start writing…"
         className="share-textarea"
       />
-      <p
-        id={helpId}
-        className="mt-3 flex items-start gap-2 text-xs leading-relaxed text-[var(--muted)]"
-      >
-        <LockIcon /> Saved for this browser session.
-      </p>
       {error && (
         <p
           id={errorId}
