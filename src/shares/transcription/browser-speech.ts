@@ -1,3 +1,4 @@
+import { speechDiagnostic, speechErrorCode } from './diagnostics';
 import type { TranscriptionEngine, TranscriptionEvents } from './types';
 
 type Result = { isFinal: boolean; 0: { transcript: string } };
@@ -5,6 +6,13 @@ type Recognition = {
   continuous: boolean;
   interimResults: boolean;
   lang: string;
+  onaudiostart?: (() => void) | null;
+  onaudioend?: (() => void) | null;
+  onsoundstart?: (() => void) | null;
+  onsoundend?: (() => void) | null;
+  onspeechstart?: (() => void) | null;
+  onspeechend?: (() => void) | null;
+  onnomatch?: (() => void) | null;
   onstart: (() => void) | null;
   onend: (() => void) | null;
   onerror: ((event: { error: string }) => void) | null;
@@ -27,6 +35,8 @@ function browserConstructor(): SpeechConstructor | undefined {
   return browser.SpeechRecognition ?? browser.webkitSpeechRecognition;
 }
 
+let diagnosticSession = 0;
+
 /** Browser-managed recognition may use a vendor service. No audio is captured by the app. */
 export function createBrowserSpeech(
   Constructor = browserConstructor(),
@@ -34,6 +44,17 @@ export function createBrowserSpeech(
     ? 'en-US'
     : navigator.language || 'en-US'
 ): TranscriptionEngine {
+  const session = ++diagnosticSession;
+  let startedAt = 0;
+  const diagnostic = (
+    event: string,
+    details: Parameters<typeof speechDiagnostic>[1] = {}
+  ) =>
+    speechDiagnostic(event, {
+      session,
+      elapsedMs: startedAt ? Math.round(performance.now() - startedAt) : 0,
+      ...details
+    });
   let recognition: Recognition | undefined;
   let live = false;
   let stopRequested = false;
@@ -42,6 +63,14 @@ export function createBrowserSpeech(
   const detach = () => {
     clearTimeout(stopTimer);
     if (!recognition) return;
+    recognition.onaudiostart =
+      recognition.onaudioend =
+      recognition.onsoundstart =
+      recognition.onsoundend =
+      recognition.onspeechstart =
+      recognition.onspeechend =
+      recognition.onnomatch =
+        null;
     recognition.onstart =
       recognition.onend =
       recognition.onerror =
@@ -49,36 +78,93 @@ export function createBrowserSpeech(
         null;
   };
   return {
-    available: () => Boolean(Constructor),
+    available: () => {
+      diagnostic('availability', {
+        supported: Boolean(Constructor),
+        prefixed:
+          typeof window !== 'undefined' &&
+          !(
+            'SpeechRecognition' in window &&
+            Reflect.get(window, 'SpeechRecognition')
+          ) &&
+          Boolean(Constructor),
+        secureContext: typeof window !== 'undefined' && window.isSecureContext,
+        online: typeof navigator !== 'undefined' && navigator.onLine,
+        visible:
+          typeof document !== 'undefined' &&
+          document.visibilityState === 'visible'
+      });
+      return Boolean(Constructor);
+    },
     start(events: TranscriptionEvents) {
-      if (!Constructor || recognition) return;
+      if (!Constructor || recognition) {
+        diagnostic('start-ignored', {
+          stage: !Constructor ? 'unsupported' : 'already-created'
+        });
+        return;
+      }
+      startedAt = performance.now();
+      diagnostic('start-requested', { language });
       callbacks = events;
       live = true;
       const seen = new Set<number>();
+      let stage = 'constructor';
       try {
         recognition = new Constructor();
+        stage = 'configuration';
         recognition.continuous = true;
         recognition.interimResults = true;
         recognition.lang = language;
+        for (const [property, event] of [
+          ['onaudiostart', 'audio-start'],
+          ['onaudioend', 'audio-end'],
+          ['onsoundstart', 'sound-start'],
+          ['onsoundend', 'sound-end'],
+          ['onspeechstart', 'speech-start'],
+          ['onspeechend', 'speech-end'],
+          ['onnomatch', 'no-match']
+        ] as const)
+          recognition[property] = () => {
+            if (live) diagnostic(event);
+          };
         recognition.onstart = () => {
+          diagnostic('recognition-start', { stopRequested });
           if (live && !stopRequested) events.listening();
         };
         recognition.onresult = (event) => {
           if (!live) return;
           let interim = '';
+          let finalized = 0;
+          let provisional = 0;
+          let duplicateFinals = 0;
           for (let i = 0; live && i < event.results.length; i++) {
             const result = event.results[i];
             if (result.isFinal) {
               if (!seen.has(i)) {
+                finalized++;
                 seen.add(i);
                 events.final(result[0].transcript);
-              }
-            } else interim += `${result[0].transcript} `;
+              } else duplicateFinals++;
+            } else {
+              provisional++;
+              interim += `${result[0].transcript} `;
+            }
           }
+          diagnostic('results', {
+            resultIndex: event.resultIndex,
+            results: event.results.length,
+            finalized,
+            provisional,
+            duplicateFinals
+          });
           if (live) events.interim(interim.trim());
         };
         recognition.onerror = (event) => {
           if (!live) return;
+          diagnostic('recognition-error', {
+            code: speechErrorCode(event.error),
+            stopRequested
+          });
           live = false;
           detach();
           try {
@@ -95,12 +181,22 @@ export function createBrowserSpeech(
         };
         recognition.onend = () => {
           if (!live) return;
+          diagnostic('recognition-end', {
+            stopRequested,
+            finalized: seen.size
+          });
           live = false;
           detach();
           events.ended();
         };
+        stage = 'start';
         recognition.start();
-      } catch {
+        diagnostic('start-returned');
+      } catch (cause) {
+        diagnostic('start-failed', {
+          stage,
+          code: speechErrorCode(cause instanceof Error ? cause.name : undefined)
+        });
         live = false;
         detach();
         try {
@@ -114,11 +210,15 @@ export function createBrowserSpeech(
       }
     },
     stop() {
-      if (!live) return;
-      if (stopRequested) return;
+      if (!live || stopRequested) {
+        diagnostic('stop-ignored', { stopRequested });
+        return;
+      }
+      diagnostic('stop-requested');
       stopRequested = true;
       stopTimer = setTimeout(() => {
         if (!live) return;
+        diagnostic('stop-timeout');
         live = false;
         detach();
         try {
@@ -130,7 +230,11 @@ export function createBrowserSpeech(
       }, 5000);
       try {
         recognition?.stop();
-      } catch {
+        diagnostic('stop-returned');
+      } catch (cause) {
+        diagnostic('stop-failed', {
+          code: speechErrorCode(cause instanceof Error ? cause.name : undefined)
+        });
         live = false;
         detach();
         try {
@@ -142,6 +246,7 @@ export function createBrowserSpeech(
       }
     },
     dispose() {
+      diagnostic('dispose', { stopRequested });
       live = false;
       detach();
       try {

@@ -4,6 +4,7 @@ async function mockSpeech(page: Page, prefixed = false) {
   await page.addInitScript(
     ({ prefixed }) => {
       class Speech {
+        onaudiostart?: () => void;
         onstart?: () => void;
         onend?: () => void;
         onresult?: (event: unknown) => void;
@@ -23,6 +24,7 @@ async function mockSpeech(page: Page, prefixed = false) {
         SpeechRecognition: prefixed ? undefined : Speech,
         webkitSpeechRecognition: prefixed ? Speech : undefined,
         speechStart: () => Speech.current.onstart?.(),
+        speechAudio: () => Speech.current.onaudiostart?.(),
         speechEnd: () => Speech.current.onend?.(),
         speechError: (error: string) => Speech.current.onerror?.({ error }),
         speechResult: (segments: [string, boolean][]) =>
@@ -196,4 +198,78 @@ test('dictation limit stops recognition and retains the draft without accepting 
     '🌱'.repeat(9995) + '\n\nFic'
   );
   expect(await page.evaluate(() => Reflect.get(window, 'aborted'))).toBe(true);
+});
+
+test('opt-in diagnostics trace recognition without exposing transcripts or raw errors', async ({
+  page
+}) => {
+  await mockSpeech(page, true);
+  const logs: string[] = [];
+  page.on('console', async (message) => {
+    if (message.text().startsWith('[Doorknob speech]')) {
+      const details = await Promise.all(
+        message.args().map((arg) => arg.jsonValue())
+      );
+      logs.push(JSON.stringify(details));
+    }
+  });
+  await page.goto('/?speechDebug=1');
+  await page.getByRole('button', { name: 'Record your share' }).click();
+  await emit(page, 'speechStart');
+  await emit(page, 'speechAudio');
+  await emit(page, 'speechResult', [['Private fictional provisional', false]]);
+  await emit(page, 'speechResult', [['Private fictional final', true]]);
+  await emit(page, 'speechError', 'private vendor error details');
+  await expect.poll(() => logs.join(' ')).toContain('recognition-error');
+  const all = logs.join(' ');
+  for (const event of [
+    'availability',
+    'editor-start',
+    'start-requested',
+    'start-returned',
+    'recognition-start',
+    'audio-start',
+    'results',
+    'final-committed',
+    'dispose'
+  ])
+    expect(all).toContain(event);
+  expect(all).toContain('unknown');
+  expect(all).toContain('prefixed');
+  expect(all).not.toContain('Private fictional');
+  expect(all).not.toContain('private vendor');
+  await page.goto('/');
+  await expect
+    .poll(() => logs.filter((log) => log.includes('availability')).length)
+    .toBeGreaterThan(2);
+  await page.goto('/?speechDebug=0');
+  const before = logs.length;
+  await page.getByRole('button', { name: 'Record your share' }).click();
+  await emit(page, 'speechStart');
+  await emit(page, 'speechEnd');
+  await expect(page.getByText(/Microphone stopped/)).toBeVisible();
+  expect(logs.length).toBe(before);
+});
+
+test('URL diagnostics work when sessionStorage is blocked', async ({
+  page
+}) => {
+  await mockSpeech(page);
+  await page.addInitScript(() =>
+    Object.defineProperty(window, 'sessionStorage', {
+      get() {
+        throw new Error('blocked');
+      }
+    })
+  );
+  const messages: string[] = [];
+  page.on('console', (message) => {
+    if (message.text().startsWith('[Doorknob speech]'))
+      messages.push(message.text());
+  });
+  await page.goto('/?speechDebug=1');
+  await page.getByRole('button', { name: 'Record your share' }).click();
+  await emit(page, 'speechStart');
+  await emit(page, 'speechEnd');
+  await expect.poll(() => messages.join(' ')).toContain('recognition-end');
 });

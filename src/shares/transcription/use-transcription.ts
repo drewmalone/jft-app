@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { speechDiagnostic } from './diagnostics';
 import { createBrowserSpeech } from './browser-speech';
 import { appendTranscript } from './append-transcript';
 import type { TranscriptionEngine, TranscriptionState } from './types';
@@ -21,23 +22,44 @@ export function useTranscription(
     // Browser capability is read after hydration so SSR markup stays consistent.
     // eslint-disable-next-line react-hooks/set-state-in-effect
     setState(createBrowserSpeech().available() ? 'idle' : 'unsupported');
+    const visibility = () =>
+      speechDiagnostic('visibility-changed', {
+        visible: document.visibilityState === 'visible'
+      });
+    const connectivity = () =>
+      speechDiagnostic('connectivity-changed', { online: navigator.onLine });
+    document.addEventListener('visibilitychange', visibility);
+    window.addEventListener('online', connectivity);
+    window.addEventListener('offline', connectivity);
     return () => {
+      document.removeEventListener('visibilitychange', visibility);
+      window.removeEventListener('online', connectivity);
+      window.removeEventListener('offline', connectivity);
       // This is a session counter, not a DOM ref; invalidate the latest session.
       // eslint-disable-next-line react-hooks/exhaustive-deps
       generation.current++;
+      speechDiagnostic('editor-unmount');
       engine.current?.dispose();
       engine.current = null;
     };
   }, []);
+  useEffect(() => {
+    speechDiagnostic('editor-state', { state });
+  }, [state]);
   const active =
     state === 'starting' || state === 'listening' || state === 'stopping';
   function stop() {
+    speechDiagnostic('editor-stop');
     if (!engine.current) return;
     setState('stopping');
     engine.current.stop();
   }
   function start() {
-    if (engine.current) return;
+    speechDiagnostic('editor-start');
+    if (engine.current) {
+      speechDiagnostic('editor-start-ignored');
+      return;
+    }
     const next = createBrowserSpeech();
     if (!next.available()) {
       setState('unsupported');
@@ -49,7 +71,10 @@ export function useTranscription(
     let accepting = true;
     const live = () => generation.current === session;
     const finish = (failed: boolean, notice: string) => {
-      if (!live()) return;
+      if (!live()) {
+        speechDiagnostic('stale-finish-ignored', { session });
+        return;
+      }
       generation.current++;
       next.dispose();
       engine.current = null;
@@ -68,12 +93,20 @@ export function useTranscription(
         if (live() && accepting) setInterim(value);
       },
       final: (value) => {
-        if (!live() || !accepting || !value.trim()) return;
+        if (!live() || !accepting || !value.trim()) {
+          speechDiagnostic('final-ignored', {
+            session,
+            stage: !live() ? 'stale' : !accepting ? 'limit' : 'empty'
+          });
+          return;
+        }
+        speechDiagnostic('final-committed', { session });
         const result = appendTranscript(current.current.text, value, first);
         first = false;
         current.current.text = result.text;
         current.current.onTextChange(result.text);
         if (result.full) {
+          speechDiagnostic('draft-limit-reached', { session });
           accepting = false;
           finish(
             false,
