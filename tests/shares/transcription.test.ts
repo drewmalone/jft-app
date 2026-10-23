@@ -141,6 +141,12 @@ for (const error of [
     s.mock.results(['Keep this.', true]);
     s.mock.onerror?.({ error });
     assert.equal(s.errors.length, 1);
+    assert.equal(
+      s.errors[0],
+      error === 'not-allowed' || error === 'service-not-allowed'
+        ? 'Microphone access was denied. Allow access in your browser settings.'
+        : 'Speech recognition could not continue. Check your connection and try again.'
+    );
     assert.deepEqual(s.finals, ['Keep this.']);
     assert.equal(s.mock.aborted, true);
     const next = setup();
@@ -187,7 +193,10 @@ test('synchronous start/stop failures release the microphone and report a safe o
   const failed = createBrowserSpeech(StartFailure);
   failed.start(events);
   assert.equal(errors.length, 1);
-  assert.equal(errors[0].includes('sensitive'), false);
+  assert.equal(
+    errors[0],
+    'Speech recognition could not start. Please try again.'
+  );
   assert.equal(MockSpeech.instance.aborted, true);
   class StopFailure extends MockSpeech {
     stop() {

@@ -187,8 +187,8 @@ export function createBrowserSpeech(
           events.error(
             event.error === 'not-allowed' ||
               event.error === 'service-not-allowed'
-              ? 'Microphone access was denied. Allow access in your browser settings, or keep typing.'
-              : 'Speech recognition could not continue. Check your connection and try again, or keep typing.'
+              ? 'Microphone access was denied. Allow access in your browser settings.'
+              : 'Speech recognition could not continue. Check your connection and try again.'
           );
         };
         recognition.onend = () => {
@@ -209,9 +209,7 @@ export function createBrowserSpeech(
           code: speechErrorCode(cause instanceof Error ? cause.name : undefined)
         });
         release(true);
-        events.error(
-          'Speech recognition could not start. Please try again, or keep typing.'
-        );
+        events.error('Speech recognition could not start. Please try again.');
       }
     },
     stop() {

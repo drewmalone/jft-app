@@ -21,8 +21,7 @@ type DetailState =
 const screenCopy = {
   today: {
     title: 'Record your share',
-    description:
-      'Speak from your own experience about what this reading means for you today.'
+    description: 'Speak from your own experience'
   },
   past: {
     title: 'Past shares',

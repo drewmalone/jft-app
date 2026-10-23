@@ -1,5 +1,7 @@
 import { useEffect, useId, useState, type FormEvent } from 'react';
 import { LiveTranscript } from './live-transcript';
+import { MicrophoneIcon } from './microphone-icon';
+import { SpeechBars } from './speech-bars';
 import { useTranscription } from '../transcription/use-transcription';
 
 const buttonLabels = {
@@ -11,26 +13,11 @@ const buttonLabels = {
   stopping: 'Finishing transcription…'
 };
 const statusLabels = {
-  unsupported:
-    'Voice transcription is not available in this browser. You can still type your share.',
+  unsupported: 'Sorry, transcription is unavailable for your browser!',
   starting: 'Waiting for microphone access…',
   listening: 'Listening...',
   stopping: 'Finishing your words…'
 };
-const barHeights = [16, 28, 40, 56, 70, 56, 40, 28, 16];
-function SpeechBars() {
-  return (
-    <div className="speech-bars" aria-hidden="true">
-      {barHeights.map((height, index) => (
-        <span
-          key={index}
-          style={{ height, animationDelay: `${index * 70}ms` }}
-        />
-      ))}
-    </div>
-  );
-}
-
 type ShareFormProps = {
   text: string;
   disabled: boolean;
@@ -59,7 +46,7 @@ export function ShareForm({
   const buttonLabel = buttonLabels[voice.state];
   const statusLabel =
     voice.state === 'idle' || voice.state === 'error'
-      ? voice.message || 'Tap the microphone to begin, or type below.'
+      ? voice.message || 'Tap the microphone to begin.'
       : statusLabels[voice.state];
   const fieldId = useId();
   const errorId = `${fieldId}-error`;
@@ -95,18 +82,7 @@ export function ShareForm({
               }
               onClick={voice.active ? voice.stop : voice.start}
             >
-              <svg
-                aria-hidden="true"
-                width="68"
-                height="68"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="1.7"
-              >
-                <rect x="9" y="2" width="6" height="13" rx="3" />
-                <path d="M5 10v2a7 7 0 0 0 14 0v-2M12 19v3m-4 0h8" />
-              </svg>
+              <MicrophoneIcon />
             </button>
           </div>
           <SpeechBars />

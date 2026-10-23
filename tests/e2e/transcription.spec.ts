@@ -72,6 +72,12 @@ test('dictation combines with inline editing, repeated sessions, saving, history
 }) => {
   await mockSpeech(page, true);
   await page.goto('/');
+  await expect(
+    page.getByText('Speak from your own experience', { exact: true })
+  ).toBeVisible();
+  await expect(
+    page.getByText('Tap the microphone to begin.', { exact: true })
+  ).toBeVisible();
   await page.getByRole('textbox').fill('Typed fictional thought.');
   await page.getByRole('button', { name: 'Record your share' }).click();
   await expect(page.getByText('Waiting for microphone access…')).toBeVisible();
@@ -176,7 +182,7 @@ test('unsupported browsers keep typing and saving', async ({ page }) => {
   );
   await page.goto('/');
   await expect(
-    page.getByText(/Voice transcription is not available/)
+    page.getByText('Sorry, transcription is unavailable for your browser!')
   ).toBeVisible();
   await page.getByRole('textbox').fill('Fictional typed fallback.');
   await page.getByRole('button', { name: 'Save privately' }).click();
