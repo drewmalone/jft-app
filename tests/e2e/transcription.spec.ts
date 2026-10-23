@@ -164,7 +164,7 @@ test('permission/service errors recover, navigation cleans up, stale callbacks a
   await expect(page.getByRole('textbox')).toHaveValue('');
   await page.getByRole('button', { name: 'Record your share' }).click();
   await emit(page, 'speechEnd');
-  await expect(page.getByText(/Microphone stopped/)).toBeVisible();
+  await expect(page.getByText(/Tap to record more/)).toBeVisible();
 });
 
 test('unsupported browsers keep typing and saving', async ({ page }) => {
@@ -252,7 +252,7 @@ test('opt-in diagnostics trace recognition without exposing transcripts or raw e
   await page.getByRole('button', { name: 'Record your share' }).click();
   await emit(page, 'speechStart');
   await emit(page, 'speechEnd');
-  await expect(page.getByText(/Microphone stopped/)).toBeVisible();
+  await expect(page.getByText(/Tap to record more/)).toBeVisible();
   expect(logs.length).toBe(before);
 });
 
@@ -306,6 +306,7 @@ test('large microphone reacts to speech and pauses while the prompter follows wo
   await record.click();
   await emit(page, 'speechStart');
   await expect(studio).toHaveAttribute('data-speaking', 'false');
+  await expect(page.getByText('Listening...', { exact: true })).toBeVisible();
   await emit(page, 'speechActivity', true);
   await expect(studio).toHaveAttribute('data-speaking', 'true');
   expect(
@@ -331,7 +332,13 @@ test('large microphone reacts to speech and pauses while the prompter follows wo
   await emit(page, 'speechResult', [['More fictional final words.', true]]);
   expect(await prompter.evaluate((e) => e.scrollTop)).toBe(60);
 
-  await page.getByRole('button', { name: 'Latest words' }).click();
+  await expect(page.getByRole('button', { name: 'Latest words' })).toHaveCount(
+    0
+  );
+  await prompter.evaluate((e) => {
+    e.scrollTop = e.scrollHeight;
+    e.dispatchEvent(new Event('scroll', { bubbles: true }));
+  });
   await expect
     .poll(() =>
       prompter.evaluate(

@@ -139,11 +139,7 @@ export function useTranscription(
         }
       },
       error: (notice) => finish(true, notice),
-      ended: () =>
-        finish(
-          false,
-          'Microphone stopped. Review your words or record more when you’re ready.'
-        )
+      ended: () => finish(false, 'Tap to record more.')
     });
   }
   return { state, interim, message, active, speaking, start, stop };

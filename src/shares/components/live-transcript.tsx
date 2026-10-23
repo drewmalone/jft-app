@@ -53,7 +53,7 @@ export function LiveTranscript({
           readOnly={readOnly}
           onChange={(event) => onTextChange(event.target.value)}
           className="transcript-input"
-          placeholder="Your words will appear here. Speak or type to begin…"
+          placeholder="Speak to begin..."
           rows={1}
         />
         {interim && (
@@ -63,17 +63,6 @@ export function LiveTranscript({
           </p>
         )}
       </div>
-      <button
-        type="button"
-        className="transcript-follow"
-        onClick={() => {
-          following.current = true;
-          if (viewport.current)
-            viewport.current.scrollTop = viewport.current.scrollHeight;
-        }}
-      >
-        Latest words <span aria-hidden="true">↓</span>
-      </button>
     </div>
   );
 }

@@ -112,7 +112,7 @@ export function ShareForm({
             : voice.state === 'starting'
               ? 'Waiting for microphone access…'
               : voice.state === 'listening'
-                ? 'Listening… Tap the microphone to pause.'
+                ? 'Listening...'
                 : voice.state === 'stopping'
                   ? 'Finishing your words…'
                   : voice.message ||
