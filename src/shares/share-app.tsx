@@ -38,9 +38,7 @@ const screenCopy = {
   }
 };
 
-const draftStorageKey = 'doorknob:share-draft';
-
-/** Keep a tab-local draft across refresh and navigation; clear only after a confirmed save. */
+/** Drafts live only in this mounted app; a fresh page starts a fresh share. */
 export function ShareApp() {
   const [screen, setScreen] = useState<Screen>({ view: 'today' });
   const { view } = screen;
@@ -57,25 +55,13 @@ export function ShareApp() {
   const navigated = useRef(false);
 
   useEffect(() => {
+    // Remove drafts left by older versions; never restore or persist share text.
     try {
-      const draft = window.sessionStorage.getItem(draftStorageKey);
-      // Restore browser-only storage after hydration so the initial render matches the server.
-      // eslint-disable-next-line react-hooks/set-state-in-effect
-      if (draft !== null) setText(draft);
+      window.sessionStorage.removeItem('doorknob:share-draft');
     } catch {
-      // Storage may be unavailable; writing and saving still work in component memory.
+      /* Storage is optional. */
     }
   }, []);
-
-  function updateDraft(nextText: string) {
-    setText(nextText);
-    try {
-      if (nextText) window.sessionStorage.setItem(draftStorageKey, nextText);
-      else window.sessionStorage.removeItem(draftStorageKey);
-    } catch {
-      // A storage restriction must never prevent editing or a confirmed save.
-    }
-  }
 
   useEffect(
     () => () => {
@@ -121,7 +107,7 @@ export function ShareApp() {
     setSaveError('');
     try {
       const share = await saveShare(text);
-      updateDraft('');
+      setText('');
       navigate({ view: 'saved', share });
     } catch (cause) {
       setSaveError(
@@ -203,7 +189,7 @@ export function ShareApp() {
             disabled={saving || !sessionReady}
             saving={saving}
             error={saveError}
-            onTextChange={updateDraft}
+            onTextChange={setText}
             onSave={save}
           />
         )}

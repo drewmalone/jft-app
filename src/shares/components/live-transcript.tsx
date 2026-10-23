@@ -1,11 +1,31 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useLayoutEffect, useRef } from 'react';
 
-type LiveTranscriptProps = { text: string; interim: string };
+type LiveTranscriptProps = {
+  text: string;
+  interim: string;
+  onTextChange: (text: string) => void;
+  readOnly: boolean;
+  errorId?: string;
+};
 
 /** Follow new words inside the prompter, without moving the page or overriding scrollback. */
-export function LiveTranscript({ text, interim }: LiveTranscriptProps) {
+export function LiveTranscript({
+  text,
+  interim,
+  onTextChange,
+  readOnly,
+  errorId
+}: LiveTranscriptProps) {
   const viewport = useRef<HTMLDivElement>(null);
   const following = useRef(true);
+  const field = useRef<HTMLTextAreaElement>(null);
+  useLayoutEffect(() => {
+    if (!field.current) return;
+    const scrollTop = viewport.current?.scrollTop ?? 0;
+    field.current.style.height = '0px';
+    field.current.style.height = `${field.current.scrollHeight}px`;
+    if (viewport.current) viewport.current.scrollTop = scrollTop;
+  }, [text]);
   useEffect(() => {
     const element = viewport.current;
     if (element && following.current) element.scrollTop = element.scrollHeight;
@@ -25,24 +45,21 @@ export function LiveTranscript({ text, interim }: LiveTranscriptProps) {
             32;
         }}
       >
-        {text || interim ? (
-          <p>
-            {text}
-            {interim && (
-              <>
-                <span aria-hidden="true">{text ? ' ' : ''}</span>
-                <span className="transcript-interim">
-                  <span className="sr-only">Still recognizing: </span>
-                  {interim}
-                </span>
-              </>
-            )}
-          </p>
-        ) : (
-          <p className="transcript-placeholder">
-            Your words will appear here.
-            <br />
-            Take your time. Start wherever you are.
+        <textarea
+          ref={field}
+          aria-label="Your share"
+          aria-describedby={errorId}
+          value={text}
+          readOnly={readOnly}
+          onChange={(event) => onTextChange(event.target.value)}
+          className="transcript-input"
+          placeholder="Your words will appear here. Speak or type to begin…"
+          rows={1}
+        />
+        {interim && (
+          <p className="transcript-interim">
+            <span className="sr-only">Still recognizing: </span>
+            {interim}
           </p>
         )}
       </div>

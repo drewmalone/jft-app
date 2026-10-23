@@ -65,7 +65,7 @@ async function emit(page: Page, name: string, value?: unknown) {
   });
 }
 
-test('dictation combines with editing, recovery, repeated sessions, saving, history and recipient reading', async ({
+test('dictation combines with inline editing, repeated sessions, saving, history and recipient reading', async ({
   page,
   browser,
   baseURL
@@ -85,7 +85,7 @@ test('dictation combines with editing, recovery, repeated sessions, saving, hist
   );
   expect(
     await page.evaluate(() => sessionStorage.getItem('doorknob:share-draft'))
-  ).toBe('Typed fictional thought.');
+  ).toBeNull();
   await emit(page, 'speechResult', [
     ['Final fiction.', true],
     ['More provisional', false]
@@ -107,7 +107,6 @@ test('dictation combines with editing, recovery, repeated sessions, saving, hist
   await emit(page, 'speechResult', [['Another session.', true]]);
   await emit(page, 'speechEnd');
   const combined = draft + ' Edited.\n\nAnother session.';
-  await page.reload();
   await expect(page.getByRole('textbox')).toHaveValue(combined);
   const savedResponse = page.waitForResponse(
     (r) => r.request().method() === 'POST' && r.url().endsWith('/api/shares')
@@ -325,6 +324,13 @@ test('large microphone reacts to speech and pauses while the prompter follows wo
   await expect(studio).toHaveAttribute('data-speaking', 'true');
   await expect(prompter).toContainText('Provisional fictional words.');
   expect(await prompter.evaluate((e) => e.scrollTop)).toBe(0);
+  await prompter.evaluate((e) => {
+    e.scrollTop = 60;
+    e.dispatchEvent(new Event('scroll', { bubbles: true }));
+  });
+  await emit(page, 'speechResult', [['More fictional final words.', true]]);
+  expect(await prompter.evaluate((e) => e.scrollTop)).toBe(60);
+
   await page.getByRole('button', { name: 'Latest words' }).click();
   await expect
     .poll(() =>
@@ -339,5 +345,7 @@ test('large microphone reacts to speech and pauses while the prompter follows wo
   await expect(studio).toHaveAttribute('data-paused', 'true');
   await expect(prompter).not.toContainText('Provisional fictional words.');
   await page.getByRole('textbox').fill('Edited fictional share.');
-  await expect(prompter).toContainText('Edited fictional share.');
+  await expect(prompter.getByRole('textbox')).toHaveValue(
+    'Edited fictional share.'
+  );
 });

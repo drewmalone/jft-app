@@ -111,36 +111,6 @@ button:disabled {
   }
 }
 
-.share-textarea {
-  min-height: 12rem;
-  width: 100%;
-  resize: vertical;
-  border: 1px solid var(--line);
-  border-radius: 0.75rem;
-  background: var(--paper);
-  padding: 1.25rem;
-  font-family: var(--font-serif);
-  font-size: 1.25rem;
-  line-height: 1.625;
-  outline: none;
-  transition:
-    border-color 0.15s,
-    box-shadow 0.15s;
-}
-.share-textarea::placeholder {
-  color: var(--muted);
-}
-.share-textarea:focus {
-  border-color: var(--navy);
-  box-shadow: 0 0 0 1px var(--navy);
-}
-
-@media (min-width: 640px) {
-  .share-textarea {
-    min-height: 16rem;
-  }
-}
-
 .voice-studio {
   margin: 2rem 0 1.5rem;
 }
@@ -300,4 +270,26 @@ button:disabled {
 .voice-studio[data-paused='true'] .record-button {
   background: #eee7d8;
   color: var(--navy);
+}
+
+.transcript-input {
+  display: block;
+  width: 100%;
+  min-height: 2rem;
+  border: 0;
+  padding: 0;
+  resize: none;
+  overflow: hidden;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: inherit;
+  outline: none;
+}
+.transcript-input::placeholder {
+  color: var(--muted);
+}
+.transcript-input:focus-visible {
+  outline: 1px solid var(--line);
+  outline-offset: 3px;
 }

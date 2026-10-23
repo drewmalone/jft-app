@@ -118,23 +118,14 @@ export function ShareForm({
                   : voice.message ||
                     'Tap the microphone to begin, or type below.'}
         </p>
-        <LiveTranscript text={text} interim={voice.interim} />
+        <LiveTranscript
+          text={text}
+          interim={voice.interim}
+          onTextChange={onTextChange}
+          readOnly={saving}
+          errorId={error ? errorId : undefined}
+        />
       </div>
-      <label
-        htmlFor={fieldId}
-        className="mb-3 block text-sm text-[var(--muted)]"
-      >
-        Edit your share
-      </label>
-      <textarea
-        id={fieldId}
-        aria-describedby={error ? errorId : undefined}
-        value={text}
-        readOnly={saving}
-        onChange={(event) => onTextChange(event.target.value)}
-        placeholder="Start writing…"
-        className="share-textarea"
-      />
       {error && (
         <p
           id={errorId}
@@ -144,11 +135,6 @@ export function ShareForm({
           {error}
         </p>
       )}
-      <p className="mt-4 text-center text-xs leading-relaxed text-[var(--muted)]">
-        Speech recognition is provided by your browser and may use an online
-        service. Review your words before saving. Doorknob does not record or
-        store audio; only text you choose to save is sent to Doorknob.
-      </p>
       <button
         className="primary mt-5 w-full"
         disabled={disabled || voice.active || !text.trim()}
