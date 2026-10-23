@@ -1,6 +1,9 @@
 import { useCallback, useEffect, useRef } from 'react';
 import TextareaAutosize from 'react-textarea-autosize';
 
+// Within roughly one line of the bottom, new words resume automatic following.
+const FOLLOW_THRESHOLD_PX = 32;
+
 type LiveTranscriptProps = {
   text: string;
   interim: string;
@@ -38,7 +41,7 @@ export function LiveTranscript({
           const element = event.currentTarget;
           following.current =
             element.scrollHeight - element.scrollTop - element.clientHeight <
-            32;
+            FOLLOW_THRESHOLD_PX;
         }}
       >
         <TextareaAutosize

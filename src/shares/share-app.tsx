@@ -3,11 +3,11 @@
 import { useEffect, useRef, useState, type FormEvent } from 'react';
 import type { Share } from './model';
 import { readShare, saveShare } from './api';
-import { ShareForm } from './components/share-form';
-import { ShareHistory } from './components/share-history';
-import { useShareHistory } from './use-share-history';
-import { ShareDetail } from './components/share-detail';
-import { ReflectionReading } from './components/reflection-reading';
+import { ShareForm } from './composer/share-form';
+import { ShareHistory } from './history/share-history';
+import { useShareHistory } from './history/use-share-history';
+import { ShareDetail } from './detail/share-detail';
+import { ReflectionReading } from './reflection/reflection-reading';
 import { AppHeader } from '../components/app-header';
 import { AppFooter } from '../components/app-footer';
 

@@ -4,6 +4,8 @@ import { createBrowserSpeech } from './browser-speech';
 import { appendTranscript } from './append-transcript';
 import type { TranscriptionEngine, TranscriptionState } from './types';
 
+const SPEECH_ACTIVITY_HOLD_MS = 1_400;
+
 /**
  * Own one engine session and commit only final segments to the draft.
  * The factory is selected once per mount; remount to switch providers.
@@ -106,7 +108,7 @@ export function useTranscription(
       setSpeaking(true);
       activityTimer.current = setTimeout(() => {
         if (live()) setSpeaking(false);
-      }, 1400);
+      }, SPEECH_ACTIVITY_HOLD_MS);
     };
     next.start({
       activity: (value) => {
@@ -115,7 +117,10 @@ export function useTranscription(
         setSpeaking(value);
       },
       listening: () => {
-        if (live()) setState('listening');
+        if (live())
+          setState((current) =>
+            current === 'starting' ? 'listening' : current
+          );
       },
       interim: (value) => {
         if (live()) {

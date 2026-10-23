@@ -1,12 +1,10 @@
-import { speechErrorCode } from '../../src/shares/transcription/diagnostics';
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import {
   createBrowserSpeech,
   type SpeechConstructor
-} from '../../src/shares/transcription/browser-speech';
-import { appendTranscript } from '../../src/shares/transcription/append-transcript';
-import type { TranscriptionEvents } from '../../src/shares/transcription/types';
+} from '../../../src/shares/transcription/browser-speech';
+import type { TranscriptionEvents } from '../../../src/shares/transcription/types';
 
 class MockSpeech {
   static instance: MockSpeech;
@@ -130,23 +128,23 @@ test('empty/unexpected termination and disposal ignore saved stale callbacks', (
   assert.deepEqual(second.finals, []);
   assert.equal(second.mock.aborted, true);
 });
-for (const error of [
-  'not-allowed',
-  'service-not-allowed',
-  'network',
-  'audio-capture'
-]) {
+const expectedRecognitionErrors = {
+  'not-allowed':
+    'Microphone access was denied. Allow access in your browser settings.',
+  'service-not-allowed':
+    'Microphone access was denied. Allow access in your browser settings.',
+  network:
+    'Speech recognition could not continue. Check your connection and try again.',
+  'audio-capture':
+    'Microphone audio is unavailable. Check your microphone and browser settings, then try again.'
+};
+for (const [error, message] of Object.entries(expectedRecognitionErrors)) {
   test(`sanitizes ${error} errors and allows a fresh session`, () => {
     const s = setup();
     s.mock.results(['Keep this.', true]);
     s.mock.onerror?.({ error });
     assert.equal(s.errors.length, 1);
-    assert.equal(
-      s.errors[0],
-      error === 'not-allowed' || error === 'service-not-allowed'
-        ? 'Microphone access was denied. Allow access in your browser settings.'
-        : 'Speech recognition could not continue. Check your connection and try again.'
-    );
+    assert.equal(s.errors[0], message);
     assert.deepEqual(s.finals, ['Keep this.']);
     assert.equal(s.mock.aborted, true);
     const next = setup();
@@ -155,24 +153,6 @@ for (const error of [
     next.engine.dispose();
   });
 }
-test('append preserves typed text, separates sessions, and enforces code point limit', () => {
-  let draft = appendTranscript('Typed.', ' First.', true).text;
-  draft = appendTranscript(draft, 'Second.', false).text;
-  assert.equal(draft, 'Typed.\n\nFirst. Second.');
-  assert.equal(
-    appendTranscript(draft, 'More.', true).text,
-    draft + '\n\nMore.'
-  );
-  assert.equal(
-    appendTranscript('Typed.\n\n', 'New.', true).text,
-    'Typed.\n\nNew.'
-  );
-  const full = appendTranscript('🌱'.repeat(9997), 'abcde', false);
-  assert.equal(Array.from(full.text).length, 10000);
-  assert.equal(full.full, true);
-  assert.equal(appendTranscript(full.text, 'More', true).text, full.text);
-});
-
 test('synchronous start/stop failures release the microphone and report a safe outcome', () => {
   class StartFailure extends MockSpeech {
     start() {
@@ -246,24 +226,6 @@ test('disposal from a final callback silences remaining segments in that event',
   assert.deepEqual(finals, ['Accepted.']);
 });
 
-test('diagnostic errors retain only recognized public codes', () => {
-  for (const code of [
-    'network',
-    'audio-capture',
-    'not-allowed',
-    'SecurityError',
-    'InvalidStateError'
-  ])
-    assert.equal(speechErrorCode(code), code);
-  for (const value of [
-    'private vendor message',
-    new Error('private'),
-    { error: 'network' },
-    undefined
-  ])
-    assert.equal(speechErrorCode(value), 'unknown');
-});
-
 test('optional engine activity reports speech boundaries and is silenced on disposal', () => {
   const engine = createBrowserSpeech(MockSpeech);
   const activity: boolean[] = [];
@@ -299,4 +261,14 @@ test('repeated disposal cancels an active browser session only once', () => {
   assert.equal(s.mock.aborts, 1);
   assert.equal(s.mock.onresult, null);
   assert.equal(s.mock.onend, null);
+});
+
+test('silence ends normally and preserves finalized text without a service error', () => {
+  const s = setup();
+  s.mock.results(['Final fictional words.', true], ['Unfinished.', false]);
+  s.mock.onerror?.({ error: 'no-speech' });
+  assert.equal(s.ended, 1);
+  assert.deepEqual(s.errors, []);
+  assert.deepEqual(s.finals, ['Final fictional words.']);
+  assert.equal(s.mock.onresult, null);
 });

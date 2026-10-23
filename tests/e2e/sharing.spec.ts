@@ -1,5 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
-import { reflection } from '../../src/shares/reflection-fixture';
+import { reflection } from '../../src/shares/reflection/reflection-fixture';
 
 const fictionalText =
   'A fictional thought for a fellow alcoholic.\nOne day at a time.';

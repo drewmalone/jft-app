@@ -7,7 +7,7 @@
     "build": "next build",
     "start": "next start --hostname 0.0.0.0",
     "typecheck": "tsc --noEmit",
-    "test": "node --conditions=react-server --import tsx --test --test-isolation=none tests/shares/*.test.ts && node --import tsx --test --test-isolation=none tests/transcription/*.test.ts",
+    "test": "node --conditions=react-server --import tsx --test --test-isolation=none tests/shares/*.test.ts tests/shares/transcription/*.test.ts && node --import tsx --test --test-isolation=none tests/shares/transcription/client/*.test.ts",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "check": "npm run format:check && npm run lint && npm run openapi:lint && npm test && npm run build",

@@ -98,27 +98,31 @@ Manual checks:
 
 ```text
 src/
-  app/                  App Router entry, layout, theme
-    api/shares/         Next.js exports for private share operations
-    api/openapi.json/   generated OpenAPI 3.1 contract
-  components/           app-wide header and footer
+  app/                       Next.js pages, API entry points, layout, theme
+  components/                app-wide header and footer
   shares/
-    share-app.tsx       React state, requests, and screen transitions
-    api.ts              browser fetch and response validation
-    components/         reading, form, history, and detail presentation
-    model.ts            shared Zod schemas, inferred types, and text limit
-    reflection-fixture.ts fictional daily reading
-    errors.ts           shared stable error codes and envelope
+    share-app.tsx            draft ownership, requests, screen transitions
+    api.ts                   browser fetch and response validation
+    model.ts                 shared schemas, types, and text limit
+    dates.ts, errors.ts      shared date formatting and error contracts
+    composer/
+      share-form.tsx         transcription and explicit saving coordination
+      live-transcript.tsx    inline transcript editing and scroll following
+      save-share-button.tsx  explicit save action
+      recording/             microphone control, status, clock, icon, accents
+    history/                 history hook, list, and list items
+    detail/                  saved-share detail, sharing action, thoughts text
+    reflection/              reading presentation and fictional fixture
+    transcription/           engine contract, browser adapter, lifecycle hook
     server/
-      operations/       create, list, read contracts and typed handlers
-      resource-methods.ts HEAD/OPTIONS/405 handling for share resources
-      app.ts            operation registration and dispatch
-      openapi.ts        shared contract helpers and metadata
-    use-share-history.ts History loading and initial session bootstrap
-    dates.ts            saved-date formatting
+      operations/            private/public operation contracts and handlers
+      app.ts                 operation registration and dispatch
+      repository.ts          owner-scoped storage boundary
 tests/
-  shares/               Node tests for schemas, routes, repository, and dates
-  e2e/                  Playwright user flows
+  shares/                    schemas, HTTP, repository, session, and date tests
+    transcription/           browser adapter and transcript helper tests
+      client/                DOM setup and provider-independent React hook tests
+  e2e/                       Playwright user flows
 ```
 
 Open http://localhost:3000/api/openapi.json for the generated contract. TypeScript route/Zod definitions are the source of truth. `npm run openapi:lint` generates ignored `.tmp/openapi.yaml` and checks it with Spectral; CI also uploads the YAML as the `openapi` workflow artifact. Generated YAML is not committed.
@@ -203,3 +207,5 @@ The large circular microphone starts and pauses speech recognition. Its ring and
 Below the microphone, a bounded teleprompter shows the current share and provisional words in italics. It follows new text without scrolling the page. Scroll upward to read earlier words; scroll back to the bottom to resume following. The transcript itself supports typing and corrections, without a separate editing section. Refresh starts fresh; drafts are not recovered from browser storage. Provisional words remain excluded from the draft and save payload. The accents respect reduced-motion preferences.
 
 The teleprompter uses `react-textarea-autosize` to keep existing words visible when the viewport size or fonts change. It continues to follow new words while preserving deliberate scrollback. The engine hook accepts a replacement factory selected once per mount for future streaming providers; provider-independent hook tests run with React Testing Library and jsdom as development-only dependencies.
+
+Silence (`no-speech`) ends recognition normally and keeps finalized words; microphone capture failures suggest checking the microphone and browser settings. Late listening callbacks cannot restart a session that is stopping. The lifecycle tests include root-level React Strict Mode setup/cleanup replay and resource cleanup on unmount.

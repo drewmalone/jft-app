@@ -406,3 +406,37 @@ test('teleprompter resizes existing text after viewport changes without clipping
     .toBeLessThan(wideHeight + 2);
   await expect(field).toHaveValue(text);
 });
+
+test('silence stops normally while audio-capture errors suggest checking the microphone', async ({
+  page
+}) => {
+  await mockSpeech(page);
+  await page.goto('/');
+  await page.getByRole('button', { name: 'Record your share' }).click();
+  await emit(page, 'speechStart');
+  await emit(page, 'speechResult', [
+    ['Final fictional sentence.', true],
+    ['Unfinished words.', false]
+  ]);
+  await emit(page, 'speechError', 'no-speech');
+  await expect(
+    page.getByText('Tap to record more.', { exact: true })
+  ).toBeVisible();
+  await expect(page.getByRole('textbox')).toHaveValue(
+    'Final fictional sentence.'
+  );
+  await expect(
+    page.getByText('Unfinished words.', { exact: true })
+  ).toHaveCount(0);
+  await page.getByRole('button', { name: 'Record your share' }).click();
+  await emit(page, 'speechError', 'audio-capture');
+  await expect(
+    page.getByText(
+      'Microphone audio is unavailable. Check your microphone and browser settings, then try again.',
+      { exact: true }
+    )
+  ).toBeVisible();
+  await expect(page.getByRole('textbox')).toHaveValue(
+    'Final fictional sentence.'
+  );
+});

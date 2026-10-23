@@ -3,16 +3,16 @@ import { after, afterEach, test } from 'node:test';
 import assert from 'node:assert/strict';
 import { useState } from 'react';
 import { act, cleanup, renderHook } from '@testing-library/react';
-import { useTranscription } from '../../src/shares/transcription/use-transcription';
+import { useTranscription } from '../../../../src/shares/transcription/use-transcription';
 import type {
   TranscriptionEngine,
   TranscriptionEvents
-} from '../../src/shares/transcription/types';
-import { MAX_SHARE_TEXT_LENGTH } from '../../src/shares/model';
+} from '../../../../src/shares/transcription/types';
+import { MAX_SHARE_TEXT_LENGTH } from '../../../../src/shares/model';
 import {
   configureSpeechDiagnostics,
   speechDiagnostic
-} from '../../src/shares/transcription/diagnostics';
+} from '../../../../src/shares/transcription/diagnostics';
 
 class FakeEngine implements TranscriptionEngine {
   events?: TranscriptionEvents;
@@ -170,4 +170,58 @@ test('rerendering with a new factory reference does not cancel the selected engi
   assert.equal(hook.result.current.state, 'listening');
   assert.equal(active.disposed, false);
   assert.equal(engines.length, 2);
+});
+
+test('a late startup callback cannot resume a stopping session, but final text can still arrive', () => {
+  const hook = setup();
+  act(() => hook.result.current.start());
+  const engine = hook.latest();
+  act(() => {
+    hook.result.current.stop();
+    engine.events!.listening();
+  });
+  assert.equal(hook.result.current.state, 'stopping');
+  act(() => {
+    engine.events!.final('Final words after cancel.');
+    engine.events!.ended();
+  });
+  assert.equal(hook.result.current.state, 'idle');
+  assert.equal(hook.result.current.text, 'Typed.\n\nFinal words after cancel.');
+});
+
+test('Strict Mode setup-cleanup-setup releases probes and unmount cancels activity and recognition', (context) => {
+  const engines: FakeEngine[] = [];
+  const factory = () => {
+    const engine = new FakeEngine();
+    engines.push(engine);
+    return engine;
+  };
+  const hook = renderHook(
+    () => {
+      const [text, setText] = useState('Typed.');
+      return { text, ...useTranscription(text, setText, factory) };
+    },
+    { reactStrictMode: true }
+  );
+  assert.equal(hook.result.current.state, 'idle');
+  assert.equal(engines.length, 2);
+  assert.ok(engines.every((engine) => engine.disposed && !engine.events));
+  act(() => hook.result.current.start());
+  const active = engines.at(-1)!;
+  act(() => {
+    active.events!.listening();
+    active.events!.interim('Provisional words.');
+  });
+  assert.equal(hook.result.current.state, 'listening');
+  const timerCleanup = context.mock.method(globalThis, 'clearTimeout');
+  hook.unmount();
+  assert.equal(active.disposed, true);
+  assert.ok(
+    timerCleanup.mock.calls.some((call) => call.arguments[0] !== undefined)
+  );
+  act(() => {
+    active.events!.listening();
+    active.events!.final('Stale.');
+  });
+  assert.equal(hook.result.current.text, 'Typed.');
 });

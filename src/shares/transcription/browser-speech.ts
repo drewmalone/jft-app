@@ -1,5 +1,8 @@
 import { speechDiagnostic, speechErrorCode } from './diagnostics';
+import { browserSpeechErrorMessage } from './browser-speech-errors';
 import type { TranscriptionEngine, TranscriptionEvents } from './types';
+
+const STOP_FINALIZATION_TIMEOUT_MS = 5_000;
 
 type Result = { isFinal: boolean; 0: { transcript: string } };
 type Recognition = {
@@ -184,12 +187,8 @@ export function createBrowserSpeech(
             stopRequested
           });
           release(true);
-          events.error(
-            event.error === 'not-allowed' ||
-              event.error === 'service-not-allowed'
-              ? 'Microphone access was denied. Allow access in your browser settings.'
-              : 'Speech recognition could not continue. Check your connection and try again.'
-          );
+          if (event.error === 'no-speech') events.ended();
+          else events.error(browserSpeechErrorMessage(event.error));
         };
         recognition.onend = () => {
           if (!live) return;
@@ -224,7 +223,7 @@ export function createBrowserSpeech(
         diagnostic('stop-timeout');
         release(true);
         callbacks?.ended();
-      }, 5000);
+      }, STOP_FINALIZATION_TIMEOUT_MS);
       try {
         recognition?.stop();
         diagnostic('stop-returned');
