@@ -125,7 +125,11 @@ export function createBrowserSpeech(
           ['onnomatch', 'no-match']
         ] as const)
           recognition[property] = () => {
-            if (live) diagnostic(event);
+            if (!live) return;
+            diagnostic(event);
+            if (event === 'speech-start') events.activity?.(true);
+            if (event === 'speech-end' || event === 'audio-end')
+              events.activity?.(false);
           };
         recognition.onstart = () => {
           diagnostic('recognition-start', { stopRequested });

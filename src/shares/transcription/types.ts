@@ -5,6 +5,8 @@ export type TranscriptionState =
 /** Engines emit each final segment exactly once; interim text replaces its predecessor. */
 export interface TranscriptionEvents {
   listening(): void;
+  /** Optional speech activity cue; this is not an audio level measurement. */
+  activity?(speaking: boolean): void;
   interim(text: string): void;
   final(text: string): void;
   error(message: string): void;

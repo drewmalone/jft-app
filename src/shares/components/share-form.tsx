@@ -1,4 +1,5 @@
-import { useId, type FormEvent } from 'react';
+import { useEffect, useId, useState, type FormEvent } from 'react';
+import { LiveTranscript } from './live-transcript';
 import { useTranscription } from '../transcription/use-transcription';
 
 type ShareFormProps = {
@@ -20,6 +21,12 @@ export function ShareForm({
   onSave
 }: ShareFormProps) {
   const voice = useTranscription(text, onTextChange);
+  const [seconds, setSeconds] = useState(0);
+  useEffect(() => {
+    if (voice.state !== 'listening') return;
+    const timer = setInterval(() => setSeconds((value) => value + 1), 1000);
+    return () => clearInterval(timer);
+  }, [voice.state]);
   const fieldId = useId();
   const errorId = `${fieldId}-error`;
   return (
@@ -33,57 +40,91 @@ export function ShareForm({
       }}
       className="mt-5"
     >
-      <div className="mb-6">
-        <button
-          type="button"
-          className="primary w-full"
-          disabled={
-            saving ||
-            voice.state === 'unsupported' ||
-            voice.state === 'stopping'
-          }
-          onClick={voice.active ? voice.stop : voice.start}
+      <div
+        className="voice-studio"
+        data-paused={!voice.active && Boolean(voice.message)}
+        data-listening={voice.state === 'listening'}
+        data-speaking={voice.state === 'listening' && voice.speaking}
+      >
+        <div className="microphone-stage">
+          <div className="speech-bars" aria-hidden="true">
+            {[16, 28, 40, 56, 70, 56, 40, 28, 16].map((height, index) => (
+              <span
+                key={index}
+                style={{ height, animationDelay: `${index * 70}ms` }}
+              />
+            ))}
+          </div>
+          <div className="microphone-ring">
+            <button
+              type="button"
+              className="record-button"
+              aria-label={
+                voice.state === 'starting'
+                  ? 'Cancel microphone'
+                  : voice.state === 'listening'
+                    ? 'Stop listening'
+                    : voice.state === 'stopping'
+                      ? 'Finishing transcription…'
+                      : 'Record your share'
+              }
+              aria-pressed={voice.active}
+              disabled={
+                saving ||
+                voice.state === 'unsupported' ||
+                voice.state === 'stopping'
+              }
+              onClick={voice.active ? voice.stop : voice.start}
+            >
+              <svg
+                aria-hidden="true"
+                width="68"
+                height="68"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="1.7"
+              >
+                <rect x="9" y="2" width="6" height="13" rx="3" />
+                <path d="M5 10v2a7 7 0 0 0 14 0v-2M12 19v3m-4 0h8" />
+              </svg>
+            </button>
+          </div>
+          <div className="speech-bars" aria-hidden="true">
+            {[16, 28, 40, 56, 70, 56, 40, 28, 16].map((height, index) => (
+              <span
+                key={index}
+                style={{ height, animationDelay: `${index * 70}ms` }}
+              />
+            ))}
+          </div>
+        </div>
+        <p className="listening-clock" aria-label="Listening time">
+          {String(Math.floor(seconds / 60)).padStart(2, '0')}:
+          {String(seconds % 60).padStart(2, '0')}
+        </p>
+        <p
+          className="mt-2 text-center text-sm text-[var(--muted)]"
+          aria-live="polite"
         >
-          <svg
-            aria-hidden="true"
-            width="24"
-            height="24"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="1.7"
-          >
-            <rect x="9" y="2" width="6" height="13" rx="3" />
-            <path d="M5 10v2a7 7 0 0 0 14 0v-2M12 19v3m-4 0h8" />
-          </svg>
-          {voice.state === 'starting'
-            ? 'Cancel microphone'
-            : voice.state === 'listening'
-              ? 'Stop listening'
-              : voice.state === 'stopping'
-                ? 'Finishing transcription…'
-                : 'Record your share'}
-        </button>
-        <p className="mt-3 text-sm text-[var(--muted)]" aria-live="polite">
           {voice.state === 'unsupported'
             ? 'Voice transcription is not available in this browser. You can still type your share.'
             : voice.state === 'starting'
               ? 'Waiting for microphone access…'
               : voice.state === 'listening'
-                ? 'Listening… Speak from your own experience.'
+                ? 'Listening… Tap the microphone to pause.'
                 : voice.state === 'stopping'
                   ? 'Finishing your words…'
                   : voice.message ||
-                    'Speak or type. Your words belong to one share.'}
+                    'Tap the microphone to begin, or type below.'}
         </p>
-        <p className="mt-3 text-xs leading-relaxed text-[var(--muted)]">
-          Speech recognition is provided by your browser and may use an online
-          service. Review your words before saving. Doorknob does not record or
-          store audio; only text you choose to save is sent to Doorknob.
-        </p>
+        <LiveTranscript text={text} interim={voice.interim} />
       </div>
-      <label htmlFor={fieldId} className="sr-only">
-        Your thoughts about today&apos;s reading
+      <label
+        htmlFor={fieldId}
+        className="mb-3 block text-sm text-[var(--muted)]"
+      >
+        Edit your share
       </label>
       <textarea
         id={fieldId}
@@ -94,15 +135,6 @@ export function ShareForm({
         placeholder="Start writing…"
         className="share-textarea"
       />
-      {voice.interim && (
-        <p
-          className="mt-3 text-sm italic text-[var(--muted)]"
-          aria-live="polite"
-        >
-          <span className="font-semibold">Still recognizing: </span>
-          {voice.interim}
-        </p>
-      )}
       {error && (
         <p
           id={errorId}
@@ -112,6 +144,11 @@ export function ShareForm({
           {error}
         </p>
       )}
+      <p className="mt-4 text-center text-xs leading-relaxed text-[var(--muted)]">
+        Speech recognition is provided by your browser and may use an online
+        service. Review your words before saving. Doorknob does not record or
+        store audio; only text you choose to save is sent to Doorknob.
+      </p>
       <button
         className="primary mt-5 w-full"
         disabled={disabled || voice.active || !text.trim()}

@@ -252,3 +252,30 @@ test('diagnostic errors retain only recognized public codes', () => {
   ])
     assert.equal(speechErrorCode(value), 'unknown');
 });
+
+test('optional engine activity reports speech boundaries and is silenced on disposal', () => {
+  const engine = createBrowserSpeech(MockSpeech);
+  const activity: boolean[] = [];
+  engine.start({
+    listening() {},
+    interim() {},
+    final() {},
+    error() {},
+    ended() {},
+    activity: (speaking) => activity.push(speaking)
+  });
+  const speech = MockSpeech.instance as unknown as {
+    onspeechstart: (() => void) | null;
+    onspeechend: (() => void) | null;
+    onaudioend: (() => void) | null;
+  };
+  const stale = speech.onspeechstart!;
+  speech.onspeechstart?.();
+  speech.onspeechend?.();
+  speech.onaudioend?.();
+  assert.deepEqual(activity, [true, false, false]);
+  engine.dispose();
+  stale();
+  assert.equal(speech.onspeechstart, null);
+  assert.deepEqual(activity, [true, false, false]);
+});

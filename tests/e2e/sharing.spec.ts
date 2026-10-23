@@ -265,7 +265,7 @@ test('long thoughts appear in full on owner and recipient pages, and recipients 
     await expect(write).toHaveAttribute('href', '/');
     await write.click();
     await expect(
-      reader.getByRole('heading', { name: 'Your thoughts', exact: true })
+      reader.getByRole('heading', { name: 'Record your share', exact: true })
     ).toBeVisible();
     await reader
       .getByRole('textbox')

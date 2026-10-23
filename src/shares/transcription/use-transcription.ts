@@ -10,6 +10,10 @@ export function useTranscription(
   onTextChange: (text: string) => void
 ) {
   const [state, setState] = useState<TranscriptionState>('unsupported');
+  const [speaking, setSpeaking] = useState(false);
+  const activityTimer = useRef<ReturnType<typeof setTimeout> | undefined>(
+    undefined
+  );
   const [interim, setInterim] = useState('');
   const [message, setMessage] = useState('');
   const engine = useRef<TranscriptionEngine | null>(null);
@@ -38,6 +42,7 @@ export function useTranscription(
       // This is a session counter, not a DOM ref; invalidate the latest session.
       // eslint-disable-next-line react-hooks/exhaustive-deps
       generation.current++;
+      clearTimeout(activityTimer.current);
       speechDiagnostic('editor-unmount');
       engine.current?.dispose();
       engine.current = null;
@@ -78,6 +83,8 @@ export function useTranscription(
       generation.current++;
       next.dispose();
       engine.current = null;
+      clearTimeout(activityTimer.current);
+      setSpeaking(false);
       setInterim('');
       setState(failed ? 'error' : 'idle');
       setMessage(notice);
@@ -85,12 +92,28 @@ export function useTranscription(
     setMessage('');
     setInterim('');
     setState('starting');
+    const pulse = () => {
+      if (!live()) return;
+      clearTimeout(activityTimer.current);
+      setSpeaking(true);
+      activityTimer.current = setTimeout(() => {
+        if (live()) setSpeaking(false);
+      }, 1400);
+    };
     next.start({
+      activity: (value) => {
+        if (!live()) return;
+        clearTimeout(activityTimer.current);
+        setSpeaking(value);
+      },
       listening: () => {
         if (live()) setState('listening');
       },
       interim: (value) => {
-        if (live() && accepting) setInterim(value);
+        if (live() && accepting) {
+          setInterim(value);
+          if (value) pulse();
+        }
       },
       final: (value) => {
         if (!live() || !accepting || !value.trim()) {
@@ -100,6 +123,7 @@ export function useTranscription(
           });
           return;
         }
+        pulse();
         speechDiagnostic('final-committed', { session });
         const result = appendTranscript(current.current.text, value, first);
         first = false;
@@ -122,5 +146,5 @@ export function useTranscription(
         )
     });
   }
-  return { state, interim, message, active, start, stop };
+  return { state, interim, message, active, speaking, start, stop };
 }

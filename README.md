@@ -195,3 +195,9 @@ Reproduce the problem and inspect the progression:
 - `stop-requested`, `recognition-end` (with whether stop was requested), `stop-timeout`, `dispose`, `editor-unmount`, connectivity, and visibility events help diagnose interruption and cleanup. Session numbers and elapsed milliseconds correlate browser events; capability-only checks also receive session numbers. Lifecycle/commit logs use the editor's separate session counter.
 
 Diagnostics are off by default and written only to your browser console. They contain no transcript/draft text, audio, share IDs, URLs, credentials, or raw error messages, and are not uploaded by Doorknob. You can copy the filtered diagnostics when reporting a problem. Recognition API presence and online status do not guarantee a working vendor service. No BFF speech request is expected: browser-managed recognition happens outside Doorknob's save endpoint.
+
+### Recording screen
+
+The large circular microphone starts and pauses speech recognition. Its ring and side accents brighten when the browser reports speech or delivers recognized words; they are speech activity cues, not a measured audio waveform or volume meter. Browser support for speech-activity events varies, so result updates also briefly illuminate the accents. The timer counts time spent listening across sessions in the current editor view, not the duration of an audio recording. No additional microphone capture or audio storage is used.
+
+Below the microphone, a bounded teleprompter shows the current share and provisional words in italics. It follows new text without scrolling the page. Scroll upward to read earlier words; **Latest words** resumes following. **Edit your share** remains available below it, and edits appear in the prompter. Provisional words remain excluded from the draft and save payload. The accents respect reduced-motion preferences.

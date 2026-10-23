@@ -20,8 +20,9 @@ type DetailState =
 
 const screenCopy = {
   today: {
-    title: 'Your thoughts',
-    description: 'What stood out to you today?'
+    title: 'Record your share',
+    description:
+      'Speak from your own experience about what this reading means for you today.'
   },
   past: {
     title: 'Past shares',
@@ -157,13 +158,13 @@ export function ShareApp() {
         <h1
           ref={heading}
           tabIndex={-1}
-          className={`font-serif leading-[1.1] tracking-[-0.035em] outline-none ${view === 'today' ? 'text-2xl tracking-normal' : view === 'saved' ? 'text-center text-3xl sm:text-4xl' : 'text-[36px] sm:text-5xl'} ${view === 'today' ? 'mt-8 sm:mt-12' : ''}`}
+          className={`font-serif leading-[1.1] tracking-[-0.035em] outline-none ${view === 'today' ? 'text-center text-[36px] sm:text-5xl' : view === 'saved' ? 'text-center text-3xl sm:text-4xl' : 'text-[36px] sm:text-5xl'} ${view === 'today' ? 'mt-8 sm:mt-12' : ''}`}
         >
           {title}
         </h1>
         {description && (
           <p
-            className={`mt-3 text-[16px] leading-relaxed text-[var(--muted)] ${view === 'saved' ? 'text-center' : ''}`}
+            className={`mt-3 text-[16px] leading-relaxed text-[var(--muted)] ${view === 'saved' || view === 'today' ? 'text-center' : ''}`}
           >
             {description}
           </p>

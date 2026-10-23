@@ -5,6 +5,8 @@ async function mockSpeech(page: Page, prefixed = false) {
     ({ prefixed }) => {
       class Speech {
         onaudiostart?: () => void;
+        onspeechstart?: () => void;
+        onspeechend?: () => void;
         onstart?: () => void;
         onend?: () => void;
         onresult?: (event: unknown) => void;
@@ -25,6 +27,10 @@ async function mockSpeech(page: Page, prefixed = false) {
         webkitSpeechRecognition: prefixed ? Speech : undefined,
         speechStart: () => Speech.current.onstart?.(),
         speechAudio: () => Speech.current.onaudiostart?.(),
+        speechActivity: (active: boolean) =>
+          active
+            ? Speech.current.onspeechstart?.()
+            : Speech.current.onspeechend?.(),
         speechEnd: () => Speech.current.onend?.(),
         speechError: (error: string) => Speech.current.onerror?.({ error }),
         speechResult: (segments: [string, boolean][]) =>
@@ -272,4 +278,66 @@ test('URL diagnostics work when sessionStorage is blocked', async ({
   await emit(page, 'speechStart');
   await emit(page, 'speechEnd');
   await expect.poll(() => messages.join(' ')).toContain('recognition-end');
+});
+
+test('large microphone reacts to speech and pauses while the prompter follows words and respects scrollback', async ({
+  page
+}) => {
+  await mockSpeech(page);
+  await page.emulateMedia({ reducedMotion: 'reduce' });
+  await page.goto('/');
+  const record = page.getByRole('button', { name: 'Record your share' });
+  const size = await record.boundingBox();
+  expect(size!.width).toBeGreaterThanOrEqual(132);
+  expect(size!.height).toBe(size!.width);
+  const studio = page.locator('.voice-studio');
+  const prompter = page.getByRole('region', { name: 'Live share transcript' });
+  await page
+    .getByRole('textbox')
+    .fill(
+      Array.from({ length: 35 }, (_, i) => `Fictional line ${i}.`).join('\n')
+    );
+  await expect
+    .poll(() =>
+      prompter.evaluate(
+        (e) => e.scrollTop + e.clientHeight >= e.scrollHeight - 2
+      )
+    )
+    .toBe(true);
+  await record.click();
+  await emit(page, 'speechStart');
+  await expect(studio).toHaveAttribute('data-speaking', 'false');
+  await emit(page, 'speechActivity', true);
+  await expect(studio).toHaveAttribute('data-speaking', 'true');
+  expect(
+    await page
+      .locator('.speech-bars span')
+      .first()
+      .evaluate((e) => getComputedStyle(e).animationName)
+  ).toBe('none');
+  await emit(page, 'speechActivity', false);
+  await expect(studio).toHaveAttribute('data-speaking', 'false');
+  await prompter.evaluate((e) => {
+    e.scrollTop = 0;
+    e.dispatchEvent(new Event('scroll', { bubbles: true }));
+  });
+  await emit(page, 'speechResult', [['Provisional fictional words.', false]]);
+  await expect(studio).toHaveAttribute('data-speaking', 'true');
+  await expect(prompter).toContainText('Provisional fictional words.');
+  expect(await prompter.evaluate((e) => e.scrollTop)).toBe(0);
+  await page.getByRole('button', { name: 'Latest words' }).click();
+  await expect
+    .poll(() =>
+      prompter.evaluate(
+        (e) => e.scrollTop + e.clientHeight >= e.scrollHeight - 2
+      )
+    )
+    .toBe(true);
+  await page.getByRole('button', { name: 'Stop listening' }).click();
+  await emit(page, 'speechEnd');
+  await expect(studio).toHaveAttribute('data-speaking', 'false');
+  await expect(studio).toHaveAttribute('data-paused', 'true');
+  await expect(prompter).not.toContainText('Provisional fictional words.');
+  await page.getByRole('textbox').fill('Edited fictional share.');
+  await expect(prompter).toContainText('Edited fictional share.');
 });
