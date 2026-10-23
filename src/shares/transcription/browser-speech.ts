@@ -77,6 +77,20 @@ export function createBrowserSpeech(
       recognition.onresult =
         null;
   };
+  // Every terminal path silences callbacks and clears the finalization timer.
+  // Only cancel an active browser session; repeated disposal is harmless.
+  const release = (abort = false) => {
+    const wasLive = live;
+    live = false;
+    detach();
+    if (abort && wasLive) {
+      try {
+        recognition?.abort();
+      } catch {
+        /* The browser may already have ended. */
+      }
+    }
+  };
   return {
     available: () => {
       diagnostic('availability', {
@@ -169,13 +183,7 @@ export function createBrowserSpeech(
             code: speechErrorCode(event.error),
             stopRequested
           });
-          live = false;
-          detach();
-          try {
-            recognition?.abort();
-          } catch {
-            /* Already ended. */
-          }
+          release(true);
           events.error(
             event.error === 'not-allowed' ||
               event.error === 'service-not-allowed'
@@ -189,8 +197,7 @@ export function createBrowserSpeech(
             stopRequested,
             finalized: seen.size
           });
-          live = false;
-          detach();
+          release();
           events.ended();
         };
         stage = 'start';
@@ -201,13 +208,7 @@ export function createBrowserSpeech(
           stage,
           code: speechErrorCode(cause instanceof Error ? cause.name : undefined)
         });
-        live = false;
-        detach();
-        try {
-          recognition?.abort();
-        } catch {
-          /* No active microphone. */
-        }
+        release(true);
         events.error(
           'Speech recognition could not start. Please try again, or keep typing.'
         );
@@ -223,13 +224,7 @@ export function createBrowserSpeech(
       stopTimer = setTimeout(() => {
         if (!live) return;
         diagnostic('stop-timeout');
-        live = false;
-        detach();
-        try {
-          recognition?.abort();
-        } catch {
-          /* Already ended. */
-        }
+        release(true);
         callbacks?.ended();
       }, 5000);
       try {
@@ -239,25 +234,13 @@ export function createBrowserSpeech(
         diagnostic('stop-failed', {
           code: speechErrorCode(cause instanceof Error ? cause.name : undefined)
         });
-        live = false;
-        detach();
-        try {
-          recognition?.abort();
-        } catch {
-          /* Already ended. */
-        }
+        release(true);
         callbacks?.ended();
       }
     },
     dispose() {
       diagnostic('dispose', { stopRequested });
-      live = false;
-      detach();
-      try {
-        recognition?.abort();
-      } catch {
-        /* Already ended. */
-      }
+      release(true);
     }
   };
 }

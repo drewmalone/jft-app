@@ -2,6 +2,35 @@ import { useEffect, useId, useState, type FormEvent } from 'react';
 import { LiveTranscript } from './live-transcript';
 import { useTranscription } from '../transcription/use-transcription';
 
+const buttonLabels = {
+  unsupported: 'Record your share',
+  idle: 'Record your share',
+  error: 'Record your share',
+  starting: 'Cancel microphone',
+  listening: 'Stop listening',
+  stopping: 'Finishing transcription…'
+};
+const statusLabels = {
+  unsupported:
+    'Voice transcription is not available in this browser. You can still type your share.',
+  starting: 'Waiting for microphone access…',
+  listening: 'Listening...',
+  stopping: 'Finishing your words…'
+};
+const barHeights = [16, 28, 40, 56, 70, 56, 40, 28, 16];
+function SpeechBars() {
+  return (
+    <div className="speech-bars" aria-hidden="true">
+      {barHeights.map((height, index) => (
+        <span
+          key={index}
+          style={{ height, animationDelay: `${index * 70}ms` }}
+        />
+      ))}
+    </div>
+  );
+}
+
 type ShareFormProps = {
   text: string;
   disabled: boolean;
@@ -27,6 +56,11 @@ export function ShareForm({
     const timer = setInterval(() => setSeconds((value) => value + 1), 1000);
     return () => clearInterval(timer);
   }, [voice.state]);
+  const buttonLabel = buttonLabels[voice.state];
+  const statusLabel =
+    voice.state === 'idle' || voice.state === 'error'
+      ? voice.message || 'Tap the microphone to begin, or type below.'
+      : statusLabels[voice.state];
   const fieldId = useId();
   const errorId = `${fieldId}-error`;
   return (
@@ -47,27 +81,12 @@ export function ShareForm({
         data-speaking={voice.state === 'listening' && voice.speaking}
       >
         <div className="microphone-stage">
-          <div className="speech-bars" aria-hidden="true">
-            {[16, 28, 40, 56, 70, 56, 40, 28, 16].map((height, index) => (
-              <span
-                key={index}
-                style={{ height, animationDelay: `${index * 70}ms` }}
-              />
-            ))}
-          </div>
+          <SpeechBars />
           <div className="microphone-ring">
             <button
               type="button"
               className="record-button"
-              aria-label={
-                voice.state === 'starting'
-                  ? 'Cancel microphone'
-                  : voice.state === 'listening'
-                    ? 'Stop listening'
-                    : voice.state === 'stopping'
-                      ? 'Finishing transcription…'
-                      : 'Record your share'
-              }
+              aria-label={buttonLabel}
               aria-pressed={voice.active}
               disabled={
                 saving ||
@@ -90,14 +109,7 @@ export function ShareForm({
               </svg>
             </button>
           </div>
-          <div className="speech-bars" aria-hidden="true">
-            {[16, 28, 40, 56, 70, 56, 40, 28, 16].map((height, index) => (
-              <span
-                key={index}
-                style={{ height, animationDelay: `${index * 70}ms` }}
-              />
-            ))}
-          </div>
+          <SpeechBars />
         </div>
         <p className="listening-clock" aria-label="Listening time">
           {String(Math.floor(seconds / 60)).padStart(2, '0')}:
@@ -107,16 +119,7 @@ export function ShareForm({
           className="mt-2 text-center text-sm text-[var(--muted)]"
           aria-live="polite"
         >
-          {voice.state === 'unsupported'
-            ? 'Voice transcription is not available in this browser. You can still type your share.'
-            : voice.state === 'starting'
-              ? 'Waiting for microphone access…'
-              : voice.state === 'listening'
-                ? 'Listening...'
-                : voice.state === 'stopping'
-                  ? 'Finishing your words…'
-                  : voice.message ||
-                    'Tap the microphone to begin, or type below.'}
+          {statusLabel}
         </p>
         <LiveTranscript
           text={text}

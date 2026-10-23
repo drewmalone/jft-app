@@ -24,6 +24,7 @@ class MockSpeech {
     | null = null;
   stops = 0;
   aborted = false;
+  aborts = 0;
   constructor() {
     MockSpeech.instance = this;
   }
@@ -34,6 +35,7 @@ class MockSpeech {
     this.stops++;
   }
   abort() {
+    this.aborts++;
     this.aborted = true;
   }
   results(...segments: [string, boolean][]) {
@@ -278,4 +280,14 @@ test('optional engine activity reports speech boundaries and is silenced on disp
   stale();
   assert.equal(speech.onspeechstart, null);
   assert.deepEqual(activity, [true, false, false]);
+});
+
+test('repeated disposal cancels an active browser session only once', () => {
+  const s = setup();
+  s.engine.dispose();
+  s.engine.dispose();
+  s.engine.stop();
+  assert.equal(s.mock.aborts, 1);
+  assert.equal(s.mock.onresult, null);
+  assert.equal(s.mock.onend, null);
 });

@@ -19,15 +19,15 @@ type DiagnosticDetails = {
   stage?: string;
 };
 
-/** Enable with ?speechDebug=1; remember for this tab. ?speechDebug=0 disables it. */
-export function speechDiagnostic(
-  event: string,
-  details: DiagnosticDetails = {}
-) {
+let enabled = false;
+
+/** Resolve the URL/tab debug switch once when the recording experience mounts. */
+export function configureSpeechDiagnostics() {
+  enabled = false;
   if (typeof window === 'undefined') return;
   try {
     const flag = new URLSearchParams(window.location.search).get('speechDebug');
-    let enabled = flag === '1';
+    enabled = flag === '1';
     try {
       if (flag === '1' || flag === '0')
         window.sessionStorage.setItem('doorknob:speech-debug', flag);
@@ -37,10 +37,21 @@ export function speechDiagnostic(
     } catch {
       // The explicit URL switch still works when tab storage is blocked.
     }
-    if (!enabled) return;
+  } catch {
+    // Optional diagnostics must not prevent recording.
+  }
+}
+
+/** Console-only, cached opt-in logging; never pass transcript content or raw errors. */
+export function speechDiagnostic(
+  event: string,
+  details: DiagnosticDetails = {}
+) {
+  if (!enabled) return;
+  try {
     console.info(`[Doorknob speech] ${event}`, details);
   } catch {
-    // Diagnostics must never interrupt recognition, including restricted storage/console access.
+    // A restricted console must not interrupt recognition.
   }
 }
 

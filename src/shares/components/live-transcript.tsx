@@ -1,4 +1,5 @@
-import { useEffect, useLayoutEffect, useRef } from 'react';
+import { useCallback, useEffect, useRef } from 'react';
+import TextareaAutosize from 'react-textarea-autosize';
 
 type LiveTranscriptProps = {
   text: string;
@@ -18,18 +19,13 @@ export function LiveTranscript({
 }: LiveTranscriptProps) {
   const viewport = useRef<HTMLDivElement>(null);
   const following = useRef(true);
-  const field = useRef<HTMLTextAreaElement>(null);
-  useLayoutEffect(() => {
-    if (!field.current) return;
-    const scrollTop = viewport.current?.scrollTop ?? 0;
-    field.current.style.height = '0px';
-    field.current.style.height = `${field.current.scrollHeight}px`;
-    if (viewport.current) viewport.current.scrollTop = scrollTop;
-  }, [text]);
-  useEffect(() => {
+  const followNewWords = useCallback(() => {
     const element = viewport.current;
     if (element && following.current) element.scrollTop = element.scrollHeight;
-  }, [text, interim]);
+  }, []);
+  useEffect(() => {
+    followNewWords();
+  }, [text, interim, followNewWords]);
   return (
     <div className="transcript-wrap">
       <div
@@ -45,8 +41,8 @@ export function LiveTranscript({
             32;
         }}
       >
-        <textarea
-          ref={field}
+        <TextareaAutosize
+          onHeightChange={followNewWords}
           aria-label="Your share"
           aria-describedby={errorId}
           value={text}
@@ -54,7 +50,7 @@ export function LiveTranscript({
           onChange={(event) => onTextChange(event.target.value)}
           className="transcript-input"
           placeholder="Speak to begin..."
-          rows={1}
+          minRows={1}
         />
         {interim && (
           <p className="transcript-interim">

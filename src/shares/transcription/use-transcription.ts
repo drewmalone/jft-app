@@ -1,14 +1,19 @@
 import { useEffect, useRef, useState } from 'react';
-import { speechDiagnostic } from './diagnostics';
+import { configureSpeechDiagnostics, speechDiagnostic } from './diagnostics';
 import { createBrowserSpeech } from './browser-speech';
 import { appendTranscript } from './append-transcript';
 import type { TranscriptionEngine, TranscriptionState } from './types';
 
-/** Own one engine session, discard stale callbacks, and commit only final segments to the draft. */
+/**
+ * Own one engine session and commit only final segments to the draft.
+ * The factory is selected once per mount; remount to switch providers.
+ */
 export function useTranscription(
   text: string,
-  onTextChange: (text: string) => void
+  onTextChange: (text: string) => void,
+  createEngine: () => TranscriptionEngine = createBrowserSpeech
 ) {
+  const factory = useRef(createEngine);
   const [state, setState] = useState<TranscriptionState>('unsupported');
   const [speaking, setSpeaking] = useState(false);
   const activityTimer = useRef<ReturnType<typeof setTimeout> | undefined>(
@@ -23,9 +28,12 @@ export function useTranscription(
     current.current = { text, onTextChange };
   }, [text, onTextChange]);
   useEffect(() => {
-    // Browser capability is read after hydration so SSR markup stays consistent.
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    setState(createBrowserSpeech().available() ? 'idle' : 'unsupported');
+    configureSpeechDiagnostics();
+    // Capability is read after hydration so SSR markup stays consistent.
+    const probe = factory.current();
+    const supported = probe.available();
+    probe.dispose();
+    setState(supported ? 'idle' : 'unsupported');
     const visibility = () =>
       speechDiagnostic('visibility-changed', {
         visible: document.visibilityState === 'visible'
@@ -65,15 +73,15 @@ export function useTranscription(
       speechDiagnostic('editor-start-ignored');
       return;
     }
-    const next = createBrowserSpeech();
+    const next = factory.current();
     if (!next.available()) {
+      next.dispose();
       setState('unsupported');
       return;
     }
     engine.current = next;
     const session = ++generation.current;
     let first = true;
-    let accepting = true;
     const live = () => generation.current === session;
     const finish = (failed: boolean, notice: string) => {
       if (!live()) {
@@ -110,16 +118,16 @@ export function useTranscription(
         if (live()) setState('listening');
       },
       interim: (value) => {
-        if (live() && accepting) {
+        if (live()) {
           setInterim(value);
           if (value) pulse();
         }
       },
       final: (value) => {
-        if (!live() || !accepting || !value.trim()) {
+        if (!live() || !value.trim()) {
           speechDiagnostic('final-ignored', {
             session,
-            stage: !live() ? 'stale' : !accepting ? 'limit' : 'empty'
+            stage: !live() ? 'stale' : 'empty'
           });
           return;
         }
@@ -131,7 +139,6 @@ export function useTranscription(
         current.current.onTextChange(result.text);
         if (result.full) {
           speechDiagnostic('draft-limit-reached', { session });
-          accepting = false;
           finish(
             false,
             'Your share has reached the 10,000 character limit. Review or shorten your words before adding more.'

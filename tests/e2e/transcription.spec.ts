@@ -356,3 +356,47 @@ test('large microphone reacts to speech and pauses while the prompter follows wo
     'Edited fictional share.'
   );
 });
+
+test('teleprompter resizes existing text after viewport changes without clipping or losing words', async ({
+  page
+}) => {
+  await page.setViewportSize({ width: 1100, height: 900 });
+  await page.goto('/');
+  const field = page.getByRole('textbox', { name: 'Your share' });
+  const text =
+    'A fictional reflection on taking a small step and making room for acceptance. '.repeat(
+      55
+    );
+  await field.fill(text);
+  const wideHeight = await field.evaluate((e) => e.clientHeight);
+  await page.setViewportSize({ width: 320, height: 844 });
+  await expect
+    .poll(() => field.evaluate((e) => e.clientHeight))
+    .toBeGreaterThan(wideHeight);
+  expect(
+    await field.evaluate((e) => e.scrollHeight <= e.clientHeight + 2)
+  ).toBe(true);
+  await expect(field).toHaveValue(text);
+  const prompter = page.getByRole('region', { name: 'Live share transcript' });
+  await expect
+    .poll(() =>
+      prompter.evaluate(
+        (e) => e.scrollTop + e.clientHeight >= e.scrollHeight - 2
+      )
+    )
+    .toBe(true);
+  await prompter.evaluate((e) => {
+    e.scrollTop = 60;
+    e.dispatchEvent(new Event('scroll', { bubbles: true }));
+  });
+  await page.setViewportSize({ width: 375, height: 844 });
+  await expect
+    .poll(() => field.evaluate((e) => e.scrollHeight <= e.clientHeight + 2))
+    .toBe(true);
+  expect(await prompter.evaluate((e) => e.scrollTop)).toBe(60);
+  await page.setViewportSize({ width: 1100, height: 900 });
+  await expect
+    .poll(() => field.evaluate((e) => e.clientHeight))
+    .toBeLessThan(wideHeight + 2);
+  await expect(field).toHaveValue(text);
+});
