@@ -48,3 +48,17 @@ For this cloud workspace, bind `STT_OPENAI_API_KEY` securely in environment sett
 This change supplies the runtime code and instructions; it does not create AWS resources, attach IAM roles, change Amplify settings, or validate a hosted deployment. It also does not fix existing process-local share persistence across Amplify instances.
 
 Official references: [Amplify SSR compute roles](https://docs.aws.amazon.com/amplify/latest/userguide/amplify-SSR-compute-role.html), [SSR environment variables](https://docs.aws.amazon.com/amplify/latest/userguide/ssr-environment-variables.html), [OpenAI client secrets](https://developers.openai.com/api/reference/resources/realtime/subresources/client_secrets/methods/create), [live transcription](https://developers.openai.com/api/docs/guides/realtime-transcription), [pricing](https://developers.openai.com/api/docs/pricing), [data controls](https://developers.openai.com/api/docs/guides/your-data).
+
+## Diagnosing a credential endpoint 503
+
+For local development, put `STT_OPENAI_API_KEY` and `STT_ENABLED=true` in `.env.local` beside `package.json`, then restart `npm run dev`. The key's **Realtime → Request** permission covers the `/v1/realtime/client_secrets` operation used here; unrelated Responses, text-to-speech, and List models permissions are not needed by this operation. Project billing and access to the configured transcription model must also be available.
+
+A browser-side 503 is intentionally generic. Read the **server terminal** (or server logs on Amplify) for `[Doorknob transcription]`:
+
+- `disabled`: `STT_ENABLED` was not exactly `true` in the server process.
+- `missing_key`: neither a direct key nor a Secrets Manager ARN was configured.
+- `invalid_secret_arn` / `secret_unavailable`: check the configured ARN and SSR compute role.
+- `provider_request_failed`: the accompanying HTTP status and allowlisted code distinguish key rejection (401), permission denial (403), unavailable model (often 404/`model_not_found`), quota/rate limits (429), or request validation (400). The safe parameter name can identify a configuration field without revealing its value.
+- `server_or_connection_failure`: check server connectivity and session-signing configuration.
+
+Diagnostics never include raw provider messages, exceptions, request bodies, response bodies, tokens, key values, or transcripts. Unknown provider codes/parameters are printed as `unknown`. You can share the diagnostic category/status/code without sharing your key. Do not enable verbose SDK HTTP logging or paste `.env.local` contents.

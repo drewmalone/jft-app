@@ -2,6 +2,10 @@ import 'server-only';
 import OpenAI from 'openai';
 import { createRoute, z, type RouteHandler } from '@hono/zod-openapi';
 import { getSession } from './session';
+import {
+  reportTranscriptionFailure,
+  reportTranscriptionConfiguration
+} from './transcription-diagnostics';
 import { transcriptionKey } from './transcription-key';
 import { privateHeaders, commonFailures } from './openapi';
 import type { SessionEnvironment } from './middleware';
@@ -97,16 +101,23 @@ export const createTranscriptionSession: RouteHandler<
   try {
     const session = await getSession(c.req.raw);
     if (session.newSession) return c.json(unavailable, 403);
-    if (process.env.STT_ENABLED !== 'true') return c.json(unavailable, 503);
+    if (process.env.STT_ENABLED !== 'true') {
+      reportTranscriptionConfiguration('disabled');
+      return c.json(unavailable, 503);
+    }
     if (limited(session.ownerId)) {
       c.header('Retry-After', '60');
       return c.json(unavailable, 429);
     }
     const token = await issueTranscriptionCredential(c.req.raw.signal);
     const result = credentials.safeParse(token);
-    if (!result.success) return c.json(unavailable, 503);
+    if (!result.success) {
+      reportTranscriptionConfiguration('invalid_provider_response');
+      return c.json(unavailable, 503);
+    }
     return c.json(result.data, 200);
-  } catch {
+  } catch (cause) {
+    reportTranscriptionFailure(cause);
     return c.json(unavailable, 503);
   }
 };

@@ -4,6 +4,17 @@ import {
   GetSecretValueCommand
 } from '@aws-sdk/client-secrets-manager';
 
+/** Safe configuration categories for diagnostics; never includes secret values or AWS error text. */
+export class TranscriptionKeyError extends Error {
+  constructor(
+    readonly reason:
+      'missing_key' | 'invalid_secret_arn' | 'secret_unavailable',
+    message: string
+  ) {
+    super(message);
+  }
+}
+
 const CACHE_MS = 5 * 60_000;
 let cached:
   { arn: string; expires: number; value: Promise<string> } | undefined;
@@ -12,11 +23,15 @@ let cached:
 export async function transcriptionKey(): Promise<string> {
   if (process.env.STT_OPENAI_API_KEY) return process.env.STT_OPENAI_API_KEY;
   const arn = process.env.STT_OPENAI_SECRET_ARN;
-  if (!arn) throw new Error('Transcription is not configured');
+  if (!arn)
+    throw new TranscriptionKeyError(
+      'missing_key',
+      'Transcription is not configured'
+    );
   if (cached?.arn === arn && cached.expires > Date.now()) return cached.value;
   const region = arn.split(':')[3];
   if (!region || !arn.startsWith('arn:aws:secretsmanager:'))
-    throw new Error('Invalid secret ARN');
+    throw new TranscriptionKeyError('invalid_secret_arn', 'Invalid secret ARN');
   const client = new SecretsManagerClient({ region, maxAttempts: 2 });
   const value = client
     .send(new GetSecretValueCommand({ SecretId: arn }), {
@@ -33,6 +48,6 @@ export async function transcriptionKey(): Promise<string> {
     return await value;
   } catch {
     if (cached === entry) cached = undefined;
-    throw new Error('Secret unavailable');
+    throw new TranscriptionKeyError('secret_unavailable', 'Secret unavailable');
   }
 }
