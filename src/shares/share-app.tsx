@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState, type FormEvent } from 'react';
 import type { Share } from './model';
 import { readShare, saveShare } from './api';
+import { useShareCleanup } from './cleanup/use-share-cleanup';
 import { ShareForm } from './composer/share-form';
 import { ShareHistory } from './history/share-history';
 import { useShareHistory } from './history/use-share-history';
@@ -42,6 +43,7 @@ export function ShareApp() {
   const [screen, setScreen] = useState<Screen>({ view: 'today' });
   const { view } = screen;
   const [text, setText] = useState('');
+  const cleanup = useShareCleanup(text, setText);
   const { history, sessionReady, refresh: loadHistory } = useShareHistory();
   const [saveError, setSaveError] = useState('');
   const [saving, setSaving] = useState(false);
@@ -73,6 +75,7 @@ export function ShareApp() {
     navigated.current = true;
   }, [view]);
   function navigate(next: Screen) {
+    cleanup.cancel();
     detailRequest.current++;
     setDetailState({ status: 'idle' });
     setScreen(next);
@@ -106,7 +109,7 @@ export function ShareApp() {
     setSaveError('');
     try {
       const share = await saveShare(text);
-      setText('');
+      cleanup.edit('');
       navigate({ view: 'saved', share });
     } catch (cause) {
       setSaveError(
@@ -188,7 +191,8 @@ export function ShareApp() {
             disabled={saving || !sessionReady}
             saving={saving}
             error={saveError}
-            onTextChange={setText}
+            onTextChange={cleanup.edit}
+            cleanup={cleanup}
             onSave={save}
           />
         )}

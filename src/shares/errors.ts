@@ -9,7 +9,10 @@ export const apiErrorCodeSchema = z.enum([
   'PAYLOAD_TOO_LARGE',
   'SHARE_NOT_FOUND',
   'METHOD_NOT_ALLOWED',
-  'INTERNAL_ERROR'
+  'INTERNAL_ERROR',
+  'SESSION_REQUIRED',
+  'RATE_LIMITED',
+  'CLEANUP_UNAVAILABLE'
 ]);
 
 export type ApiErrorCode = z.infer<typeof apiErrorCodeSchema>;

@@ -13,7 +13,8 @@ const SPEECH_ACTIVITY_HOLD_MS = 1_400;
 export function useTranscription(
   text: string,
   onTextChange: (text: string) => void,
-  createEngine: () => TranscriptionEngine = createOpenAISpeech
+  createEngine: () => TranscriptionEngine = createOpenAISpeech,
+  onStopped?: (text: string) => void
 ) {
   const factory = useRef(createEngine);
   const [state, setState] = useState<TranscriptionState>('unsupported');
@@ -25,10 +26,11 @@ export function useTranscription(
   const [message, setMessage] = useState('');
   const engine = useRef<TranscriptionEngine | null>(null);
   const generation = useRef(0);
-  const current = useRef({ text, onTextChange });
+  const stopped = useRef(false);
+  const current = useRef({ text, onTextChange, onStopped });
   useEffect(() => {
-    current.current = { text, onTextChange };
-  }, [text, onTextChange]);
+    current.current = { text, onTextChange, onStopped };
+  }, [text, onTextChange, onStopped]);
   useEffect(() => {
     configureSpeechDiagnostics();
     // Capability is read after hydration so SSR markup stays consistent.
@@ -66,6 +68,7 @@ export function useTranscription(
   function stop() {
     speechDiagnostic('editor-stop');
     if (!engine.current) return;
+    stopped.current = true;
     setState('stopping');
     engine.current.stop();
   }
@@ -83,6 +86,8 @@ export function useTranscription(
     }
     engine.current = next;
     const session = ++generation.current;
+    stopped.current = false;
+    let finalized = false;
     let first = true;
     const live = () => generation.current === session;
     const finish = (failed: boolean, notice: string) => {
@@ -137,6 +142,7 @@ export function useTranscription(
             });
             return;
           }
+          finalized = true;
           pulse();
           speechDiagnostic('final-committed', { session });
           const result = appendTranscript(current.current.text, value, first);
@@ -152,7 +158,13 @@ export function useTranscription(
           }
         },
         error: (notice) => finish(true, notice),
-        ended: () => finish(false, 'Tap to record more.')
+        ended: () => {
+          if (!live()) return;
+          const clean = stopped.current && finalized;
+          const finalizedText = current.current.text;
+          finish(false, 'Tap to record more.');
+          if (clean) current.current.onStopped?.(finalizedText);
+        }
       });
     } catch {
       finish(true, 'Speech recognition could not start. Please try again.');

@@ -245,3 +245,50 @@ test('synchronous engine startup failure preserves the draft and releases the se
   assert.equal(engines.at(-1)!.disposed, true);
   assert.ok(!hook.result.current.message.includes('private'));
 });
+
+test('automatic cleanup is notified only after an explicit stop successfully finalizes new words', () => {
+  const engines: FakeEngine[] = [],
+    completed: string[] = [];
+  const factory = () => {
+    const engine = new FakeEngine();
+    engines.push(engine);
+    return engine;
+  };
+  const hook = renderHook(() => {
+    const [text, setText] = useState('Typed.');
+    return {
+      text,
+      ...useTranscription(text, setText, factory, (value) =>
+        completed.push(value)
+      )
+    };
+  });
+  act(() => hook.result.current.start());
+  act(() => engines.at(-1)!.events!.final('First final.'));
+  act(() => hook.result.current.stop());
+  assert.deepEqual(completed, []);
+  act(() => {
+    engines.at(-1)!.events!.final('Trailing final.');
+    engines.at(-1)!.events!.ended();
+  });
+  assert.deepEqual(completed, ['Typed.\n\nFirst final. Trailing final.']);
+  act(() => {
+    hook.result.current.start();
+    engines.at(-1)!.events!.final('Automatic ending.');
+    engines.at(-1)!.events!.ended();
+  });
+  assert.equal(completed.length, 1);
+  act(() => {
+    hook.result.current.start();
+    hook.result.current.stop();
+    engines.at(-1)!.events!.ended();
+  });
+  assert.equal(completed.length, 1);
+  act(() => {
+    hook.result.current.start();
+    engines.at(-1)!.events!.final('Retained.');
+    hook.result.current.stop();
+    engines.at(-1)!.events!.error('Failure.');
+  });
+  assert.equal(completed.length, 1);
+});

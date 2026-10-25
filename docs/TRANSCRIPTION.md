@@ -75,3 +75,9 @@ Open the app with `?speechDebug=1`, enable **Info** messages in the browser deve
 - `audio-turn-commit` reports a silence/stop commit. `provider-error` reports only allowlisted codes. A failed handshake, non-increasing audio totals, no provider transcript events, and missing finalization are distinct observations; do not infer the cause from the absence of the old server error alone.
 
 Visit `?speechDebug=0` afterward to disable diagnostics. Outbound packet sampling stops when the session is disposed and does not run when diagnostics are disabled.
+
+## Automatic draft cleanup after Stop
+
+The same server-only key now also calls `/v1/responses` for `gpt-5.4-mini` paragraph/filler cleanup after successful explicit Stop. An unrestricted key covers endpoint permissions; restricted keys need Responses Request as well as Realtime Request. No additional AWS secret or deployment service is required. `STT_ENABLED=true` enables both operations. Cleanup has its own bounded process-local burst guard and uses `store:false`, structured output, reasoning off, and no tools. A model-access/provider failure leaves the original editable and saveable. Safe failures appear as `[Doorknob cleanup]` with the same redaction policy.
+
+The full unsaved finalized draft is sent through the BFF before explicit saving, including typed text already in that draft. Undo/review remain important because AI may alter meaning despite instructions. See README for expected additional text-model cost and review behavior. Test with fictional spoken filler text, multiple topics, intentional repetition and negations; verify names/numbers and meaning against the original, exercise Undo and failure, then save and inspect paragraph layout in owner and recipient views. Automated tests mock all provider calls and do not validate live editing quality.

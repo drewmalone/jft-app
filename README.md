@@ -167,17 +167,27 @@ a compatible fix for this project. Revisit when the upstream tooling is patched.
 
 ## Speak your share
 
-Tap **Record your share**, allow microphone access, and speak. Audio streams to OpenAI; provisional words appear in the existing teleprompter, then corrected, punctuated final segments enter the editable draft. Tap **Stop listening**, wait for finalization, review/edit inline, and explicitly **Save privately**. Recording again appends a paragraph. Refresh starts a fresh draft. There is no browser SpeechRecognition fallback or second transcription source.
+Tap **Record your share**, allow microphone access, and speak. Audio streams to OpenAI; provisional words appear in the existing teleprompter, then corrected, punctuated final segments enter the editable draft. Tap **Stop listening**, wait for finalization and automatic cleanup, review/edit inline, and explicitly **Save privately**. Cleanup adds natural paragraphs and removes obvious hesitation fillers. **Undo cleanup** restores the original words. Recording again appends a paragraph. Refresh starts a fresh draft. There is no browser SpeechRecognition fallback or second transcription source.
 
 Transcription needs HTTPS (localhost works for development), microphone permission, WebRTC, and Web Audio. Permission denial, connection loss, provider failure, leaving the recording screen, hiding the page, and unmount stop capture and release tracks/connections. Finalized words remain; provisional words are discarded on failure. Stop releases the microphone immediately and allows up to five seconds for final results. A timeout shows a notice rather than silently claiming complete transcription. Sessions stop after ten minutes; tap again to append more. At 10,000 Unicode code points, the draft is clipped to the limit and recording is canceled. Typing and saving work without provider access.
 
 The microphone accents reflect local sound activity and incoming transcript results, not a clinical or reliable speech detector. Silence detection commits turns after approximately 800 ms; punctuation/finalization can lag provisional text and can change it. Noise can delay boundaries. Real-world accuracy and latency need device testing.
 
+### Automatic paragraphs and filler cleanup
+
+After Stop receives the final words, **Tidying your words…** indicates a text-only cleanup request. It asks OpenAI to add short natural paragraphs and remove obvious “um”/“uh” fillers and accidental stutters, while preserving meaningful repetition, names, numbers, uncertainty, negations, and your voice. It must not summarize or add advice or facts. AI can still change meaning: review the result before saving.
+
+The original remains available through **Undo cleanup** until subsequent edits/recording change the draft or a successful save clears it. Undo survives in-app navigation; refresh discards both versions. While cleanup runs, recording/saving wait, but typing cancels the pending result and keeps your edits. Navigation cancels pending cleanup. Failure, timeout, refusal or invalid output keeps the original and offers **Retry cleanup**. Cleanup never runs on provisional text, microphone cancellation, recording errors, automatic session endings or ordinary typing. It never saves automatically. Owner and recipient detail pages render blank-line-separated text as separate readable paragraphs.
+
+Cleanup uses the same server key and `STT_ENABLED` setting. Restricted keys additionally need **Responses → Request** and access to `gpt-5.4-mini`; an unrestricted key already supplies endpoint permission. The Responses request uses `store:false` and no tools. This does not disable OpenAI's standard abuse-monitoring retention. Builds and tests need no key and make no live cleanup requests.
+
+Published cleanup pricing is $0.75 per million input tokens and $4.50 per million output tokens: approximately **$0.013 for 2,500 input plus 2,500 output tokens**, plus the short instruction text. Shorter drafts cost less. This is additional to audio transcription; each successful explicit Stop with new finalized words requests cleanup of the whole current draft. Source: [GPT-5.4 Mini](https://developers.openai.com/api/docs/models/gpt-5.4-mini), checked October 25, 2026.
+
 ### Local configuration
 
 Dependencies are installed with `npm ci` under Node 24. Tests need no credentials. For real recording, securely set these server-only variables in environment settings or an ignored `.env.local`:
 
-- `STT_ENABLED=true` explicitly enables paid credential issuance; unset/false keeps it disabled.
+- `STT_ENABLED=true` explicitly enables paid transcription and text cleanup; unset/false keeps it disabled.
 - `STT_OPENAI_API_KEY` is an OpenAI project API key with Realtime/transcription access. Never use a `NEXT_PUBLIC_` prefix, commit the key, print it, or paste it into chat.
 - Production still requires the existing `SESSION_SECRET` (at least 32 random bytes).
 
@@ -187,7 +197,7 @@ See [Amplify setup](docs/TRANSCRIPTION.md#aws-amplify-hosted-preview) for server
 
 ### Processing, retention, and cost
 
-The app captures microphone audio in memory and transmits it directly to OpenAI while explicitly recording. It does not write audio files, retain raw audio, play audio, or send audio through the share-save endpoint. OpenAI processes audio remotely; this is not local or offline recognition. Unsaved transcription text lives only in React memory. Only an explicit save sends finalized text to the BFF. The existing in-memory share storage limitations still apply.
+The app captures microphone audio in memory and transmits it directly to OpenAI while explicitly recording. It does not write audio files, retain raw audio, play audio, or send audio through the share-save endpoint. OpenAI processes audio remotely; this is not local or offline recognition. Unsaved transcription text is held in React memory. After an explicit Stop successfully finalizes new words, the full finalized draft is sent through the BFF to OpenAI for cleanup; it is not written to the share repository. Only an explicit save creates a share. The existing in-memory share storage limitations still apply.
 
 OpenAI's API data is not used to train models by default unless the organization opts in. Standard abuse-monitoring logs may contain customer content and are retained for up to 30 days, subject to documented exceptions. The Realtime endpoint documents no application-state retention. Zero Data Retention/Modified Abuse Monitoring require eligibility and approval; this app does not establish those controls or promise zero provider retention.
 
@@ -201,7 +211,7 @@ Use fictional text on a trusted HTTPS Amplify preview, with a configured provide
 
 1. Confirm no microphone prompt or provider session request occurs before tapping Record. Type a sentence, tap Record, allow access, and dictate. Confirm provisional words change and final punctuation appears without duplicate text. Confirm the accents respond and the timer advances.
 2. Stop mid-sentence. Check the OS microphone indicator turns off immediately, final words arrive or a clear timeout notice appears, and saving stays blocked until finalization ends. Edit inline, resume recording, and verify a new paragraph. Repeat three times.
-3. Save explicitly; check history, private detail, and the sharing link in a second browser session. Refresh an unsaved draft and confirm it starts empty with a reset timer.
+3. After Stop, review automatic paragraph/filler cleanup; test Undo, editing during cleanup, and a failed cleanup. Then save explicitly; check paragraph layout in history/private detail and the sharing link in a second browser session. Refresh an unsaved draft and confirm it starts empty with a reset timer.
 4. Test permission denial, missing microphone, permission recovery, silence, long continuous speech, backgrounding, screen lock, a call interruption, network loss, and provider refusal. Confirm capture/connections end, final text remains, and recording never restarts automatically. Disable transcription configuration and confirm typing/saving still work.
 5. Navigate to Past shares and away from the app during recording. Confirm the OS microphone indicator clears. Test near 10,000 Unicode code points and verify accepted final text remains within the limit, the microphone stops, and no provisional text is saved.
 6. Test the prompter with large text settings, viewport/font changes, scrollback, reduced motion, keyboard focus, VoiceOver/TalkBack, and narrow screens. Compare punctuation and latency in quiet/noisy environments. Try a ten-minute session boundary.

@@ -22,7 +22,7 @@ Use these terms consistently across `jft-app` and `jft-harness`. App-specific se
 
 ## App data lifecycle
 
-1. Writing updates React state only. Legacy browser-stored drafts are removed on page load. The app sends the draft to the same-origin BFF when the person chooses **Save privately**.
+1. Writing updates React state only. Legacy browser-stored drafts are removed on page load. After successful explicit recording Stop, the finalized draft is sent through the same-origin BFF to OpenAI for paragraph/filler cleanup without storing a share. **Save privately** separately sends the reviewed text to the BFF for storage.
 2. The server validates the input and signed session, attaches metadata/current reading, and stores an owner-associated record in process memory. A lost response can make the client uncertain whether a write occurred; see [failed-write semantics](API.md#retention-and-failed-write-semantics).
 3. The server returns a share without an `ownerId` field. History/detail requests send the cookie, check ownership, and return that owner's records to browser memory for display. Saving does not send the share to another person. Save-time UUID links allow anyone holding one to fetch only that reading snapshot and text; no harness or model provider is involved.
 4. Access loss and deletion are different events:
@@ -54,3 +54,7 @@ There is no per-share delete endpoint, backup, disk storage, encryption at rest,
 - **Final transcript**: the authoritative completed audio segment, appended once to React draft state in audio order. It becomes a share only through explicit saving. Finalized draft text survives recording errors and in-app navigation; refresh discards unsaved words.
 - **Provider retention**: separate from Doorknob storage. OpenAI API content is not used for training by default unless opted in. Standard abuse-monitoring logs may retain customer content for up to 30 days, subject to documented exceptions; Realtime documents no application-state retention. Approved account-level retention controls are not enabled or guaranteed by this app. See [OpenAI data controls](https://developers.openai.com/api/docs/guides/your-data).
 - **Ephemeral credential**: an in-memory browser bearer credential obtained from the BFF after Record. Its 60-second connection-creation expiry does not stop existing sessions or prevent reuse before expiry. Never log/cache it or treat its initial configuration as a strict spending boundary.
+
+## Cleanup data
+
+After explicit Stop successfully finalizes new words, the whole finalized draft is sent through the BFF to OpenAI Responses for light copyediting. The original and cleaned versions are held in React memory only; Undo is retained until another edit/recording changes the draft or a successful save clears it. Pending cleanup is canceled by editing/navigation/unmount and cannot overwrite newer words. Refresh discards both versions. No provisional text, raw audio or saved share is sent by cleanup, and no repository write occurs. Only explicit Save stores the reviewed draft. Responses uses `store:false` rather than requesting a stored Response; standard provider abuse-monitoring retention still applies. AI may change meaning, so review before saving.

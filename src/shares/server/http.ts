@@ -5,6 +5,19 @@ import type { ApiErrorCode } from '../errors';
 export const MAX_SHARE_REQUEST_BYTES = 64 * 1024;
 
 export const apiFailures = {
+  SESSION_REQUIRED: {
+    status: 403,
+    message: 'Prepare your private session before tidying your text.'
+  },
+  RATE_LIMITED: {
+    status: 429,
+    message: 'Please wait a minute before trying cleanup again.'
+  },
+  CLEANUP_UNAVAILABLE: {
+    status: 503,
+    message:
+      'Your text could not be tidied. Your original words are still here.'
+  },
   INVALID_JSON: { status: 400, message: 'Invalid JSON body.' },
   INVALID_SHARE: {
     status: 400,

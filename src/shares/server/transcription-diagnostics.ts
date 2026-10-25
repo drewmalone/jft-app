@@ -24,11 +24,16 @@ const publicParams = new Set([
 ]);
 
 /** Report only app-authored categories, HTTP status and allowlisted protocol enums. Never log the exception itself. */
-export function reportTranscriptionFailure(cause: unknown) {
+export function reportTranscriptionFailure(
+  cause: unknown,
+  operation: 'transcription' | 'cleanup' = 'transcription'
+) {
+  const label =
+    operation === 'cleanup' ? '[Doorknob cleanup]' : '[Doorknob transcription]';
   if (cause instanceof TranscriptionKeyError) {
-    console.warn('[Doorknob transcription]', { reason: cause.reason });
+    console.warn(label, { reason: cause.reason });
   } else if (cause instanceof OpenAI.APIError) {
-    console.warn('[Doorknob transcription]', {
+    console.warn(label, {
       reason: 'provider_request_failed',
       status: cause.status,
       code:
@@ -41,7 +46,7 @@ export function reportTranscriptionFailure(cause: unknown) {
           : 'unknown'
     });
   } else {
-    console.warn('[Doorknob transcription]', {
+    console.warn(label, {
       reason: 'server_or_connection_failure'
     });
   }

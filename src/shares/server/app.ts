@@ -19,6 +19,9 @@ import {
   createTranscriptionSession
 } from './transcription-session';
 
+import { cleanShareRoute, cleanShare } from './operations/clean-share';
+import { optionsRoute } from './openapi';
+
 const specificationAllow = 'GET, HEAD, OPTIONS';
 
 const app = new OpenAPIHono<SessionEnvironment>({
@@ -30,7 +33,7 @@ const app = new OpenAPIHono<SessionEnvironment>({
 app.onError(handleApiError);
 app.openapi(listSharesRoute, listShares);
 app.openapi(createShareRoute, createShare);
-app.openapi(readShareRoute, readShare);
+
 app.openapi(readPublicShareRoute, getPublicShare, publicShareValidation);
 app.openapi(transcriptionSessionRoute, createTranscriptionSession);
 app.options('/transcription/session', (c) =>
@@ -39,6 +42,15 @@ app.options('/transcription/session', (c) =>
 app.all('/transcription/session', () =>
   error('METHOD_NOT_ALLOWED', { Allow: 'POST, OPTIONS' })
 );
+app.openapi(cleanShareRoute, cleanShare);
+app.openapi(
+  optionsRoute('/shares/cleanup', 'POST, OPTIONS', 'cleanupOptions'),
+  (c) => c.body(null, 204, { Allow: 'POST, OPTIONS' })
+);
+app.all('/shares/cleanup', () =>
+  error('METHOD_NOT_ALLOWED', { Allow: 'POST, OPTIONS' })
+);
+app.openapi(readShareRoute, readShare);
 registerResourceMethods(app);
 app.openAPIRegistry.registerComponent('securitySchemes', 'AnonymousSession', {
   type: 'apiKey',
