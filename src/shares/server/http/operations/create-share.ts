@@ -1,7 +1,7 @@
 import 'server-only';
 import { createRoute, type RouteHandler } from '@hono/zod-openapi';
-import { shareSchema } from '../../model';
-import { shareRepository } from '../repository';
+import { shareSchema } from '../../../model';
+import { shareRepository } from '../../storage/repository';
 import type { SessionEnvironment } from '../middleware';
 import {
   share,
@@ -10,8 +10,8 @@ import {
   commonFailures,
   failed
 } from '../openapi';
-import { createShareSchema, MAX_SHARE_TEXT_LENGTH } from '../../model';
-import { MAX_SHARE_REQUEST_BYTES } from '../http';
+import { createShareSchema, MAX_SHARE_TEXT_LENGTH } from '../../../model';
+import { MAX_SHARE_REQUEST_BYTES } from '../errors';
 import { anonymousSession, sameOrigin, jsonBody } from '../middleware';
 
 export const createShareRoute = createRoute({

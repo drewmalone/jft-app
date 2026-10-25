@@ -1,14 +1,14 @@
 import 'server-only';
-import { burstLimited } from './burst-limit';
+import { burstLimited } from '../../auth/burst-limit';
 import { createRoute, z, type RouteHandler } from '@hono/zod-openapi';
-import { getSession } from './session';
+import { getSession } from '../../auth/session';
 import {
   reportTranscriptionFailure,
   reportTranscriptionConfiguration,
   issueTranscriptionCredential
-} from './transcription-provider';
-import { privateHeaders, commonFailures } from './openapi';
-import type { SessionEnvironment } from './middleware';
+} from '../../transcription-provider';
+import { privateHeaders, commonFailures } from '../openapi';
+import type { SessionEnvironment } from '../middleware';
 
 const credentials = z.object({ value: z.string(), expires_at: z.number() });
 const unavailable = {

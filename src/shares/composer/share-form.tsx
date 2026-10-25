@@ -1,21 +1,15 @@
-import { useId, type FormEvent } from 'react';
+import { useId } from 'react';
 import { LiveTranscript } from './live-transcript';
 import { RecordingControls } from './recording/recording-controls';
 import { RecordingStatus } from './recording/recording-status';
 import { ListeningClock } from './recording/listening-clock';
 import { SaveShareButton } from './save-share-button';
-import type { ShareCleanup } from '../cleanup/use-share-cleanup';
-import { useTranscription } from '../transcription/use-transcription';
+import {
+  useShareComposer,
+  type ShareComposerOptions
+} from './use-share-composer';
 
-type ShareFormProps = {
-  text: string;
-  cleanup: ShareCleanup;
-  disabled: boolean;
-  saving: boolean;
-  error: string;
-  onTextChange: (text: string) => void;
-  onSave: (event: FormEvent<HTMLFormElement>) => void;
-};
+type ShareFormProps = ShareComposerOptions & { error: string };
 
 /** The parent owns the draft and clears it only after a confirmed save. */
 export function ShareForm({
@@ -27,24 +21,19 @@ export function ShareForm({
   onTextChange,
   onSave
 }: ShareFormProps) {
-  const voice = useTranscription(text, onTextChange, {
-    onStopped: (value) => {
-      void cleanup.run(value);
-    }
+  const composer = useShareComposer({
+    text,
+    cleanup,
+    disabled,
+    saving,
+    onTextChange,
+    onSave
   });
+  const { voice } = composer;
   const fieldId = useId();
   const errorId = `${fieldId}-error`;
   return (
-    <form
-      onSubmit={(event) => {
-        if (voice.active || cleanup.isPending()) {
-          event.preventDefault();
-          return;
-        }
-        onSave(event);
-      }}
-      className="mt-5"
-    >
+    <form onSubmit={composer.submit} className="mt-5">
       <div
         className="voice-studio"
         data-paused={!voice.active && Boolean(voice.message)}
@@ -54,13 +43,8 @@ export function ShareForm({
         <RecordingControls
           state={voice.state}
           active={voice.active}
-          disabled={disabled || cleanup.pending}
-          onToggle={() => {
-            if (!disabled && !cleanup.isPending()) {
-              if (voice.active) voice.stop();
-              else voice.start();
-            }
-          }}
+          disabled={composer.recordingDisabled}
+          onToggle={composer.toggleRecording}
         />
         <ListeningClock listening={voice.state === 'listening'} />
         {!cleanup.pending && (
@@ -95,10 +79,8 @@ export function ShareForm({
             <button
               type="button"
               className="secondary mt-2 w-full"
-              disabled={voice.active || saving}
-              onClick={() => {
-                void cleanup.run(text);
-              }}
+              disabled={composer.retryDisabled}
+              onClick={composer.retryCleanup}
             >
               Retry cleanup
             </button>
@@ -114,10 +96,7 @@ export function ShareForm({
           {error}
         </p>
       )}
-      <SaveShareButton
-        saving={saving}
-        disabled={disabled || voice.active || cleanup.pending || !text.trim()}
-      />
+      <SaveShareButton saving={saving} disabled={composer.saveDisabled} />
     </form>
   );
 }

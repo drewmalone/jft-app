@@ -1,13 +1,12 @@
+import { OpenAIRealtimeWebRTC } from 'openai/realtime/webrtc';
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import {
-  createOpenAISpeech,
-  type SpeechDependencies
-} from '../../../src/shares/transcription/providers/openai/engine';
+import { createOpenAISpeech } from '../../../src/shares/transcription/providers/openai/engine';
+import type { SpeechDependencies } from '../../../src/shares/transcription/providers/openai/browser';
 import type { TranscriptionEvents } from '../../../src/shares/transcription/types';
 
 const settle = async () => {
-  for (let i = 0; i < 15; i++) await Promise.resolve();
+  for (let i = 0; i < 40; i++) await Promise.resolve();
 };
 function setup(overrides: Partial<SpeechDependencies> = {}) {
   const finals: string[] = [],
@@ -28,7 +27,13 @@ function setup(overrides: Partial<SpeechDependencies> = {}) {
   };
   const stream = { getTracks: () => [track] } as unknown as MediaStream;
   const channel = {
-    readyState: 'open',
+    readyState: 'connecting',
+    addEventListener(type: string, listener: unknown) {
+      Reflect.set(this, `on${type}`, listener);
+    },
+    removeEventListener(type: string) {
+      Reflect.set(this, `on${type}`, null);
+    },
     onopen: null,
     onmessage: null,
     onclose: null,
@@ -39,6 +44,13 @@ function setup(overrides: Partial<SpeechDependencies> = {}) {
     }
   } as unknown as RTCDataChannel;
   const peer = {
+    addEventListener(type: string, listener: unknown) {
+      Reflect.set(this, `on${type}`, listener);
+    },
+    removeEventListener(type: string) {
+      Reflect.set(this, `on${type}`, null);
+    },
+    localDescription: { type: 'offer', sdp: 'fictional-offer' },
     addTrack() {},
     createDataChannel: () => channel,
     createOffer: async () => ({ type: 'offer', sdp: 'fictional-offer' }),
@@ -46,6 +58,7 @@ function setup(overrides: Partial<SpeechDependencies> = {}) {
     setRemoteDescription: async () => {},
     close: () => {
       closed++;
+      channel.close();
     },
     connectionState: 'connected',
     onconnectionstatechange: null
@@ -55,7 +68,27 @@ function setup(overrides: Partial<SpeechDependencies> = {}) {
   const deps: SpeechDependencies = {
     available: () => true,
     microphone: async () => stream,
-    peer: () => peer,
+    connection: () => {
+      const original = Object.getOwnPropertyDescriptor(
+        globalThis,
+        'RTCPeerConnection'
+      );
+      Object.defineProperty(globalThis, 'RTCPeerConnection', {
+        configurable: true,
+        value: class {
+          constructor() {
+            return peer;
+          }
+        }
+      });
+      try {
+        return new OpenAIRealtimeWebRTC();
+      } finally {
+        if (original)
+          Object.defineProperty(globalThis, 'RTCPeerConnection', original);
+        else Reflect.deleteProperty(globalThis, 'RTCPeerConnection');
+      }
+    },
     fetch: async (url, init) => {
       calls.push({ url: String(url), init });
       return String(url).startsWith('/')
@@ -89,7 +122,9 @@ function setup(overrides: Partial<SpeechDependencies> = {}) {
   const open = async () => {
     engine.start(events);
     await settle();
+    Object.assign(channel, { readyState: 'open' });
     channel.onopen?.(new Event('open'));
+    await settle();
   };
   const committed = (id: string, previous: string | null = null) =>
     message({
@@ -292,7 +327,7 @@ test('connection loss, malformed events, startup timeout and track interruptions
   t.mock.timers.enable({ apis: ['setTimeout'] });
   const s = setup();
   await s.open();
-  Object.assign(s.peer, { connectionState: 'disconnected' });
+  Object.assign(s.peer, { connectionState: 'failed' });
   s.peer.onconnectionstatechange?.(new Event('connectionstatechange'));
   assert.equal(s.errors.length, 1);
   assert.equal(s.counts().stopped, 1);
@@ -374,7 +409,9 @@ test('credential acquisition starts while microphone permission is pending, with
   grant(s.stream);
   await settle();
   assert.equal(s.calls.length, 2);
+  Object.assign(s.channel, { readyState: 'open' });
   s.channel.onopen?.(new Event('open'));
+  await settle();
   assert.equal(s.counts().listening, 1);
   s.engine.dispose();
 });
@@ -429,7 +466,7 @@ test('an early credential rejection is handled while permission is pending and c
 test('cancellation from the connecting callback stops capture before allocating a peer', async () => {
   let peers = 0;
   const s = setup({
-    peer: () => {
+    connection: () => {
       peers++;
       throw new Error('Must not allocate after cancellation');
     }
@@ -454,5 +491,71 @@ test('disposing an unused engine is terminal and never requests a microphone', a
   s.engine.start(s.events);
   await settle();
   assert.equal(requests, 0);
+  assert.deepEqual(s.errors, []);
+});
+
+test('SDK readiness requires the SDP answer, connected peer and open channel', async () => {
+  let answer!: (response: Response) => void;
+  const s = setup({
+    fetch: async (url) =>
+      String(url).startsWith('/')
+        ? Response.json({ value: 'ephemeral-fiction' })
+        : new Promise<Response>((resolve) => {
+            answer = resolve;
+          })
+  });
+  s.engine.start(s.events);
+  await settle();
+  Object.assign(s.channel, { readyState: 'open' });
+  s.channel.onopen?.(new Event('open'));
+  await settle();
+  assert.equal(s.counts().listening, 0);
+  Object.assign(s.peer, { connectionState: 'connecting' });
+  answer(new Response('fictional-answer'));
+  await settle();
+  assert.equal(s.counts().listening, 0);
+  Object.assign(s.peer, { connectionState: 'connected' });
+  s.peer.onconnectionstatechange?.(new Event('connectionstatechange'));
+  await settle();
+  assert.equal(s.counts().listening, 1);
+  s.engine.dispose();
+});
+
+test('SDK parsing errors, oversized events and remote channel closure terminate without exposing payloads', async () => {
+  for (const failure of ['malformed', 'oversized', 'closed']) {
+    const s = setup();
+    await s.open();
+    if (failure === 'malformed')
+      s.channel.onmessage?.({ data: '{private words' } as MessageEvent);
+    else if (failure === 'oversized')
+      s.message({ type: 'unknown', payload: 'x'.repeat(65_537) });
+    else s.channel.onclose?.(new Event('close'));
+    assert.equal(s.errors.length, 1);
+    assert.ok(!s.errors[0].includes('private'));
+    assert.equal(s.counts().stopped, 1);
+    assert.equal(s.channel.onmessage, null);
+    assert.equal(s.peer.onconnectionstatechange, null);
+  }
+});
+
+test('cancel during SDK signaling stops capture and ignores a late SDP answer', async () => {
+  let answer!: (response: Response) => void;
+  const s = setup({
+    fetch: async (url) =>
+      String(url).startsWith('/')
+        ? Response.json({ value: 'ephemeral-fiction' })
+        : new Promise<Response>((resolve) => {
+            answer = resolve;
+          })
+  });
+  s.engine.start(s.events);
+  await settle();
+  s.engine.stop();
+  answer(new Response('fictional-answer'));
+  await settle();
+  assert.equal(s.counts().stopped, 1);
+  assert.equal(s.counts().ended, 1);
+  assert.equal(s.counts().listening, 0);
+  assert.equal(s.calls.length, 0); // Injected signaling above does not use the default request recorder.
   assert.deepEqual(s.errors, []);
 });

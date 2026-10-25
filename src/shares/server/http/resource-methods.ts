@@ -1,7 +1,7 @@
 import 'server-only';
 import { createRoute, type OpenAPIHono } from '@hono/zod-openapi';
 import type { SessionEnvironment } from './middleware';
-import { error } from './http';
+import { error } from './errors';
 import { headRoute, optionsRoute } from './openapi';
 import { listSharesRoute } from './operations/list-shares';
 import { readShareRoute } from './operations/read-share';

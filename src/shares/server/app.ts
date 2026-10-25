@@ -1,26 +1,26 @@
 import 'server-only';
 import { OpenAPIHono } from '@hono/zod-openapi';
-import type { SessionEnvironment } from './middleware';
-import { error, handleApiError } from './http';
-import { createShareRoute, createShare } from './operations/create-share';
-import { listSharesRoute, listShares } from './operations/list-shares';
-import { readShareRoute, readShare } from './operations/read-share';
-import { registerResourceMethods } from './resource-methods';
-import { openApiConfiguration } from './openapi';
+import type { SessionEnvironment } from './http/middleware';
+import { error, handleApiError } from './http/errors';
+import { createShareRoute, createShare } from './http/operations/create-share';
+import { listSharesRoute, listShares } from './http/operations/list-shares';
+import { readShareRoute, readShare } from './http/operations/read-share';
+import { registerResourceMethods } from './http/resource-methods';
+import { openApiConfiguration } from './http/openapi';
 
 import {
   readPublicShareRoute,
   getPublicShare,
   publicShareValidation
-} from './operations/read-public-share';
+} from './http/operations/read-public-share';
 
 import {
   transcriptionSessionRoute,
   createTranscriptionSession
-} from './transcription-session';
+} from './http/operations/transcription-session';
 
-import { cleanShareRoute, cleanShare } from './operations/clean-share';
-import { optionsRoute } from './openapi';
+import { cleanShareRoute, cleanShare } from './http/operations/clean-share';
+import { optionsRoute } from './http/openapi';
 
 const specificationAllow = 'GET, HEAD, OPTIONS';
 

@@ -1,7 +1,7 @@
 import 'server-only';
 import { createRoute, type RouteHandler, z } from '@hono/zod-openapi';
-import { shareSchema } from '../../model';
-import { shareRepository } from '../repository';
+import { shareSchema } from '../../../model';
+import { shareRepository } from '../../storage/repository';
 import type { SessionEnvironment } from '../middleware';
 import {
   share,
@@ -10,7 +10,7 @@ import {
   commonFailures,
   failed
 } from '../openapi';
-import { errorBody } from '../http';
+import { errorBody } from '../errors';
 import { anonymousSession } from '../middleware';
 
 const idParams = z.object({

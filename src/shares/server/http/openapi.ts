@@ -1,9 +1,9 @@
 import 'server-only';
 import { createRoute, type RouteConfig, z } from '@hono/zod-openapi';
 import type { HeadersObject } from 'openapi3-ts/oas31';
-import type { ApiErrorCode } from '../errors';
-import { shareSchema } from '../model';
-import { apiFailures } from './http';
+import type { ApiErrorCode } from '../../errors';
+import { shareSchema } from '../../model';
+import { apiFailures } from './errors';
 
 export const share = shareSchema.openapi('Share', {
   additionalProperties: false

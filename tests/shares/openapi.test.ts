@@ -6,11 +6,11 @@ import Ajv2020, { type AnySchema } from 'ajv/dist/2020';
 import addFormats from 'ajv-formats';
 import { dispatch, getOpenApiDocument } from '../../src/shares/server/app';
 import { MAX_SHARE_TEXT_LENGTH } from '../../src/shares/model';
-import { MAX_SHARE_REQUEST_BYTES } from '../../src/shares/server/http';
+import { MAX_SHARE_REQUEST_BYTES } from '../../src/shares/server/http/errors';
 import {
   collectionAllow,
   detailAllow
-} from '../../src/shares/server/resource-methods';
+} from '../../src/shares/server/http/resource-methods';
 
 function request(
   method = 'GET',

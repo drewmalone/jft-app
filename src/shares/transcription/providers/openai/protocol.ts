@@ -13,10 +13,10 @@ export function createOpenAIProtocol(events: TranscriptionEvents) {
       requested++;
     },
     pending: () => requested > 0 || results.pending(),
-    accept(data: unknown) {
-      if (typeof data !== 'string' || data.length > 65_536)
-        throw new Error('Invalid event');
-      const event = JSON.parse(data) as Record<string, unknown>;
+    accept(value: object) {
+      const event = value as Record<string, unknown>;
+      if (JSON.stringify(event).length > 65_536)
+        throw new Error('Oversized event');
       if (!event || typeof event.type !== 'string')
         throw new Error('Invalid event');
       if (typeof event.event_id === 'string') {

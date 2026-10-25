@@ -5,10 +5,10 @@ import {
   type RouteHook,
   z
 } from '@hono/zod-openapi';
-import { publicShareSchema } from '../../model';
-import { readPublicShare } from '../public-shares';
+import { publicShareSchema } from '../../../model';
+import { readPublicShare } from '../../application/read-public-share';
 import { failed, privateHeaders } from '../openapi';
-import { errorBody } from '../http';
+import { errorBody } from '../errors';
 import type { SessionEnvironment } from '../middleware';
 
 export const publicHeaders = {

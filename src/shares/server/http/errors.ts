@@ -1,5 +1,5 @@
 import 'server-only';
-import type { ApiErrorCode } from '../errors';
+import type { ApiErrorCode } from '../../errors';
 
 /** Raw JSON request limit, including whitespace and escaping; enforced on actual streamed bytes. */
 export const MAX_SHARE_REQUEST_BYTES = 64 * 1024;

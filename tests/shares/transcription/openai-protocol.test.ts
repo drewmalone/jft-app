@@ -11,7 +11,8 @@ test('duplicate item acknowledgements cannot settle a second outstanding audio c
     error() {},
     ended() {}
   });
-  const accept = (event: object) => protocol.accept(JSON.stringify(event));
+  const accept = (event: object) =>
+    protocol.accept(event as Record<string, unknown>);
   protocol.commitRequested();
   protocol.commitRequested();
   accept({

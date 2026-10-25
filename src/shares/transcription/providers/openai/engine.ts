@@ -1,114 +1,254 @@
+import { OpenAIRealtimeWebRTC, WebRTCError } from 'openai/realtime/webrtc';
 import type { TranscriptionEngine, TranscriptionEvents } from '../../types';
 import { createOpenAIProtocol } from './protocol';
 import {
-  connectOpenAI,
+  exchangeOpenAISdp,
   requestOpenAICredential,
   TranscriptionUnavailable
 } from './connection';
-import { watchMicrophone } from '../../microphone-activity';
+import { sessionConfig } from './config';
+import { browser, type SpeechDependencies } from './browser';
 import {
-  requestMicrophone,
   microphoneErrorCode,
   microphoneErrorMessage
 } from '../../microphone-permission';
 import { watchWebRTCStats } from '../../webrtc-diagnostics';
 import { speechDiagnostic } from '../../diagnostics';
 
-const START_TIMEOUT_MS = 20_000;
-const FINAL_TIMEOUT_MS = 5_000;
-const AUDIO_DRAIN_MS = 300;
-const MAX_SESSION_MS = 10 * 60_000;
 const FAILURE =
   'Speech recognition could not continue. Your finalized words are still here. Please try again.';
+type Phase =
+  | 'idle'
+  | 'acquiring'
+  | 'connecting'
+  | 'listening'
+  | 'draining'
+  | 'finalizing'
+  | 'closed';
 
-/** Browser boundaries are injected in tests; provider transport stays outside the editor. */
-export interface SpeechDependencies {
-  available(): boolean;
-  microphone(): Promise<MediaStream>;
-  peer(): RTCPeerConnection;
-  fetch: typeof fetch;
-  watch: typeof watchMicrophone;
-}
-const browser: SpeechDependencies = {
-  available: () =>
-    typeof window !== 'undefined' &&
-    window.isSecureContext &&
-    Boolean(
-      typeof navigator.mediaDevices?.getUserMedia === 'function' &&
-      typeof window.RTCPeerConnection === 'function' &&
-      typeof window.AudioContext === 'function'
-    ),
-  microphone: requestMicrophone,
-  peer: () => new RTCPeerConnection(),
-  fetch: (...args) => fetch(...args),
-  watch: watchMicrophone
-};
+/** One session owns all capture resources. The SDK owns negotiation and channel subscriptions. */
+export class OpenAITranscriptionSession implements TranscriptionEngine {
+  private phase: Phase = 'idle';
+  private stream?: MediaStream;
+  private connection?: OpenAIRealtimeWebRTC;
+  private unwatch?: () => void;
+  private unwatchStats?: () => void;
+  private events?: TranscriptionEvents;
+  private protocol?: ReturnType<typeof createOpenAIProtocol>;
+  private readonly abort = new AbortController();
+  private readonly timers = new Set<ReturnType<typeof setTimeout>>();
 
-/** One explicitly started OpenAI WebRTC session. Disposal cancels and silences all pending work. */
-export function createOpenAISpeech(deps = browser): TranscriptionEngine {
-  let used = false;
-  let live = false;
-  let stopping = false;
-  let ready = false;
-  let drained = false;
-  let stream: MediaStream | undefined;
-  let peer: RTCPeerConnection | undefined;
-  let channel: RTCDataChannel | undefined;
-  let unwatch: (() => void) | undefined;
-  let unwatchStats: (() => void) | undefined;
-  let events: TranscriptionEvents;
-  let protocol: ReturnType<typeof createOpenAIProtocol>;
-  const abort = new AbortController();
-  const timers = new Set<ReturnType<typeof setTimeout>>();
-  const later = (callback: () => void, ms: number) => {
-    const timer = setTimeout(() => {
-      timers.delete(timer);
-      if (live) callback();
-    }, ms);
-    timers.add(timer);
-    return timer;
-  };
-  const stopMicrophone = () => {
-    unwatch?.();
-    unwatch = undefined;
-    stream?.getTracks().forEach((track) => {
+  constructor(private readonly deps: SpeechDependencies = browser) {}
+
+  available() {
+    const supported = this.deps.available();
+    speechDiagnostic('availability', { supported });
+    return supported;
+  }
+
+  private get live() {
+    return this.phase !== 'idle' && this.phase !== 'closed';
+  }
+
+  start(events: TranscriptionEvents) {
+    if (this.phase !== 'idle') return;
+    this.phase = 'acquiring';
+    this.events = events;
+    this.protocol = createOpenAIProtocol({
+      ...events,
+      final: (text) => {
+        if (this.live) {
+          speechDiagnostic('final-committed');
+          events.final(text);
+        }
+      },
+      interim: (text) => {
+        if (this.live) events.interim(text);
+      }
+    });
+    speechDiagnostic('start-requested');
+    const startup = this.later(
+      () =>
+        this.finish(
+          'Microphone or transcription connection timed out. Please try again.'
+        ),
+      sessionConfig.startTimeoutMs
+    );
+    if (typeof document !== 'undefined')
+      document.addEventListener('visibilitychange', this.visibility);
+    if (typeof window !== 'undefined')
+      window.addEventListener('pagehide', this.interrupted);
+    // Calling the async method immediately preserves getUserMedia's user activation.
+    void this.connect(startup);
+  }
+
+  stop() {
+    if (!this.live || this.phase === 'draining' || this.phase === 'finalizing')
+      return;
+    const listening = this.phase === 'listening';
+    this.phase = 'draining';
+    this.stopMicrophone();
+    this.events?.activity?.(false);
+    if (!this.live) return;
+    if (!listening) {
+      this.finish();
+      return;
+    }
+    // RTP and data channel delivery are independent; allow the last packets to drain.
+    this.later(() => {
+      this.phase = 'finalizing';
+      this.commit();
+    }, sessionConfig.audioDrainMs);
+    this.later(
+      () =>
+        this.finish(
+          'Finalization timed out. Your finalized words are still here; review before saving.'
+        ),
+      sessionConfig.finalTimeoutMs
+    );
+  }
+
+  dispose() {
+    if (this.phase === 'closed') return;
+    this.phase = 'closed';
+    this.abort.abort();
+    this.timers.forEach(clearTimeout);
+    this.timers.clear();
+    this.stopMicrophone();
+    this.unwatchStats?.();
+    this.unwatchStats = undefined;
+    if (typeof document !== 'undefined')
+      document.removeEventListener('visibilitychange', this.visibility);
+    if (typeof window !== 'undefined')
+      window.removeEventListener('pagehide', this.interrupted);
+    this.connection?.close();
+    this.connection = undefined;
+    this.protocol = undefined;
+    this.events = undefined;
+    speechDiagnostic('dispose');
+  }
+
+  private async connect(startup: ReturnType<typeof setTimeout>) {
+    const started = performance.now();
+    try {
+      const microphone = this.deps.microphone();
+      const credential = requestOpenAICredential(
+        this.deps.fetch,
+        this.abort.signal
+      );
+      // Permission may remain pending after an early credential failure.
+      void credential.catch(() => {});
+      const stream = await microphone;
+      if (!this.live) {
+        stream.getTracks().forEach((track) => track.stop());
+        return;
+      }
+      this.stream = stream;
+      this.phase = 'connecting';
+      stream.getTracks().forEach((track) => {
+        track.onended = this.interrupted;
+      });
+      speechDiagnostic('microphone-permission-granted', {
+        elapsedMs: Math.round(performance.now() - started)
+      });
+      this.events?.connecting?.();
+      if (!this.live) return;
+      const connection = this.deps.connection();
+      this.connection = connection;
+      stream
+        .getTracks()
+        .forEach((track) => connection.peerConnection.addTrack(track, stream));
+      connection.onEvent((event) => {
+        if (!this.live) return;
+        try {
+          this.protocol!.accept(event);
+          if (this.phase === 'finalizing' && !this.protocol?.pending())
+            this.finish();
+        } catch {
+          this.finish(FAILURE);
+        }
+      });
+      connection.onConnectionEvent((event) => {
+        if (!this.live) return;
+        if (
+          event.type === 'error' ||
+          (event.type === 'closed' && this.phase !== 'connecting')
+        )
+          this.finish(FAILURE);
+      });
+      await connection.connect({
+        signal: this.abort.signal,
+        timeoutMs: sessionConfig.startTimeoutMs,
+        exchangeSdp: (offer, { signal }) =>
+          exchangeOpenAISdp(offer, this.deps.fetch, signal, credential)
+      });
+      if (!this.live) return;
+      clearTimeout(startup);
+      this.timers.delete(startup);
+      this.phase = 'listening';
+      speechDiagnostic('data-channel-open', {
+        elapsedMs: Math.round(performance.now() - started)
+      });
+      this.unwatchStats = watchWebRTCStats(connection.peerConnection);
+      const unwatch = this.deps.watch(
+        stream,
+        (speaking) => {
+          if (this.phase === 'listening') this.events?.activity?.(speaking);
+        },
+        () => {
+          if (this.phase === 'listening') this.commit();
+        },
+        this.interrupted
+      );
+      if (!this.live) {
+        unwatch();
+        return;
+      }
+      this.unwatch = unwatch;
+      speechDiagnostic('recognition-start');
+      this.events?.listening();
+      if (!this.live) return;
+      this.later(() => this.stop(), sessionConfig.maxSessionMs);
+    } catch (cause) {
+      if (!this.live) return;
+      if (this.phase === 'acquiring') {
+        const code = microphoneErrorCode(cause);
+        speechDiagnostic('microphone-permission-failed', { code });
+        this.finish(microphoneErrorMessage(code));
+      } else {
+        const failure = cause instanceof WebRTCError ? cause.cause : cause;
+        this.finish(
+          failure instanceof TranscriptionUnavailable
+            ? 'Transcription is unavailable. You can still type and save your share.'
+            : FAILURE
+        );
+      }
+    }
+  }
+
+  private commit() {
+    if (!this.live) return;
+    try {
+      this.protocol!.commitRequested();
+      speechDiagnostic('audio-turn-commit');
+      this.connection!.send({ type: 'input_audio_buffer.commit' });
+    } catch {
+      this.finish(FAILURE);
+    }
+  }
+  private stopMicrophone() {
+    this.unwatch?.();
+    this.unwatch = undefined;
+    this.stream?.getTracks().forEach((track) => {
       track.onended = null;
       track.stop();
     });
-    stream = undefined;
-  };
-  const release = () => {
-    used = true;
-    live = false;
-    abort.abort();
-    timers.forEach(clearTimeout);
-    timers.clear();
-    stopMicrophone();
-    unwatchStats?.();
-    unwatchStats = undefined;
-    if (typeof document !== 'undefined')
-      document.removeEventListener('visibilitychange', visibility);
-    if (typeof window !== 'undefined')
-      window.removeEventListener('pagehide', interrupted);
-    if (channel) {
-      channel.onopen =
-        channel.onmessage =
-        channel.onerror =
-        channel.onclose =
-          null;
-      channel.close();
-      channel = undefined;
-    }
-    if (peer) {
-      peer.onconnectionstatechange = null;
-      peer.close();
-      peer = undefined;
-    }
-    speechDiagnostic('dispose');
-  };
-  const finish = (error?: string) => {
-    if (!live) return;
-    release();
+    this.stream = undefined;
+  }
+  private finish(error?: string) {
+    if (!this.live) return;
+    const events = this.events!;
+    this.dispose();
     if (error) {
       speechDiagnostic('recognition-error', { code: 'provider' });
       events.error(error);
@@ -116,210 +256,24 @@ export function createOpenAISpeech(deps = browser): TranscriptionEngine {
       speechDiagnostic('recognition-end');
       events.ended();
     }
-  };
-  const interrupted = () =>
-    finish(
+  }
+  private readonly interrupted = () =>
+    this.finish(
       'Recording was interrupted. Your finalized words are still here. Tap to record again.'
     );
-  const visibility = () => {
-    if (document.visibilityState === 'hidden') interrupted();
+  private readonly visibility = () => {
+    if (document.visibilityState === 'hidden') this.interrupted();
   };
-  const commit = () => {
-    if (!live || channel?.readyState !== 'open') return;
-    protocol.commitRequested();
-    speechDiagnostic('audio-turn-commit');
-    channel.send(JSON.stringify({ type: 'input_audio_buffer.commit' }));
-  };
-  const maybeFinish = () => {
-    if (stopping && drained && !protocol.pending()) finish();
-  };
-  const stop = () => {
-    if (!live || stopping) return;
-    stopping = true;
-    stopMicrophone();
-    events.activity?.(false);
-    if (!ready) {
-      finish();
-      return;
-    }
-    // RTP and data channel delivery are independent; allow the last audio packets to drain.
-    later(() => {
-      drained = true;
-      try {
-        commit();
-      } catch {
-        finish(FAILURE);
-      }
-    }, AUDIO_DRAIN_MS);
-    later(
-      () =>
-        finish(
-          'Finalization timed out. Your finalized words are still here; review before saving.'
-        ),
-      FINAL_TIMEOUT_MS
-    );
-  };
-  return {
-    available() {
-      const supported = deps.available();
-      speechDiagnostic('availability', { supported });
-      return supported;
-    },
-    start(callbacks) {
-      if (used) return;
-      used = true;
-      const started = performance.now();
-      live = true;
-      events = callbacks;
-      protocol = createOpenAIProtocol({
-        ...events,
-        final: (text) => {
-          if (live) {
-            speechDiagnostic('final-committed');
-            events.final(text);
-          }
-        },
-        interim: (text) => {
-          if (live) events.interim(text);
-        }
-      });
-      speechDiagnostic('start-requested');
-      const startup = later(
-        () =>
-          finish(
-            'Microphone or transcription connection timed out. Please try again.'
-          ),
-        START_TIMEOUT_MS
-      );
-      if (typeof document !== 'undefined')
-        document.addEventListener('visibilitychange', visibility);
-      if (typeof window !== 'undefined')
-        window.addEventListener('pagehide', interrupted);
-      void (async () => {
-        let acquiring = true;
-        try {
-          // Begin permission request directly from the user gesture; release late grants after cancellation.
-          const microphone = deps.microphone();
-          // Permission and credential fetch can overlap; handle early rejection until the microphone resolves.
-          const credential = requestOpenAICredential(deps.fetch, abort.signal);
-          void credential.catch(() => {});
-          const acquired = await microphone;
-          acquiring = false;
-          if (!live) {
-            acquired.getTracks().forEach((track) => track.stop());
-            return;
-          }
-          stream = acquired;
-          stream.getTracks().forEach((track) => {
-            track.onended = interrupted;
-          });
-          speechDiagnostic('microphone-permission-granted', {
-            elapsedMs: Math.round(performance.now() - started)
-          });
-          events.connecting?.();
-          if (!live) return;
-          peer = deps.peer();
-          stream.getTracks().forEach((track) => peer!.addTrack(track, stream!));
-          peer.onconnectionstatechange = () => {
-            if (live)
-              speechDiagnostic('webrtc-connection-state', {
-                stage: peer!.connectionState
-              });
-            if (
-              live &&
-              ['failed', 'disconnected', 'closed'].includes(
-                peer!.connectionState
-              )
-            )
-              finish(FAILURE);
-          };
-          channel = peer.createDataChannel('oai-events');
-          channel.onmessage = (message) => {
-            if (!live) return;
-            try {
-              protocol.accept(message.data);
-              maybeFinish();
-            } catch {
-              finish(FAILURE);
-            }
-          };
-          channel.onerror = () => {
-            speechDiagnostic('data-channel-error');
-            finish(FAILURE);
-          };
-          channel.onclose = () => {
-            if (live) {
-              speechDiagnostic('data-channel-closed');
-              finish(FAILURE);
-            }
-          };
-          channel.onopen = () => {
-            if (!live || stopping) return;
-            clearTimeout(startup);
-            timers.delete(startup);
-            ready = true;
-            speechDiagnostic('data-channel-open', {
-              elapsedMs: Math.round(performance.now() - started)
-            });
-            unwatchStats = watchWebRTCStats(peer!);
-            try {
-              unwatch = deps.watch(
-                stream!,
-                (active) => {
-                  if (live && !stopping) {
-                    speechDiagnostic('microphone-activity', {
-                      speaking: active
-                    });
-                    events.activity?.(active);
-                  }
-                },
-                () => {
-                  if (!stopping) {
-                    try {
-                      commit();
-                    } catch {
-                      finish(FAILURE);
-                    }
-                  }
-                },
-                interrupted
-              );
-              if (!live) {
-                unwatch();
-                unwatch = undefined;
-                return;
-              }
-              speechDiagnostic('recognition-start');
-              events.listening();
-              later(stop, MAX_SESSION_MS);
-            } catch {
-              finish(FAILURE);
-            }
-          };
-          await connectOpenAI(peer, deps.fetch, abort.signal, credential);
-          speechDiagnostic('start-returned');
-        } catch (cause) {
-          if (!live) return;
-          if (acquiring) {
-            const code = microphoneErrorCode(cause);
-            speechDiagnostic(
-              code === 'NotAllowedError'
-                ? 'microphone-permission-denied'
-                : 'microphone-permission-failed',
-              { code }
-            );
-            finish(microphoneErrorMessage(code));
-          } else {
-            finish(
-              cause instanceof TranscriptionUnavailable
-                ? 'Transcription is unavailable. You can still type and save your share.'
-                : FAILURE
-            );
-          }
-        }
-      })();
-    },
-    stop,
-    dispose: release
-  };
+  private later(callback: () => void, ms: number) {
+    const timer = setTimeout(() => {
+      this.timers.delete(timer);
+      if (this.live) callback();
+    }, ms);
+    this.timers.add(timer);
+    return timer;
+  }
 }
+
+export const createOpenAISpeech = (
+  deps?: SpeechDependencies
+): TranscriptionEngine => new OpenAITranscriptionSession(deps);

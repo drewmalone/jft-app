@@ -34,34 +34,19 @@ export async function requestOpenAICredential(
   return token.value;
 }
 
-async function prepareOffer(peer: RTCPeerConnection, signal: AbortSignal) {
-  const started = performance.now();
-  const offer = await peer.createOffer();
-  signal.throwIfAborted();
-  await peer.setLocalDescription(offer);
-  signal.throwIfAborted();
-  speechDiagnostic('webrtc-offer-created', {
-    elapsedMs: Math.round(performance.now() - started)
-  });
-  return offer;
-}
-
-/** Prepare SDP/ICE while credentials load; only WebRTC carries subsequent microphone audio. */
-export async function connectOpenAI(
-  peer: RTCPeerConnection,
+/** Application-owned authenticated SDP exchange; the SDK owns native negotiation. */
+export async function exchangeOpenAISdp(
+  offer: string,
   request: typeof fetch,
   signal: AbortSignal,
   credential = requestOpenAICredential(request, signal)
 ) {
-  const [offer, value] = await Promise.all([
-    prepareOffer(peer, signal),
-    credential
-  ]);
+  const value = await credential;
   signal.throwIfAborted();
   const started = performance.now();
   const answer = await request('https://api.openai.com/v1/realtime/calls', {
     method: 'POST',
-    body: offer.sdp,
+    body: offer,
     headers: {
       authorization: `Bearer ${value}`,
       'content-type': 'application/sdp'
@@ -78,6 +63,5 @@ export async function connectOpenAI(
   if (!answer.ok) throw new Error('Connection failed');
   const sdp = await answer.text();
   signal.throwIfAborted();
-  await peer.setRemoteDescription({ type: 'answer', sdp });
-  speechDiagnostic('webrtc-answer-applied');
+  return sdp;
 }

@@ -25,9 +25,22 @@ export async function mockSpeech(page: Page) {
     class Peer {
       static current: Peer;
       connectionState = 'connected';
+      localDescription = { type: 'offer', sdp: 'fictional-offer' };
+      addEventListener(type: string, listener: unknown) {
+        Reflect.set(this, `on${type}`, listener);
+      }
+      removeEventListener(type: string) {
+        Reflect.set(this, `on${type}`, null);
+      }
       onconnectionstatechange: (() => void) | null = null;
       channel = {
-        readyState: 'open',
+        readyState: 'connecting',
+        addEventListener(type: string, listener: unknown) {
+          Reflect.set(this, `on${type}`, listener);
+        },
+        removeEventListener(type: string) {
+          Reflect.set(this, `on${type}`, null);
+        },
         onopen: null as (() => void) | null,
         onmessage: null as ((event: { data: string }) => void) | null,
         onerror: null,
@@ -100,7 +113,10 @@ export async function mockSpeech(page: Page) {
     Object.assign(window, {
       RTCPeerConnection: Peer,
       AudioContext: Context,
-      speechStart: () => Peer.current.channel.onopen?.(),
+      speechStart: () => {
+        Peer.current.channel.readyState = 'open';
+        Peer.current.channel.onopen?.();
+      },
       speechAudio: () => {},
       speechCommits: () => Peer.current.channel.commits,
       speechActivity: (active: boolean) => {

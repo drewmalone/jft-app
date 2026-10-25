@@ -1,6 +1,6 @@
 import 'server-only';
-import { publicShareSchema } from '../model';
-import { shareRepository, type ShareRepository } from './repository';
+import { publicShareSchema } from '../../model';
+import { shareRepository, type ShareRepository } from '../storage/repository';
 import { z } from 'zod';
 
 const shareId = z.uuid({ version: 'v4' });

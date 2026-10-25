@@ -2,8 +2,8 @@ import 'server-only';
 import type { MiddlewareHandler } from 'hono';
 import { bodyLimit } from 'hono/body-limit';
 import { parse as parseContentType } from 'content-type';
-import { getSession, setSessionCookie } from './session';
-import { error, MAX_SHARE_REQUEST_BYTES } from './http';
+import { getSession, setSessionCookie } from '../auth/session';
+import { error, MAX_SHARE_REQUEST_BYTES } from './errors';
 
 /** Request-local owner established by the protected operation's session middleware. */
 export type SessionEnvironment = { Variables: { ownerId: string } };

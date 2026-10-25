@@ -1,16 +1,16 @@
 import 'server-only';
-import { burstLimited } from '../burst-limit';
+import { burstLimited } from '../../auth/burst-limit';
 import { createRoute, type RouteHandler } from '@hono/zod-openapi';
 import type { MiddlewareHandler } from 'hono';
-import { cleanupTextSchema } from '../../cleanup/model';
-import { getSession } from '../session';
-import { error, errorBody } from '../http';
+import { cleanupTextSchema } from '../../../cleanup/model';
+import { getSession } from '../../auth/session';
+import { error, errorBody } from '../errors';
 import { jsonBody, type SessionEnvironment } from '../middleware';
 import { commonFailures, failed, privateHeaders } from '../openapi';
 import {
   cleanShareText,
   reportTranscriptionFailure
-} from '../cleanup-provider';
+} from '../../cleanup-provider';
 
 const access: MiddlewareHandler<SessionEnvironment> = async (c, next) => {
   const url = new URL(c.req.url);
