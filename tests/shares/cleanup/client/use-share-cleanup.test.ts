@@ -30,7 +30,7 @@ function setup() {
   return { ...hook, jobs };
 }
 
-test('successful cleanup changes only the draft and undo restores the exact original', async () => {
+test('successful cleanup replaces the draft and releases the pending state', async () => {
   const s = setup();
   const original = s.result.current.text;
   let job!: Promise<void>;
@@ -43,9 +43,8 @@ test('successful cleanup changes only the draft and undo restores the exact orig
     await job;
   });
   assert.equal(s.result.current.text, 'Fictional words.\n\nMore words.');
-  assert.equal(s.result.current.state.status, 'applied');
-  act(() => s.result.current.undo());
-  assert.equal(s.result.current.text, original);
+  assert.equal(s.result.current.state.status, 'idle');
+  assert.equal(s.result.current.pending, false);
 });
 
 test('manual edits cancel pending cleanup and late results cannot overwrite those edits', async () => {
@@ -86,7 +85,6 @@ test('failure preserves originals and a later retry can succeed', async () => {
   });
   assert.equal(s.result.current.text, 'A tidied draft.');
   act(() => s.result.current.edit('Manually revised.'));
-  act(() => s.result.current.undo());
   assert.equal(s.result.current.text, 'Manually revised.');
 });
 

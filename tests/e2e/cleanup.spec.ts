@@ -37,9 +37,7 @@ test('Stop automatically tidies final text, waits before saving, and preserves p
   });
   await page.goto('/');
   await recordAndStop(page);
-  await expect(page.getByRole('status')).toHaveText(
-    'Tidying your words… You can keep editing.'
-  );
+  await expect(page.getByRole('status')).toHaveText('Tidying!');
   await expect(
     page.getByRole('button', { name: 'Save privately' })
   ).toBeDisabled();
@@ -47,12 +45,36 @@ test('Stop automatically tidies final text, waits before saving, and preserves p
     page.getByRole('button', { name: 'Record your share' })
   ).toBeDisabled();
   await expect(page.getByRole('textbox')).toHaveValue(original);
+  const loading = page.getByRole('status');
+  await expect(loading.locator('[aria-hidden="true"]')).toBeVisible();
+  expect(
+    await loading
+      .locator('[aria-hidden="true"]')
+      .evaluate((element) => getComputedStyle(element).animationName)
+  ).toBe('spin');
+  const loadingBox = await loading.boundingBox();
+  const transcriptBox = await page
+    .getByRole('region', { name: 'Live share transcript' })
+    .boundingBox();
+  expect(loadingBox!.y + loadingBox!.height).toBeLessThanOrEqual(
+    transcriptBox!.y
+  );
+  await page.emulateMedia({ reducedMotion: 'reduce' });
+  expect(
+    await loading
+      .locator('[aria-hidden="true"]')
+      .evaluate((element) => getComputedStyle(element).animationName)
+  ).toBe('none');
+  await expect(
+    page.getByText(/Audio is sent to OpenAI while recording/)
+  ).toHaveCount(0);
   expect(saves).toBe(0);
   release();
   await expect(page.getByRole('textbox')).toHaveValue(cleaned);
-  await expect(
-    page.getByRole('button', { name: 'Undo cleanup' })
-  ).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Undo cleanup' })).toHaveCount(
+    0
+  );
+  await expect(page.getByRole('status')).toHaveCount(0);
   expect(cleanupRequests).toBe(1);
   expect(saves).toBe(0);
   await page.getByRole('textbox').fill(cleaned + ' Edited.');
@@ -64,8 +86,14 @@ test('Stop automatically tidies final text, waits before saving, and preserves p
   await page.getByRole('button', { name: 'Save privately' }).click();
   const share = await (await saved).json();
   expect(share.text).toBe(cleaned + ' Edited.');
-  const paragraphs = page.locator('.share-card .space-y-4 > p');
+  const paragraphs = page.locator('.share-card .thoughts-text > p');
   await expect(paragraphs).toHaveCount(2);
+  const firstParagraph = await paragraphs.nth(0).boundingBox();
+  const secondParagraph = await paragraphs.nth(1).boundingBox();
+  const minimumGap = page.viewportSize()!.width < 640 ? 19 : 15;
+  expect(
+    secondParagraph!.y - firstParagraph!.y - firstParagraph!.height
+  ).toBeGreaterThanOrEqual(minimumGap);
   await expect(paragraphs.nth(1)).toHaveText(
     'I will try again tomorrow. Edited.'
   );
@@ -88,7 +116,7 @@ test('Stop automatically tidies final text, waits before saving, and preserves p
   }
 });
 
-test('cleanup can be undone after in-app navigation and never persists a draft across refresh', async ({
+test('cleaned text survives in-app navigation and never persists across refresh', async ({
   page
 }) => {
   await mockSpeech(page);
@@ -106,8 +134,10 @@ test('cleanup can be undone after in-app navigation and never persists a draft a
     .getByRole('banner')
     .getByRole('button', { name: 'Today’s reflection' })
     .click();
-  await page.getByRole('button', { name: 'Undo cleanup' }).click();
-  await expect(page.getByRole('textbox')).toHaveValue(original);
+  await expect(page.getByRole('textbox')).toHaveValue(cleaned);
+  await expect(page.getByRole('button', { name: 'Undo cleanup' })).toHaveCount(
+    0
+  );
   await page.reload();
   await expect(page.getByRole('textbox')).toHaveValue('');
 });
@@ -165,7 +195,7 @@ for (const action of ['edit', 'navigate'] as const) {
     await page.goto('/');
     await recordAndStop(page);
     await expect(
-      page.getByText('Tidying your words… You can keep editing.', {
+      page.getByText('Tidying!', {
         exact: true
       })
     ).toBeVisible();

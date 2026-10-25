@@ -148,13 +148,21 @@ test('opt-in diagnostics trace recognition without exposing transcripts or raw e
 }) => {
   await mockSpeech(page);
   const logs: string[] = [];
-  page.on('console', async (message) => {
-    if (message.text().startsWith('[Doorknob speech]')) {
-      const details = await Promise.all(
-        message.args().map((arg) => arg.jsonValue())
-      );
-      logs.push(JSON.stringify(details));
-    }
+  // Serialize in the originating page: remote object handles expire during navigation.
+  await page.addInitScript(() => {
+    const info = console.info.bind(console);
+    console.info = (...args: unknown[]) => {
+      if (
+        typeof args[0] === 'string' &&
+        args[0].startsWith('[Doorknob speech]')
+      )
+        info(JSON.stringify(args));
+      else info(...args);
+    };
+  });
+  page.on('console', (message) => {
+    if (message.text().startsWith('["[Doorknob speech]'))
+      logs.push(message.text());
   });
   await page.goto('/?speechDebug=1');
   await page.getByRole('button', { name: 'Record your share' }).click();

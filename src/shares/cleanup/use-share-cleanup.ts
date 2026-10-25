@@ -1,11 +1,9 @@
 import { useEffect, useRef, useState } from 'react';
 import { cleanDraft } from './api';
 
-type CleanupState =
-  | { status: 'idle' | 'pending' | 'failed' }
-  | { status: 'applied'; original: string; cleaned: string };
+type CleanupState = { status: 'idle' | 'pending' | 'failed' };
 
-/** Parent-owned, reversible draft cleanup. Edits/navigation cancel pending work; stale responses never overwrite newer words. */
+/** Parent-owned draft cleanup. Edits/navigation cancel pending work; stale responses never overwrite newer words. */
 export function useShareCleanup(
   text: string,
   onTextChange: (text: string) => void,
@@ -59,11 +57,7 @@ export function useShareCleanup(
         return;
       current.current.text = cleaned;
       current.current.onTextChange(cleaned);
-      setState(
-        cleaned === source
-          ? { status: 'idle' }
-          : { status: 'applied', original: source, cleaned }
-      );
+      setState({ status: 'idle' });
     } catch {
       if (pending.current === controller) setState({ status: 'failed' });
     } finally {
@@ -71,19 +65,13 @@ export function useShareCleanup(
       if (pending.current === controller) pending.current = null;
     }
   }
-  function undo() {
-    if (state.status !== 'applied' || current.current.text !== state.cleaned)
-      return;
-    edit(state.original);
-  }
   return {
     state,
     pending: state.status === 'pending',
     isPending: () => pending.current !== null,
     run,
     cancel,
-    edit,
-    undo
+    edit
   };
 }
 

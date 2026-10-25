@@ -61,11 +61,21 @@ export function ShareForm({
           }}
         />
         <ListeningClock listening={voice.state === 'listening'} />
-        <RecordingStatus state={voice.state} message={voice.message} />
-        <p className="mt-2 text-center text-xs text-[var(--muted)]">
-          Audio is sent to OpenAI while recording. Review your words before
-          saving. After Stop, OpenAI adds paragraphs and removes fillers.
-        </p>
+        {!cleanup.pending && (
+          <RecordingStatus state={voice.state} message={voice.message} />
+        )}
+        {cleanup.pending && (
+          <div
+            role="status"
+            className="mt-3 flex items-center justify-center gap-2 text-sm text-[var(--muted)]"
+          >
+            <span
+              aria-hidden="true"
+              className="inline-block h-5 w-5 shrink-0 animate-spin rounded-full border-2 border-[var(--line)] border-t-[var(--navy)] motion-reduce:animate-none"
+            />
+            <span>Tidying!</span>
+          </div>
+        )}
         <LiveTranscript
           text={text}
           interim={voice.interim}
@@ -75,22 +85,6 @@ export function ShareForm({
         />
       </div>
       <div className="mt-3 text-sm text-[var(--muted)]" aria-live="polite">
-        {cleanup.pending && (
-          <p role="status">Tidying your words… You can keep editing.</p>
-        )}
-        {cleanup.state.status === 'applied' && (
-          <div>
-            <p>Your text has been tidied. Review it before saving.</p>
-            <button
-              type="button"
-              className="secondary mt-2 w-full"
-              disabled={voice.active || saving}
-              onClick={cleanup.undo}
-            >
-              Undo cleanup
-            </button>
-          </div>
-        )}
         {cleanup.state.status === 'failed' && (
           <div>
             <p role="alert">
