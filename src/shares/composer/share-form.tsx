@@ -52,6 +52,10 @@ export function ShareForm({
         />
         <ListeningClock listening={voice.state === 'listening'} />
         <RecordingStatus state={voice.state} message={voice.message} />
+        <p className="mt-2 text-center text-xs text-[var(--muted)]">
+          Audio is sent to OpenAI while recording. Review your words before
+          saving.
+        </p>
         <LiveTranscript
           text={text}
           interim={voice.interim}

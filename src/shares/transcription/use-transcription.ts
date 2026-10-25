@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { configureSpeechDiagnostics, speechDiagnostic } from './diagnostics';
-import { createBrowserSpeech } from './browser-speech';
+import { createOpenAISpeech } from './openai-speech';
 import { appendTranscript } from './append-transcript';
 import type { TranscriptionEngine, TranscriptionState } from './types';
 
@@ -13,7 +13,7 @@ const SPEECH_ACTIVITY_HOLD_MS = 1_400;
 export function useTranscription(
   text: string,
   onTextChange: (text: string) => void,
-  createEngine: () => TranscriptionEngine = createBrowserSpeech
+  createEngine: () => TranscriptionEngine = createOpenAISpeech
 ) {
   const factory = useRef(createEngine);
   const [state, setState] = useState<TranscriptionState>('unsupported');

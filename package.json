@@ -17,10 +17,12 @@
     "openapi:lint": "npm run openapi:generate && spectral lint .tmp/openapi.yaml --ruleset .spectral.yaml --fail-severity warn"
   },
   "dependencies": {
+    "@aws-sdk/client-secrets-manager": "^3.1156.0",
     "@hono/zod-openapi": "^1.6.3",
     "content-type": "^3.1.1",
     "hono": "^4.13.13",
     "next": "^16.4.2",
+    "openai": "^7.43.0",
     "react": "^19.1.0",
     "react-dom": "^19.1.0",
     "react-textarea-autosize": "^8.5.9",

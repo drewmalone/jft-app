@@ -104,6 +104,11 @@ export const openApiConfiguration = {
   servers: [{ url: '/', description: 'Same origin as the application.' }],
   tags: [
     {
+      name: 'Transcription',
+      description:
+        'Explicit live microphone sessions with short-lived provider credentials; no audio storage.'
+    },
+    {
       name: 'Shares',
       description:
         'Private resources scoped to a signed anonymous session cookie, and public reads authorized by expiring bearer UUIDs.'
