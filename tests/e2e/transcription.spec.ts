@@ -1,5 +1,18 @@
 import { expect, test, type Page } from '@playwright/test';
 
+test.beforeEach(async ({ page }) => {
+  await page.addInitScript(() => {
+    Object.defineProperty(navigator, 'mediaDevices', {
+      configurable: true,
+      value: {
+        getUserMedia: async () => ({
+          getTracks: () => [{ stop() {} }]
+        })
+      }
+    });
+  });
+});
+
 async function mockSpeech(page: Page, prefixed = false) {
   await page.addInitScript(
     ({ prefixed }) => {
@@ -143,14 +156,16 @@ test('permission/service errors recover, navigation cleans up, stale callbacks a
 }) => {
   await mockSpeech(page);
   await page.goto('/');
-  for (const error of ['not-allowed', 'network']) {
+  for (const error of ['not-allowed', 'service-not-allowed', 'network']) {
     await page.getByRole('button', { name: 'Record your share' }).click();
     await emit(page, 'speechError', error);
     await expect(
       page.getByText(
         error === 'not-allowed'
-          ? /Microphone access was denied/
-          : /Speech recognition could not continue/
+          ? /Speech recognition is not allowed/
+          : error === 'service-not-allowed'
+            ? /speech recognition service is unavailable or not allowed/
+            : /Speech recognition could not continue/
       )
     ).toBeVisible();
   }
