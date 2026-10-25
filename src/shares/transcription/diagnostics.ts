@@ -2,6 +2,7 @@
 type DiagnosticDetails = {
   session?: number;
   supported?: boolean;
+  userActivation?: boolean;
   online?: boolean;
   visible?: boolean;
   state?: string;

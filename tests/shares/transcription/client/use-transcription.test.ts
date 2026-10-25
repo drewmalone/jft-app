@@ -225,3 +225,23 @@ test('Strict Mode setup-cleanup-setup releases probes and unmount cancels activi
   });
   assert.equal(hook.result.current.text, 'Typed.');
 });
+
+test('synchronous engine startup failure preserves the draft and releases the session', () => {
+  const engines: FakeEngine[] = [];
+  const factory = () => {
+    const engine = new FakeEngine();
+    engine.start = () => {
+      throw new Error('private startup details');
+    };
+    engines.push(engine);
+    return engine;
+  };
+  const hook = renderHook(() =>
+    useTranscription('Existing words.', () => {}, factory)
+  );
+  act(() => hook.result.current.start());
+  assert.equal(hook.result.current.state, 'error');
+  assert.match(hook.result.current.message, /could not start/);
+  assert.equal(engines.at(-1)!.disposed, true);
+  assert.ok(!hook.result.current.message.includes('private'));
+});

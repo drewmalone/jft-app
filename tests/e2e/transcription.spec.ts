@@ -363,7 +363,7 @@ test('stop discards provisional text while microphone capture failures retain fi
   await page.getByRole('button', { name: 'Record your share' }).click();
   await expect(
     page.getByText(
-      'Microphone audio is unavailable. Check your microphone and browser settings, then try again.',
+      'Microphone unavailable. Check that a microphone is connected and another app is not using it, then try again.',
       { exact: true }
     )
   ).toBeVisible();
@@ -480,3 +480,48 @@ test('unconfigured real credential endpoint releases capture and preserves typed
     page.getByRole('heading', { name: 'Your share is saved.' })
   ).toBeVisible();
 });
+
+for (const action of ['cancel', 'hide', 'navigate'] as const) {
+  test(`pending microphone permission after ${action} releases a late grant without starting transport`, async ({
+    page
+  }) => {
+    await mockSpeech(page);
+    await page.goto('/');
+    await page.getByRole('textbox').fill('Existing fictional words.');
+    await page.evaluate(() => Reflect.set(window, 'permissionPending', true));
+    await page.getByRole('button', { name: 'Record your share' }).click();
+    expect(
+      await page.evaluate(() => Reflect.get(window, 'microphoneRequests'))
+    ).toBe(1);
+    if (action === 'cancel')
+      await page.getByRole('button', { name: 'Cancel microphone' }).click();
+    else if (action === 'navigate')
+      await page
+        .getByRole('banner')
+        .getByRole('button', { name: 'Past shares' })
+        .click();
+    else
+      await page.evaluate(() => {
+        Object.defineProperty(document, 'visibilityState', {
+          configurable: true,
+          value: 'hidden'
+        });
+        document.dispatchEvent(new Event('visibilitychange'));
+      });
+    await page.evaluate(() => Reflect.get(window, 'grantMicrophone')());
+    await expect
+      .poll(() => page.evaluate(() => Reflect.get(window, 'aborted')))
+      .toBe(true);
+    expect(
+      await page.evaluate(() => Reflect.get(window, 'speechReady'))
+    ).toBeUndefined();
+    if (action === 'navigate')
+      await page
+        .getByRole('banner')
+        .getByRole('button', { name: 'Today’s reflection' })
+        .click();
+    await expect(page.getByRole('textbox')).toHaveValue(
+      'Existing fictional words.'
+    );
+  });
+}

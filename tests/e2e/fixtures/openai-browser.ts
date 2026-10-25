@@ -78,11 +78,22 @@ export async function mockSpeech(page: Page) {
       configurable: true,
       value: {
         getUserMedia: async () => {
+          Reflect.set(
+            window,
+            'microphoneRequests',
+            (Reflect.get(window, 'microphoneRequests') ?? 0) + 1
+          );
           const name = Reflect.get(window, 'microphoneError');
           if (name)
             throw new DOMException('sensitive permission details', name);
           const track = new Track();
-          return { getTracks: () => [track] };
+          const stream = { getTracks: () => [track] };
+          if (Reflect.get(window, 'permissionPending')) {
+            return new Promise((resolve) =>
+              Reflect.set(window, 'grantMicrophone', () => resolve(stream))
+            );
+          }
+          return stream;
         }
       }
     });

@@ -110,49 +110,53 @@ export function useTranscription(
         if (live()) setSpeaking(false);
       }, SPEECH_ACTIVITY_HOLD_MS);
     };
-    next.start({
-      activity: (value) => {
-        if (!live()) return;
-        clearTimeout(activityTimer.current);
-        setSpeaking(value);
-      },
-      listening: () => {
-        if (live())
-          setState((current) =>
-            current === 'starting' ? 'listening' : current
-          );
-      },
-      interim: (value) => {
-        if (live()) {
-          setInterim(value);
-          if (value) pulse();
-        }
-      },
-      final: (value) => {
-        if (!live() || !value.trim()) {
-          speechDiagnostic('final-ignored', {
-            session,
-            stage: !live() ? 'stale' : 'empty'
-          });
-          return;
-        }
-        pulse();
-        speechDiagnostic('final-committed', { session });
-        const result = appendTranscript(current.current.text, value, first);
-        first = false;
-        current.current.text = result.text;
-        current.current.onTextChange(result.text);
-        if (result.full) {
-          speechDiagnostic('draft-limit-reached', { session });
-          finish(
-            false,
-            'Your share has reached the 10,000 character limit. Review or shorten your words before adding more.'
-          );
-        }
-      },
-      error: (notice) => finish(true, notice),
-      ended: () => finish(false, 'Tap to record more.')
-    });
+    try {
+      next.start({
+        activity: (value) => {
+          if (!live()) return;
+          clearTimeout(activityTimer.current);
+          setSpeaking(value);
+        },
+        listening: () => {
+          if (live())
+            setState((current) =>
+              current === 'starting' ? 'listening' : current
+            );
+        },
+        interim: (value) => {
+          if (live()) {
+            setInterim(value);
+            if (value) pulse();
+          }
+        },
+        final: (value) => {
+          if (!live() || !value.trim()) {
+            speechDiagnostic('final-ignored', {
+              session,
+              stage: !live() ? 'stale' : 'empty'
+            });
+            return;
+          }
+          pulse();
+          speechDiagnostic('final-committed', { session });
+          const result = appendTranscript(current.current.text, value, first);
+          first = false;
+          current.current.text = result.text;
+          current.current.onTextChange(result.text);
+          if (result.full) {
+            speechDiagnostic('draft-limit-reached', { session });
+            finish(
+              false,
+              'Your share has reached the 10,000 character limit. Review or shorten your words before adding more.'
+            );
+          }
+        },
+        error: (notice) => finish(true, notice),
+        ended: () => finish(false, 'Tap to record more.')
+      });
+    } catch {
+      finish(true, 'Speech recognition could not start. Please try again.');
+    }
   }
   return { state, interim, message, active, speaking, start, stop };
 }

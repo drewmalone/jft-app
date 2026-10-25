@@ -249,7 +249,9 @@ test('permission, microphone, HTTP and provider failures are sanitized and relea
     assert.equal(s.errors.length, 1);
     assert.match(
       s.errors[0],
-      name === 'NotAllowedError' ? /access was denied/ : /audio is unavailable/
+      name === 'NotAllowedError'
+        ? /access was denied/
+        : /Microphone unavailable/
     );
     assert.ok(!s.errors[0].includes('sensitive'));
   }

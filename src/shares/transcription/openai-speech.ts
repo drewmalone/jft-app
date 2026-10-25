@@ -2,6 +2,11 @@ import type { TranscriptionEngine, TranscriptionEvents } from './types';
 import { createOpenAIResults } from './openai-results';
 import { connectOpenAI, TranscriptionUnavailable } from './openai-connection';
 import { watchMicrophone } from './microphone-activity';
+import {
+  requestMicrophone,
+  microphoneErrorCode,
+  microphoneErrorMessage
+} from './microphone-permission';
 import { speechDiagnostic } from './diagnostics';
 
 const START_TIMEOUT_MS = 20_000;
@@ -28,15 +33,7 @@ const browser: SpeechDependencies = {
       typeof window.RTCPeerConnection === 'function' &&
       typeof window.AudioContext === 'function'
     ),
-  microphone: () =>
-    navigator.mediaDevices.getUserMedia({
-      audio: {
-        channelCount: 1,
-        echoCancellation: true,
-        noiseSuppression: true
-      },
-      video: false
-    }),
+  microphone: requestMicrophone,
   peer: () => new RTCPeerConnection(),
   fetch: (...args) => fetch(...args),
   watch: watchMicrophone
@@ -184,10 +181,16 @@ export function createOpenAISpeech(deps = browser): TranscriptionEngine {
           ),
         START_TIMEOUT_MS
       );
+      if (typeof document !== 'undefined')
+        document.addEventListener('visibilitychange', visibility);
+      if (typeof window !== 'undefined')
+        window.addEventListener('pagehide', interrupted);
       void (async () => {
+        let acquiring = true;
         try {
           // Begin permission request directly from the user gesture; release late grants after cancellation.
           const acquired = await deps.microphone();
+          acquiring = false;
           if (!live) {
             acquired.getTracks().forEach((track) => track.stop());
             return;
@@ -196,10 +199,7 @@ export function createOpenAISpeech(deps = browser): TranscriptionEngine {
           stream.getTracks().forEach((track) => {
             track.onended = interrupted;
           });
-          if (typeof document !== 'undefined')
-            document.addEventListener('visibilitychange', visibility);
-          if (typeof window !== 'undefined')
-            window.addEventListener('pagehide', interrupted);
+          speechDiagnostic('microphone-permission-granted');
           peer = deps.peer();
           stream.getTracks().forEach((track) => peer!.addTrack(track, stream!));
           peer.onconnectionstatechange = () => {
@@ -299,16 +299,22 @@ export function createOpenAISpeech(deps = browser): TranscriptionEngine {
           speechDiagnostic('start-returned');
         } catch (cause) {
           if (!live) return;
-          const name = cause instanceof Error ? cause.name : '';
-          finish(
-            cause instanceof TranscriptionUnavailable
-              ? 'Transcription is unavailable. You can still type and save your share.'
-              : name === 'NotAllowedError' || name === 'SecurityError'
-                ? 'Microphone access was denied. Allow microphone access in your browser settings, then try again.'
-                : name === 'NotFoundError' || name === 'NotReadableError'
-                  ? 'Microphone audio is unavailable. Check your microphone and browser settings, then try again.'
-                  : FAILURE
-          );
+          if (acquiring) {
+            const code = microphoneErrorCode(cause);
+            speechDiagnostic(
+              code === 'NotAllowedError'
+                ? 'microphone-permission-denied'
+                : 'microphone-permission-failed',
+              { code }
+            );
+            finish(microphoneErrorMessage(code));
+          } else {
+            finish(
+              cause instanceof TranscriptionUnavailable
+                ? 'Transcription is unavailable. You can still type and save your share.'
+                : FAILURE
+            );
+          }
         }
       })();
     },
