@@ -1,4 +1,4 @@
-import type { TranscriptionEvents } from './types';
+import type { TranscriptionEvents } from '../../types';
 
 const TEXT_LIMIT = 10_000;
 const bounded = (text: string) =>

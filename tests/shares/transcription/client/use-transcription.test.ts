@@ -42,7 +42,7 @@ function setup(initialText = 'Typed.', supported = true) {
   };
   const hook = renderHook(() => {
     const [text, setText] = useState(initialText);
-    return { text, ...useTranscription(text, setText, createEngine) };
+    return { text, ...useTranscription(text, setText, { createEngine }) };
   });
   return { ...hook, engines, latest: () => engines.at(-1)! };
 }
@@ -160,7 +160,7 @@ test('rerendering with a new factory reference does not cancel the selected engi
     return engine;
   };
   const hook = renderHook(
-    ({ factory }) => useTranscription('', () => {}, factory),
+    ({ factory }) => useTranscription('', () => {}, { createEngine: factory }),
     { initialProps: { factory: () => create() } }
   );
   act(() => hook.result.current.start());
@@ -199,7 +199,10 @@ test('Strict Mode setup-cleanup-setup releases probes and unmount cancels activi
   const hook = renderHook(
     () => {
       const [text, setText] = useState('Typed.');
-      return { text, ...useTranscription(text, setText, factory) };
+      return {
+        text,
+        ...useTranscription(text, setText, { createEngine: factory })
+      };
     },
     { reactStrictMode: true }
   );
@@ -237,7 +240,7 @@ test('synchronous engine startup failure preserves the draft and releases the se
     return engine;
   };
   const hook = renderHook(() =>
-    useTranscription('Existing words.', () => {}, factory)
+    useTranscription('Existing words.', () => {}, { createEngine: factory })
   );
   act(() => hook.result.current.start());
   assert.equal(hook.result.current.state, 'error');
@@ -258,9 +261,10 @@ test('automatic cleanup is notified only after an explicit stop successfully fin
     const [text, setText] = useState('Typed.');
     return {
       text,
-      ...useTranscription(text, setText, factory, (value) =>
-        completed.push(value)
-      )
+      ...useTranscription(text, setText, {
+        createEngine: factory,
+        onStopped: (value) => completed.push(value)
+      })
     };
   });
   act(() => hook.result.current.start());

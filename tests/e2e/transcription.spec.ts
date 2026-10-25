@@ -178,7 +178,7 @@ test('opt-in diagnostics trace recognition without exposing transcripts or raw e
     'editor-start',
     'start-requested',
     'recognition-start',
-    'results',
+    'provider-event',
     'final-committed',
     'dispose'
   ])

@@ -1,4 +1,4 @@
-import { speechDiagnostic } from './diagnostics';
+import { speechDiagnostic } from '../../diagnostics';
 
 /** App-authored configuration failure; never constructed from upstream response text. */
 export class TranscriptionUnavailable extends Error {}

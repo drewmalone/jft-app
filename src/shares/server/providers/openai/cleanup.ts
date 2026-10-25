@@ -1,10 +1,9 @@
 import 'server-only';
-import OpenAI from 'openai';
 import { ZodError } from 'zod';
-import { CleanupResultError } from './cleanup-result-error';
+import { CleanupResultError } from '../../cleanup-result-error';
 import { zodTextFormat } from 'openai/helpers/zod';
-import { cleanupTextSchema } from '../cleanup/model';
-import { transcriptionKey } from './transcription-key';
+import { cleanupTextSchema } from '../../../cleanup/model';
+import { openAIClient } from './client';
 
 const instructions = `Lightly copyedit the dictated text supplied as user data.
 Preserve the speaker's meaning, voice, first-person perspective, uncertainty, names, numbers, negations, and all meaningful content.
@@ -17,12 +16,7 @@ export async function cleanShareText(
   text: string,
   signal?: AbortSignal
 ): Promise<string> {
-  const client = new OpenAI({
-    apiKey: await transcriptionKey(),
-    timeout: 20_000,
-    maxRetries: 0,
-    logLevel: 'off'
-  });
+  const client = await openAIClient(20_000);
   try {
     const response = await client.responses.parse(
       {

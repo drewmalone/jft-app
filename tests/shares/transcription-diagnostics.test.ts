@@ -4,15 +4,15 @@ import OpenAI from 'openai';
 import {
   reportTranscriptionFailure,
   reportTranscriptionConfiguration
-} from '../../src/shares/server/transcription-diagnostics';
+} from '../../src/shares/server/providers/openai/diagnostics';
 import { CleanupResultError } from '../../src/shares/server/cleanup-result-error';
-import { TranscriptionKeyError } from '../../src/shares/server/transcription-key';
+import { OpenAIKeyError } from '../../src/shares/server/providers/openai/key';
 
 test('server transcription diagnostics reveal only safe categories, statuses and allowlisted fields', (t) => {
   const log = t.mock.method(console, 'warn', () => {});
   reportTranscriptionConfiguration('disabled');
   reportTranscriptionFailure(
-    new TranscriptionKeyError('missing_key', 'private configuration details')
+    new OpenAIKeyError('missing_key', 'private configuration details')
   );
   reportTranscriptionFailure(
     new OpenAI.APIError(

@@ -27,8 +27,10 @@ export function ShareForm({
   onTextChange,
   onSave
 }: ShareFormProps) {
-  const voice = useTranscription(text, onTextChange, undefined, (value) => {
-    void cleanup.run(value);
+  const voice = useTranscription(text, onTextChange, {
+    onStopped: (value) => {
+      void cleanup.run(value);
+    }
   });
   const fieldId = useId();
   const errorId = `${fieldId}-error`;

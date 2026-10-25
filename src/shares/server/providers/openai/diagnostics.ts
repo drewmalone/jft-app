@@ -1,7 +1,7 @@
 import 'server-only';
 import OpenAI from 'openai';
-import { CleanupResultError } from './cleanup-result-error';
-import { TranscriptionKeyError } from './transcription-key';
+import { CleanupResultError } from '../../cleanup-result-error';
+import { OpenAIKeyError } from './key';
 
 const publicCodes = new Set([
   'invalid_api_key',
@@ -40,7 +40,7 @@ export function reportTranscriptionFailure(
     console.warn(label, { reason: 'provider_timeout' });
   } else if (cause instanceof OpenAI.APIConnectionError) {
     console.warn(label, { reason: 'provider_connection_failure' });
-  } else if (cause instanceof TranscriptionKeyError) {
+  } else if (cause instanceof OpenAIKeyError) {
     console.warn(label, { reason: cause.reason });
   } else if (cause instanceof OpenAI.APIError) {
     console.warn(label, {

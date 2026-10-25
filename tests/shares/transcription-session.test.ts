@@ -1,9 +1,9 @@
 import assert from 'node:assert/strict';
 import { test, type TestContext } from 'node:test';
 import { dispatch } from '../../src/shares/server/app';
-import { issueTranscriptionCredential } from '../../src/shares/server/transcription-session';
+import { issueTranscriptionCredential } from '../../src/shares/server/providers/openai/session';
 import { SecretsManagerClient } from '@aws-sdk/client-secrets-manager';
-import { transcriptionKey } from '../../src/shares/server/transcription-key';
+import { openAIKey } from '../../src/shares/server/providers/openai/key';
 
 const environments = new WeakSet<TestContext>();
 function setEnv(t: TestContext, name: string, value: string) {
@@ -103,7 +103,7 @@ test('OpenAI SDK requests fixed transcription settings and returns only ephemera
 test('provider failure is sanitized, method handling does not mint credentials, and local key binding is reused', async (t) => {
   setEnv(t, 'STT_ENABLED', 'true');
   setEnv(t, 'STT_OPENAI_API_KEY', 'fictional-key');
-  assert.equal(await transcriptionKey(), 'fictional-key');
+  assert.equal(await openAIKey(), 'fictional-key');
   t.mock.method(globalThis, 'fetch', async () => {
     throw new Error('sensitive provider error');
   });
@@ -137,8 +137,8 @@ test('Amplify runtime secrets are cached after success and failed reads can reco
       return { SecretString: 'fictional-aws-key' };
     }
   );
-  assert.equal(await transcriptionKey(), 'fictional-aws-key');
-  assert.equal(await transcriptionKey(), 'fictional-aws-key');
+  assert.equal(await openAIKey(), 'fictional-aws-key');
+  assert.equal(await openAIKey(), 'fictional-aws-key');
   assert.equal(reads, 1);
   setEnv(
     t,
@@ -149,12 +149,12 @@ test('Amplify runtime secrets are cached after success and failed reads can reco
     reads++;
     throw new Error('sensitive IAM error');
   });
-  await assert.rejects(transcriptionKey(), { message: 'Secret unavailable' });
+  await assert.rejects(openAIKey(), { message: 'Secret unavailable' });
   send.mock.mockImplementation(async () => {
     reads++;
     return { SecretString: 'fictional-rotated-key' };
   });
-  assert.equal(await transcriptionKey(), 'fictional-rotated-key');
+  assert.equal(await openAIKey(), 'fictional-rotated-key');
   assert.equal(reads, 3);
 });
 

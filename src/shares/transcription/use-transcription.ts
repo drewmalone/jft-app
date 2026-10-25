@@ -1,10 +1,19 @@
 import { useEffect, useRef, useState } from 'react';
 import { configureSpeechDiagnostics, speechDiagnostic } from './diagnostics';
-import { createOpenAISpeech } from './openai-speech';
+import { createTranscriptionEngine } from './provider';
 import { appendTranscript } from './append-transcript';
-import type { TranscriptionEngine, TranscriptionState } from './types';
+import type {
+  TranscriptionEngine,
+  TranscriptionEngineFactory,
+  TranscriptionState
+} from './types';
 
 const SPEECH_ACTIVITY_HOLD_MS = 1_400;
+
+interface TranscriptionOptions {
+  createEngine?: TranscriptionEngineFactory;
+  onStopped?: (text: string) => void;
+}
 
 /**
  * Own one engine session and commit only final segments to the draft.
@@ -13,8 +22,10 @@ const SPEECH_ACTIVITY_HOLD_MS = 1_400;
 export function useTranscription(
   text: string,
   onTextChange: (text: string) => void,
-  createEngine: () => TranscriptionEngine = createOpenAISpeech,
-  onStopped?: (text: string) => void
+  {
+    createEngine = createTranscriptionEngine,
+    onStopped
+  }: TranscriptionOptions = {}
 ) {
   const factory = useRef(createEngine);
   const [state, setState] = useState<TranscriptionState>('unsupported');

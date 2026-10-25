@@ -1,19 +1,18 @@
-import type { TranscriptionEngine, TranscriptionEvents } from './types';
-import { createOpenAIResults } from './openai-results';
+import type { TranscriptionEngine, TranscriptionEvents } from '../../types';
+import { createOpenAIProtocol } from './protocol';
 import {
   connectOpenAI,
   requestOpenAICredential,
   TranscriptionUnavailable
-} from './openai-connection';
-import { watchMicrophone } from './microphone-activity';
+} from './connection';
+import { watchMicrophone } from '../../microphone-activity';
 import {
   requestMicrophone,
   microphoneErrorCode,
   microphoneErrorMessage
-} from './microphone-permission';
-import { reportProviderEvent } from './provider-diagnostics';
-import { watchWebRTCStats } from './webrtc-diagnostics';
-import { speechDiagnostic } from './diagnostics';
+} from '../../microphone-permission';
+import { watchWebRTCStats } from '../../webrtc-diagnostics';
+import { speechDiagnostic } from '../../diagnostics';
 
 const START_TIMEOUT_MS = 20_000;
 const FINAL_TIMEOUT_MS = 5_000;
@@ -52,14 +51,13 @@ export function createOpenAISpeech(deps = browser): TranscriptionEngine {
   let stopping = false;
   let ready = false;
   let drained = false;
-  let requested = 0;
   let stream: MediaStream | undefined;
   let peer: RTCPeerConnection | undefined;
   let channel: RTCDataChannel | undefined;
   let unwatch: (() => void) | undefined;
   let unwatchStats: (() => void) | undefined;
   let events: TranscriptionEvents;
-  let results: ReturnType<typeof createOpenAIResults>;
+  let protocol: ReturnType<typeof createOpenAIProtocol>;
   const abort = new AbortController();
   const timers = new Set<ReturnType<typeof setTimeout>>();
   const later = (callback: () => void, ms: number) => {
@@ -80,6 +78,7 @@ export function createOpenAISpeech(deps = browser): TranscriptionEngine {
     stream = undefined;
   };
   const release = () => {
+    used = true;
     live = false;
     abort.abort();
     timers.forEach(clearTimeout);
@@ -127,12 +126,12 @@ export function createOpenAISpeech(deps = browser): TranscriptionEngine {
   };
   const commit = () => {
     if (!live || channel?.readyState !== 'open') return;
-    requested++;
+    protocol.commitRequested();
     speechDiagnostic('audio-turn-commit');
     channel.send(JSON.stringify({ type: 'input_audio_buffer.commit' }));
   };
   const maybeFinish = () => {
-    if (stopping && drained && requested === 0 && !results.pending()) finish();
+    if (stopping && drained && !protocol.pending()) finish();
   };
   const stop = () => {
     if (!live || stopping) return;
@@ -172,7 +171,7 @@ export function createOpenAISpeech(deps = browser): TranscriptionEngine {
       const started = performance.now();
       live = true;
       events = callbacks;
-      results = createOpenAIResults({
+      protocol = createOpenAIProtocol({
         ...events,
         final: (text) => {
           if (live) {
@@ -235,47 +234,10 @@ export function createOpenAISpeech(deps = browser): TranscriptionEngine {
               finish(FAILURE);
           };
           channel = peer.createDataChannel('oai-events');
-          const seenEvents = new Set<string>();
           channel.onmessage = (message) => {
             if (!live) return;
             try {
-              if (
-                typeof message.data !== 'string' ||
-                message.data.length > 65_536
-              )
-                throw new Error('Invalid event');
-              const event = JSON.parse(message.data) as Record<string, unknown>;
-              if (!event || typeof event.type !== 'string')
-                throw new Error('Invalid event');
-              if (typeof event.event_id === 'string') {
-                if (seenEvents.has(event.event_id)) return;
-                seenEvents.add(event.event_id);
-                if (seenEvents.size > 20_000)
-                  throw new Error('Too many events');
-              }
-              reportProviderEvent(event);
-              if (event.type === 'error') {
-                const code = (event.error as { code?: string } | undefined)
-                  ?.code;
-                if (code === 'input_audio_buffer_commit_empty') {
-                  requested = Math.max(0, requested - 1);
-                  maybeFinish();
-                  return;
-                }
-                finish(FAILURE);
-                return;
-              }
-              if (
-                event.type ===
-                'conversation.item.input_audio_transcription.failed'
-              ) {
-                finish(FAILURE);
-                return;
-              }
-              if (event.type === 'input_audio_buffer.committed')
-                requested = Math.max(0, requested - 1);
-              results.accept(event);
-              speechDiagnostic('results');
+              protocol.accept(message.data);
               maybeFinish();
             } catch {
               finish(FAILURE);

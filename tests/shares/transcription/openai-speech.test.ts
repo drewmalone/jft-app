@@ -3,7 +3,7 @@ import { test } from 'node:test';
 import {
   createOpenAISpeech,
   type SpeechDependencies
-} from '../../../src/shares/transcription/openai-speech';
+} from '../../../src/shares/transcription/providers/openai/engine';
 import type { TranscriptionEvents } from '../../../src/shares/transcription/types';
 
 const settle = async () => {
@@ -440,4 +440,19 @@ test('cancellation from the connecting callback stops capture before allocating 
   assert.equal(peers, 0);
   assert.equal(s.counts().stopped, 1);
   assert.equal(s.counts().ended, 1);
+});
+
+test('disposing an unused engine is terminal and never requests a microphone', async () => {
+  let requests = 0;
+  const s = setup({
+    microphone: async () => {
+      requests++;
+      throw new Error('Unexpected capture');
+    }
+  });
+  s.engine.dispose();
+  s.engine.start(s.events);
+  await settle();
+  assert.equal(requests, 0);
+  assert.deepEqual(s.errors, []);
 });

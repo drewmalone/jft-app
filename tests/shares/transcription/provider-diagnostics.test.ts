@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { test, type TestContext } from 'node:test';
 import { configureSpeechDiagnostics } from '../../../src/shares/transcription/diagnostics';
-import { reportProviderEvent } from '../../../src/shares/transcription/provider-diagnostics';
+import { reportProviderEvent } from '../../../src/shares/transcription/providers/openai/diagnostics';
 import { watchWebRTCStats } from '../../../src/shares/transcription/webrtc-diagnostics';
 
 function diagnostics(t: TestContext) {

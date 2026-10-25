@@ -195,7 +195,7 @@ Dependencies are installed with `npm ci` under Node 24. Tests need no credential
 
 Only the short-lived credential reaches the browser. It expires after 60 seconds for establishing sessions; expiry does not terminate an already connected session and the credential can establish multiple sessions before expiry. Initial transcription configuration is not an enforceable spending boundary against a modified client. The app does not store credentials in browser storage. Do not record credential endpoint response bodies in proxy/APM logs.
 
-See [Amplify setup](docs/TRANSCRIPTION.md#aws-amplify-hosted-preview) for server key storage, branch permissions, and preview access protection.
+See [Amplify setup](docs/TRANSCRIPTION.md#aws-amplify-hosted-preview) for server key storage, branch permissions, and preview access protection. See the [code review and provider replacement guide](docs/TRANSCRIPTION_REVIEW.md) for adapter boundaries and remaining simplifications.
 
 ### Processing, retention, and cost
 

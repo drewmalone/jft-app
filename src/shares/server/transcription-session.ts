@@ -1,12 +1,12 @@
 import 'server-only';
-import OpenAI from 'openai';
+import { burstLimited } from './burst-limit';
 import { createRoute, z, type RouteHandler } from '@hono/zod-openapi';
 import { getSession } from './session';
 import {
   reportTranscriptionFailure,
-  reportTranscriptionConfiguration
-} from './transcription-diagnostics';
-import { transcriptionKey } from './transcription-key';
+  reportTranscriptionConfiguration,
+  issueTranscriptionCredential
+} from './transcription-provider';
 import { privateHeaders, commonFailures } from './openapi';
 import type { SessionEnvironment } from './middleware';
 
@@ -45,49 +45,6 @@ export const transcriptionSessionRoute = createRoute({
   }
 });
 
-// A bounded, process-local burst guard only. Hosted preview access protection is still required.
-const runtime = globalThis as typeof globalThis & {
-  doorknobSpeechLimits?: Map<string, { until: number; count: number }>;
-};
-function limited(owner: string) {
-  const limits = (runtime.doorknobSpeechLimits ??= new Map());
-  const now = Date.now();
-  for (const [key, entry] of limits) if (entry.until <= now) limits.delete(key);
-  let entry = limits.get(owner);
-  if (!entry) {
-    if (limits.size >= 1_000) return true;
-    entry = { until: now + 60_000, count: 0 };
-    limits.set(owner, entry);
-  }
-  return ++entry.count > 5;
-}
-
-/** The trusted server fixes the initial transcription session and never returns the permanent key. */
-export async function issueTranscriptionCredential(signal?: AbortSignal) {
-  const client = new OpenAI({
-    apiKey: await transcriptionKey(),
-    maxRetries: 0,
-    logLevel: 'off',
-    timeout: 10_000
-  });
-  return client.realtime.clientSecrets.create(
-    {
-      expires_after: { anchor: 'created_at', seconds: 60 },
-      session: {
-        type: 'transcription',
-        audio: {
-          input: {
-            transcription: { model: 'gpt-live-transcribe', language: 'en' },
-            turn_detection: null,
-            noise_reduction: { type: 'near_field' }
-          }
-        }
-      }
-    },
-    { signal }
-  );
-}
-
 /** Validate the browser boundary before spending provider credits; failures disclose no upstream details. */
 export const createTranscriptionSession: RouteHandler<
   typeof transcriptionSessionRoute,
@@ -105,7 +62,7 @@ export const createTranscriptionSession: RouteHandler<
       reportTranscriptionConfiguration('disabled');
       return c.json(unavailable, 503);
     }
-    if (limited(session.ownerId)) {
+    if (burstLimited('transcription', session.ownerId)) {
       c.header('Retry-After', '60');
       return c.json(unavailable, 429);
     }

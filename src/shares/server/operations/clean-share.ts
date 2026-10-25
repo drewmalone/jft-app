@@ -1,4 +1,5 @@
 import 'server-only';
+import { burstLimited } from '../burst-limit';
 import { createRoute, type RouteHandler } from '@hono/zod-openapi';
 import type { MiddlewareHandler } from 'hono';
 import { cleanupTextSchema } from '../../cleanup/model';
@@ -6,8 +7,10 @@ import { getSession } from '../session';
 import { error, errorBody } from '../http';
 import { jsonBody, type SessionEnvironment } from '../middleware';
 import { commonFailures, failed, privateHeaders } from '../openapi';
-import { cleanShareText } from '../cleanup-share';
-import { reportTranscriptionFailure } from '../transcription-diagnostics';
+import {
+  cleanShareText,
+  reportTranscriptionFailure
+} from '../cleanup-provider';
 
 const access: MiddlewareHandler<SessionEnvironment> = async (c, next) => {
   const url = new URL(c.req.url);
@@ -58,29 +61,12 @@ export const cleanShareRoute = createRoute({
   }
 });
 
-// Separate, bounded process-local guard: cleanup must not consume the microphone session's burst allowance.
-const runtime = globalThis as typeof globalThis & {
-  doorknobCleanupLimits?: Map<string, { until: number; count: number }>;
-};
-function limited(owner: string) {
-  const limits = (runtime.doorknobCleanupLimits ??= new Map());
-  const now = Date.now();
-  for (const [key, value] of limits) if (value.until <= now) limits.delete(key);
-  let entry = limits.get(owner);
-  if (!entry) {
-    if (limits.size >= 1_000) return true;
-    entry = { until: now + 60_000, count: 0 };
-    limits.set(owner, entry);
-  }
-  return ++entry.count > 5;
-}
-
 /** Preserve the original in the browser on any failure; never write draft/provider content to logs or the repository. */
 export const cleanShare: RouteHandler<
   typeof cleanShareRoute,
   SessionEnvironment
 > = async (c) => {
-  if (limited(c.get('ownerId')))
+  if (burstLimited('cleanup', c.get('ownerId')))
     return c.json(errorBody('RATE_LIMITED'), 429, { 'Retry-After': '60' });
   try {
     const text = await cleanShareText(

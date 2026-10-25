@@ -28,3 +28,5 @@ export interface TranscriptionEngine {
   stop(): void;
   dispose(): void;
 }
+
+export type TranscriptionEngineFactory = () => TranscriptionEngine;

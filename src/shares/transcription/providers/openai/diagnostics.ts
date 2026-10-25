@@ -1,4 +1,4 @@
-import { speechDiagnostic } from './diagnostics';
+import { speechDiagnostic } from '../../diagnostics';
 
 const eventTypes = new Set([
   'session.created',
