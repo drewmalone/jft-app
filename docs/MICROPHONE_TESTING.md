@@ -14,6 +14,51 @@ The current WebKit implementations of [SpeechRecognition::startRecognition](http
 
 If a deployed Safari version rejects the first recognition start after a successful microphone grant, the app shows a speech-specific error and preserves the draft. Record the iOS version and safe debug codes; do not infer microphone denial. A subsequent user tap supplies fresh activation. There is no claim that the app can bypass OS restrictions or guarantee another permission dialog.
 
+## Test locally from an iPhone with a Mac
+
+Cloudflare Quick Tunnels provide a temporary HTTPS URL without an account. HTTPS is required for microphone access on the phone; opening the Mac's ordinary HTTP LAN address will not provide the same secure context.
+
+On the Mac, in this repository:
+
+```sh
+git fetch origin
+git switch fix/explicit-microphone-permission
+git pull --ff-only
+npm ci
+npm run dev
+```
+
+In a second terminal:
+
+```sh
+brew install cloudflared
+cloudflared tunnel --url http://localhost:3000
+```
+
+Open the printed `https://….trycloudflare.com` URL directly in Safari on the physical iPhone. Both devices need internet access but do not need to share Wi-Fi; cellular can be used on the phone. Keep both terminal processes running and stop each with Control-C when finished. The tunnel URL is publicly reachable while running, so test with synthetic text.
+
+`next.config.ts` allows `*.trycloudflare.com` through `allowedDevOrigins`, so changing Quick Tunnel hostnames can load development assets and connect to `/_next/hmr`. This option is only for the Next.js development server. Restart `npm run dev` after pulling this configuration change. To narrow the development allowlist, replace the wildcard with your current tunnel hostname, without `https://`, a port, or a path; restart whenever it changes.
+
+### Disabled microphone or no permission prompt
+
+The HMR cross-origin warning and a disabled microphone button are separate symptoms. When the app cannot detect `SpeechRecognition` or `webkitSpeechRecognition`, the recording button is disabled before a microphone permission request runs. Allowing development assets does not add browser speech support.
+
+Confirm the correct branch is running and open the URL directly in Safari rather than an in-app browser. Check Siri settings under Settings → Siri or Apple Intelligence & Siri (the name varies by iOS version); Safari speech recognition can depend on device speech-service settings.
+
+For capability diagnostics, enable Web Inspector under the iPhone's Settings → Apps → Safari → Advanced (older iOS versions use Settings → Safari → Advanced). Connect the iPhone to the Mac and trust it. Enable the Develop menu in Mac Safari's Advanced settings if needed, then use Develop → your iPhone → the tunnel page. Run this in the page's console:
+
+```js
+({
+  secure: window.isSecureContext,
+  microphoneAPI: !!navigator.mediaDevices?.getUserMedia,
+  speechAPI: !!(window.SpeechRecognition || window.webkitSpeechRecognition)
+});
+```
+
+All three should be true. If `secure` is false, verify that you opened the HTTPS tunnel URL. If `microphoneAPI` is false, microphone capture is unavailable in that browser/context. If `speechAPI` is false, the current browser/context cannot run the app's Web Speech engine and no microphone prompt will be attempted. These booleans indicate capability, not permission grants. Add `?speechDebug=1` to the URL to inspect the app's safe diagnostic events.
+
+Use the permission and lifecycle checklist below against the tunnel URL as well as the Amplify deployment. Each new tunnel hostname has its own website permissions.
+
 ## Amplify manual test plan
 
 Deploy the branch to an Amplify preview, or deploy through your normal release process. Open its actual HTTPS URL in Safari on a physical iPhone. Test each origin separately; preview and production domains have separate permissions. Use synthetic text for testing.
