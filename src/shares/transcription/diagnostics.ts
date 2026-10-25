@@ -8,9 +8,19 @@ type DiagnosticDetails = {
   state?: string;
   code?: string;
   stage?: string;
+  status?: number;
+  characters?: number;
+  packets?: number;
+  bytes?: number;
+  speaking?: boolean;
 };
 
 let enabled = false;
+
+/** Read the cached opt-in switch without touching browser storage during streaming. */
+export function speechDiagnosticsEnabled() {
+  return enabled;
+}
 
 /** Resolve the URL/tab debug switch once when the recording experience mounts. */
 export function configureSpeechDiagnostics() {

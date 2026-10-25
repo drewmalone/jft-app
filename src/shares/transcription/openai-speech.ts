@@ -7,6 +7,8 @@ import {
   microphoneErrorCode,
   microphoneErrorMessage
 } from './microphone-permission';
+import { reportProviderEvent } from './provider-diagnostics';
+import { watchWebRTCStats } from './webrtc-diagnostics';
 import { speechDiagnostic } from './diagnostics';
 
 const START_TIMEOUT_MS = 20_000;
@@ -51,6 +53,7 @@ export function createOpenAISpeech(deps = browser): TranscriptionEngine {
   let peer: RTCPeerConnection | undefined;
   let channel: RTCDataChannel | undefined;
   let unwatch: (() => void) | undefined;
+  let unwatchStats: (() => void) | undefined;
   let events: TranscriptionEvents;
   let results: ReturnType<typeof createOpenAIResults>;
   const abort = new AbortController();
@@ -78,6 +81,8 @@ export function createOpenAISpeech(deps = browser): TranscriptionEngine {
     timers.forEach(clearTimeout);
     timers.clear();
     stopMicrophone();
+    unwatchStats?.();
+    unwatchStats = undefined;
     if (typeof document !== 'undefined')
       document.removeEventListener('visibilitychange', visibility);
     if (typeof window !== 'undefined')
@@ -119,6 +124,7 @@ export function createOpenAISpeech(deps = browser): TranscriptionEngine {
   const commit = () => {
     if (!live || channel?.readyState !== 'open') return;
     requested++;
+    speechDiagnostic('audio-turn-commit');
     channel.send(JSON.stringify({ type: 'input_audio_buffer.commit' }));
   };
   const maybeFinish = () => {
@@ -203,6 +209,10 @@ export function createOpenAISpeech(deps = browser): TranscriptionEngine {
           peer = deps.peer();
           stream.getTracks().forEach((track) => peer!.addTrack(track, stream!));
           peer.onconnectionstatechange = () => {
+            if (live)
+              speechDiagnostic('webrtc-connection-state', {
+                stage: peer!.connectionState
+              });
             if (
               live &&
               ['failed', 'disconnected', 'closed'].includes(
@@ -230,6 +240,7 @@ export function createOpenAISpeech(deps = browser): TranscriptionEngine {
                 if (seenEvents.size > 20_000)
                   throw new Error('Too many events');
               }
+              reportProviderEvent(event);
               if (event.type === 'error') {
                 const code = (event.error as { code?: string } | undefined)
                   ?.code;
@@ -257,20 +268,33 @@ export function createOpenAISpeech(deps = browser): TranscriptionEngine {
               finish(FAILURE);
             }
           };
-          channel.onerror = () => finish(FAILURE);
+          channel.onerror = () => {
+            speechDiagnostic('data-channel-error');
+            finish(FAILURE);
+          };
           channel.onclose = () => {
-            if (live) finish(FAILURE);
+            if (live) {
+              speechDiagnostic('data-channel-closed');
+              finish(FAILURE);
+            }
           };
           channel.onopen = () => {
             if (!live || stopping) return;
             clearTimeout(startup);
             timers.delete(startup);
             ready = true;
+            speechDiagnostic('data-channel-open');
+            unwatchStats = watchWebRTCStats(peer!);
             try {
               unwatch = deps.watch(
                 stream!,
                 (active) => {
-                  if (live && !stopping) events.activity?.(active);
+                  if (live && !stopping) {
+                    speechDiagnostic('microphone-activity', {
+                      speaking: active
+                    });
+                    events.activity?.(active);
+                  }
                 },
                 () => {
                   if (!stopping) {

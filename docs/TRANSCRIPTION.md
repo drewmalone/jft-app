@@ -62,3 +62,16 @@ A browser-side 503 is intentionally generic. Read the **server terminal** (or se
 - `server_or_connection_failure`: check server connectivity and session-signing configuration.
 
 Diagnostics never include raw provider messages, exceptions, request bodies, response bodies, tokens, key values, or transcripts. Unknown provider codes/parameters are printed as `unknown`. You can share the diagnostic category/status/code without sharing your key. Do not enable verbose SDK HTTP logging or paste `.env.local` contents.
+
+### Credential succeeds but no words appear
+
+Open the app with `?speechDebug=1`, enable **Info** messages in the browser developer console, and filter for `[Doorknob speech]`. This is browser-side logging; the server terminal cannot observe the direct WebRTC audio stream. Record fictional words for about five seconds, pause, then Stop. Share the filtered diagnostic lines, not raw Network responses or provider frames.
+
+- `credential-response` should report 200.
+- `webrtc-answer-response` should report a successful HTTP status, followed by `webrtc-answer-applied` and `data-channel-open`.
+- `provider-session` should identify transcription mode and the expected model. Unknown mode/model is recorded only as `other`.
+- `webrtc-audio-sent` reports outbound audio packet/byte totals every two seconds while diagnostics are enabled. Increasing totals establish that audio packets leave the browser, not that the provider recognizes speech. No audio, candidate addresses or track IDs are logged.
+- `microphone-activity` reports local sound detection. `provider-event` reports allowlisted event types and character counts, never the words themselves. Delta/completed events with positive counts show transcription is arriving.
+- `audio-turn-commit` reports a silence/stop commit. `provider-error` reports only allowlisted codes. A failed handshake, non-increasing audio totals, no provider transcript events, and missing finalization are distinct observations; do not infer the cause from the absence of the old server error alone.
+
+Visit `?speechDebug=0` afterward to disable diagnostics. Outbound packet sampling stops when the session is disposed and does not run when diagnostics are disabled.

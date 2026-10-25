@@ -1,3 +1,5 @@
+import { speechDiagnostic } from './diagnostics';
+
 /** App-authored configuration failure; never constructed from upstream response text. */
 export class TranscriptionUnavailable extends Error {}
 
@@ -15,6 +17,7 @@ export async function connectOpenAI(
     cache: 'no-store'
   });
   signal.throwIfAborted();
+  speechDiagnostic('credential-response', { status: tokenResponse.status });
   if (!tokenResponse.ok) throw new TranscriptionUnavailable();
   const token: unknown = await tokenResponse.json();
   signal.throwIfAborted();
@@ -26,6 +29,7 @@ export async function connectOpenAI(
   )
     throw new Error('Invalid credential');
   const offer = await peer.createOffer();
+  speechDiagnostic('webrtc-offer-created');
   signal.throwIfAborted();
   await peer.setLocalDescription(offer);
   signal.throwIfAborted();
@@ -41,8 +45,10 @@ export async function connectOpenAI(
     referrerPolicy: 'no-referrer'
   });
   signal.throwIfAborted();
+  speechDiagnostic('webrtc-answer-response', { status: answer.status });
   if (!answer.ok) throw new Error('Connection failed');
   const sdp = await answer.text();
   signal.throwIfAborted();
   await peer.setRemoteDescription({ type: 'answer', sdp });
+  speechDiagnostic('webrtc-answer-applied');
 }
