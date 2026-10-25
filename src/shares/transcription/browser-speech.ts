@@ -121,7 +121,13 @@ export function createBrowserSpeech(
         return;
       }
       startedAt = performance.now();
-      diagnostic('start-requested', { language });
+      diagnostic('start-requested', {
+        language,
+        userActivation:
+          typeof navigator !== 'undefined'
+            ? navigator.userActivation?.isActive
+            : undefined
+      });
       callbacks = events;
       live = true;
       const seen = new Set<number>();
@@ -208,7 +214,16 @@ export function createBrowserSpeech(
           code: speechErrorCode(cause instanceof Error ? cause.name : undefined)
         });
         release(true);
-        events.error('Speech recognition could not start. Please try again.');
+        const code = speechErrorCode(
+          cause instanceof Error ? cause.name : undefined
+        );
+        events.error(
+          code === 'NotAllowedError' || code === 'SecurityError'
+            ? browserSpeechErrorMessage('not-allowed')
+            : code === 'NotSupportedError'
+              ? 'Speech recognition is unsupported in this browser. Try another browser or type your share.'
+              : 'Speech recognition could not start. Please try again.'
+        );
       }
     },
     stop() {

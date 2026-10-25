@@ -5,6 +5,7 @@ type DiagnosticDetails = {
   supported?: boolean;
   prefixed?: boolean;
   secureContext?: boolean;
+  userActivation?: boolean;
   online?: boolean;
   visible?: boolean;
   language?: string;
@@ -72,7 +73,10 @@ export function speechErrorCode(value: unknown): string {
       'NotAllowedError',
       'SecurityError',
       'NotSupportedError',
-      'AbortError'
+      'AbortError',
+      'NotFoundError',
+      'NotReadableError',
+      'OverconstrainedError'
     ].includes(value)
     ? value
     : 'unknown';

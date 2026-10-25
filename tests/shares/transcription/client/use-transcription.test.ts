@@ -14,6 +14,8 @@ import {
   speechDiagnostic
 } from '../../../../src/shares/transcription/diagnostics';
 
+const noPermission = () => ({ request() {}, reset() {} });
+
 class FakeEngine implements TranscriptionEngine {
   events?: TranscriptionEvents;
   stopped = false;
@@ -42,7 +44,10 @@ function setup(initialText = 'Typed.', supported = true) {
   };
   const hook = renderHook(() => {
     const [text, setText] = useState(initialText);
-    return { text, ...useTranscription(text, setText, createEngine) };
+    return {
+      text,
+      ...useTranscription(text, setText, createEngine, noPermission)
+    };
   });
   return { ...hook, engines, latest: () => engines.at(-1)! };
 }
@@ -160,7 +165,7 @@ test('rerendering with a new factory reference does not cancel the selected engi
     return engine;
   };
   const hook = renderHook(
-    ({ factory }) => useTranscription('', () => {}, factory),
+    ({ factory }) => useTranscription('', () => {}, factory, noPermission),
     { initialProps: { factory: () => create() } }
   );
   act(() => hook.result.current.start());
@@ -199,7 +204,10 @@ test('Strict Mode setup-cleanup-setup releases probes and unmount cancels activi
   const hook = renderHook(
     () => {
       const [text, setText] = useState('Typed.');
-      return { text, ...useTranscription(text, setText, factory) };
+      return {
+        text,
+        ...useTranscription(text, setText, factory, noPermission)
+      };
     },
     { reactStrictMode: true }
   );
@@ -224,4 +232,160 @@ test('Strict Mode setup-cleanup-setup releases probes and unmount cancels activi
     active.events!.final('Stale.');
   });
   assert.equal(hook.result.current.text, 'Typed.');
+});
+
+function permissionSetup() {
+  let grant!: (stream: MediaStream) => void;
+  let deny!: (cause: unknown) => void;
+  let requests = 0;
+  let stopped = 0;
+  Object.defineProperty(window, 'isSecureContext', {
+    configurable: true,
+    value: true
+  });
+  Object.defineProperty(navigator, 'mediaDevices', {
+    configurable: true,
+    value: {
+      getUserMedia() {
+        requests++;
+        return new Promise<MediaStream>((resolve, reject) => {
+          grant = resolve;
+          deny = reject;
+        });
+      }
+    }
+  });
+  const engines: FakeEngine[] = [];
+  const factory = () => {
+    const engine = new FakeEngine();
+    engines.push(engine);
+    return engine;
+  };
+  const hook = renderHook(() => {
+    const [text, setText] = useState('Existing words.');
+    return { text, ...useTranscription(text, setText, factory) };
+  });
+  return {
+    ...hook,
+    engines,
+    latest: () => engines.at(-1)!,
+    get requests() {
+      return requests;
+    },
+    get stopped() {
+      return stopped;
+    },
+    grant: () =>
+      grant({
+        getTracks: () => [
+          {
+            stop() {
+              stopped++;
+            }
+          }
+        ]
+      } as unknown as MediaStream),
+    deny: () => deny(new DOMException('private', 'NotAllowedError'))
+  };
+}
+
+afterEach(() => {
+  Reflect.deleteProperty(navigator, 'mediaDevices');
+});
+
+test('permission precedes recognition, rapid starts share one session, and repeat recordings reuse a grant', async () => {
+  const hook = permissionSetup();
+  assert.equal(hook.requests, 0);
+  act(() => {
+    hook.result.current.start();
+    hook.result.current.start();
+  });
+  assert.equal(hook.requests, 1);
+  assert.equal(hook.engines.length, 2);
+  assert.equal(hook.latest().events, undefined);
+  await act(async () => hook.grant());
+  assert.equal(hook.stopped, 1);
+  assert.ok(hook.latest().events);
+  act(() => {
+    hook.latest().events!.final('New words.');
+    hook.latest().events!.ended();
+  });
+  act(() => hook.result.current.start());
+  assert.equal(hook.requests, 1);
+  assert.ok(hook.latest().events);
+  act(() => hook.latest().events!.error('Speech service is not allowed.'));
+  assert.equal(hook.result.current.text, 'Existing words.\n\nNew words.');
+  assert.equal(hook.result.current.message, 'Speech service is not allowed.');
+});
+
+test('cancel then restart while permission is pending starts only the newest session', async () => {
+  const hook = permissionSetup();
+  act(() => hook.result.current.start());
+  const canceled = hook.latest();
+  act(() => {
+    hook.result.current.stop();
+    hook.result.current.start();
+  });
+  const restarted = hook.latest();
+  assert.notEqual(restarted, canceled);
+  assert.equal(hook.requests, 1);
+  assert.equal(canceled.disposed, true);
+  assert.equal(restarted.events, undefined);
+  assert.equal(hook.result.current.state, 'starting');
+
+  await act(async () => hook.grant());
+  assert.equal(hook.requests, 1);
+  assert.equal(hook.stopped, 1);
+  assert.equal(canceled.events, undefined);
+  assert.equal(restarted.disposed, false);
+  assert.equal(hook.engines.filter((engine) => engine.events).length, 1);
+  act(() => {
+    restarted.events!.listening();
+    restarted.events!.final('A fresh start.');
+    restarted.events!.ended();
+  });
+  assert.equal(hook.result.current.state, 'idle');
+  assert.equal(hook.result.current.text, 'Existing words.\n\nA fresh start.');
+});
+
+test('permission denial preserves the draft and never starts recognition', async () => {
+  const hook = permissionSetup();
+  act(() => hook.result.current.start());
+  await act(async () => hook.deny());
+  assert.equal(hook.result.current.state, 'error');
+  assert.equal(hook.result.current.text, 'Existing words.');
+  assert.match(hook.result.current.message, /Safari/);
+  assert.equal(hook.latest().events, undefined);
+  assert.equal(hook.latest().disposed, true);
+});
+
+for (const action of ['cancel', 'unmount', 'hide'] as const) {
+  test(`late permission grant after ${action} stops tracks and cannot start recognition`, async () => {
+    const hook = permissionSetup();
+    act(() => hook.result.current.start());
+    act(() => {
+      if (action === 'unmount') hook.unmount();
+      else if (action === 'cancel') hook.result.current.stop();
+      else document.dispatchEvent(new dom.window.Event('visibilitychange'));
+    });
+    await act(async () => hook.grant());
+    assert.equal(hook.stopped, 1);
+    assert.equal(hook.latest().events, undefined);
+    assert.equal(hook.latest().disposed, true);
+    assert.equal(hook.result.current.text, 'Existing words.');
+  });
+}
+
+test('synchronous recognition startup failure after grant keeps the draft and releases the session', async () => {
+  const hook = permissionSetup();
+  act(() => hook.result.current.start());
+  hook.latest().start = () => {
+    throw new Error('private vendor error');
+  };
+  await act(async () => hook.grant());
+  assert.equal(hook.stopped, 1);
+  assert.equal(hook.latest().disposed, true);
+  assert.equal(hook.result.current.state, 'error');
+  assert.match(hook.result.current.message, /could not start/);
+  assert.equal(hook.result.current.text, 'Existing words.');
 });

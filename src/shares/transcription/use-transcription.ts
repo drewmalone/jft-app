@@ -1,6 +1,10 @@
 import { useEffect, useRef, useState } from 'react';
 import { configureSpeechDiagnostics, speechDiagnostic } from './diagnostics';
 import { createBrowserSpeech } from './browser-speech';
+import {
+  createMicrophonePermission,
+  type MicrophonePermission
+} from './microphone-permission';
 import { appendTranscript } from './append-transcript';
 import type { TranscriptionEngine, TranscriptionState } from './types';
 
@@ -13,9 +17,12 @@ const SPEECH_ACTIVITY_HOLD_MS = 1_400;
 export function useTranscription(
   text: string,
   onTextChange: (text: string) => void,
-  createEngine: () => TranscriptionEngine = createBrowserSpeech
+  createEngine: () => TranscriptionEngine = createBrowserSpeech,
+  createPermission: () => MicrophonePermission = createMicrophonePermission
 ) {
   const factory = useRef(createEngine);
+  const [permission] = useState(createPermission);
+  const cancelPending = useRef<(() => void) | null>(null);
   const [state, setState] = useState<TranscriptionState>('unsupported');
   const [speaking, setSpeaking] = useState(false);
   const activityTimer = useRef<ReturnType<typeof setTimeout> | undefined>(
@@ -36,10 +43,15 @@ export function useTranscription(
     const supported = probe.available();
     probe.dispose();
     setState(supported ? 'idle' : 'unsupported');
-    const visibility = () =>
+    const visibility = () => {
+      if (document.visibilityState !== 'visible') {
+        permission.reset();
+        cancelPending.current?.();
+      }
       speechDiagnostic('visibility-changed', {
         visible: document.visibilityState === 'visible'
       });
+    };
     const connectivity = () =>
       speechDiagnostic('connectivity-changed', { online: navigator.onLine });
     document.addEventListener('visibilitychange', visibility);
@@ -56,8 +68,10 @@ export function useTranscription(
       speechDiagnostic('editor-unmount');
       engine.current?.dispose();
       engine.current = null;
+      cancelPending.current = null;
+      permission.reset();
     };
-  }, []);
+  }, [permission]);
   useEffect(() => {
     speechDiagnostic('editor-state', { state });
   }, [state]);
@@ -66,6 +80,10 @@ export function useTranscription(
   function stop() {
     speechDiagnostic('editor-stop');
     if (!engine.current) return;
+    if (cancelPending.current) {
+      cancelPending.current();
+      return;
+    }
     setState('stopping');
     engine.current.stop();
   }
@@ -91,6 +109,7 @@ export function useTranscription(
         return;
       }
       generation.current++;
+      cancelPending.current = null;
       next.dispose();
       engine.current = null;
       clearTimeout(activityTimer.current);
@@ -110,49 +129,79 @@ export function useTranscription(
         if (live()) setSpeaking(false);
       }, SPEECH_ACTIVITY_HOLD_MS);
     };
-    next.start({
-      activity: (value) => {
-        if (!live()) return;
-        clearTimeout(activityTimer.current);
-        setSpeaking(value);
-      },
-      listening: () => {
-        if (live())
-          setState((current) =>
-            current === 'starting' ? 'listening' : current
-          );
-      },
-      interim: (value) => {
-        if (live()) {
-          setInterim(value);
-          if (value) pulse();
-        }
-      },
-      final: (value) => {
-        if (!live() || !value.trim()) {
-          speechDiagnostic('final-ignored', {
-            session,
-            stage: !live() ? 'stale' : 'empty'
-          });
-          return;
-        }
-        pulse();
-        speechDiagnostic('final-committed', { session });
-        const result = appendTranscript(current.current.text, value, first);
-        first = false;
-        current.current.text = result.text;
-        current.current.onTextChange(result.text);
-        if (result.full) {
-          speechDiagnostic('draft-limit-reached', { session });
-          finish(
-            false,
-            'Your share has reached the 10,000 character limit. Review or shorten your words before adding more.'
-          );
-        }
-      },
-      error: (notice) => finish(true, notice),
-      ended: () => finish(false, 'Tap to record more.')
-    });
+    const begin = () => {
+      if (!live()) return;
+      cancelPending.current = null;
+      try {
+        next.start({
+          activity: (value) => {
+            if (!live()) return;
+            clearTimeout(activityTimer.current);
+            setSpeaking(value);
+          },
+          listening: () => {
+            if (live())
+              setState((current) =>
+                current === 'starting' ? 'listening' : current
+              );
+          },
+          interim: (value) => {
+            if (live()) {
+              setInterim(value);
+              if (value) pulse();
+            }
+          },
+          final: (value) => {
+            if (!live() || !value.trim()) {
+              speechDiagnostic('final-ignored', {
+                session,
+                stage: !live() ? 'stale' : 'empty'
+              });
+              return;
+            }
+            pulse();
+            speechDiagnostic('final-committed', { session });
+            const result = appendTranscript(current.current.text, value, first);
+            first = false;
+            current.current.text = result.text;
+            current.current.onTextChange(result.text);
+            if (result.full) {
+              speechDiagnostic('draft-limit-reached', { session });
+              finish(
+                false,
+                'Your share has reached the 10,000 character limit. Review or shorten your words before adding more.'
+              );
+            }
+          },
+          error: (notice) => {
+            if (!live()) return;
+            permission.reset();
+            finish(true, notice);
+          },
+          ended: () => finish(false, 'Tap to record more.')
+        });
+      } catch {
+        permission.reset();
+        finish(true, 'Speech recognition could not start. Please try again.');
+      }
+    };
+    const permissionFailed = (cause: unknown) => {
+      if (!live()) return;
+      finish(
+        true,
+        cause instanceof Error
+          ? cause.message
+          : 'Microphone access could not start. Please try again.'
+      );
+    };
+    cancelPending.current = () => finish(false, 'Tap to record more.');
+    try {
+      const requested = permission.request();
+      if (requested) void requested.then(begin, permissionFailed);
+      else begin();
+    } catch (cause) {
+      permissionFailed(cause);
+    }
   }
   return { state, interim, message, active, speaking, start, stop };
 }

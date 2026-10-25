@@ -130,9 +130,9 @@ test('empty/unexpected termination and disposal ignore saved stale callbacks', (
 });
 const expectedRecognitionErrors = {
   'not-allowed':
-    'Microphone access was denied. Allow access in your browser settings.',
+    'Speech recognition is not allowed. Check this website’s permissions in Safari’s website settings or your browser’s site settings, then try again.',
   'service-not-allowed':
-    'Microphone access was denied. Allow access in your browser settings.',
+    'We couldn’t start listening. On iPhone, check that Siri is turned on, then try again. You can always type your share.',
   network:
     'Speech recognition could not continue. Check your connection and try again.',
   'audio-capture':
