@@ -171,6 +171,8 @@ Tap **Record your share**, allow microphone access, and speak. Audio streams to 
 
 Transcription needs HTTPS (localhost works for development), microphone permission, WebRTC, and Web Audio. Permission denial, connection loss, provider failure, leaving the recording screen, hiding the page, and unmount stop capture and release tracks/connections. Finalized words remain; provisional words are discarded on failure. Stop releases the microphone immediately and allows up to five seconds for final results. A timeout shows a notice rather than silently claiming complete transcription. Sessions stop after ten minutes; tap again to append more. At 10,000 Unicode code points, the draft is clipped to the limit and recording is canceled. Typing and saving work without provider access.
 
+Startup requests microphone permission and temporary credentials in parallel. After permission is granted, **Connecting transcription…** replaces the permission message until the data channel opens; only then does **Listening...** appear. **Cancel connection** stops a pending connection. The remaining network/permission time is real; no early audio buffering is introduced.
+
 The microphone accents reflect local sound activity and incoming transcript results, not a clinical or reliable speech detector. Silence detection commits turns after approximately 800 ms; punctuation/finalization can lag provisional text and can change it. Noise can delay boundaries. Real-world accuracy and latency need device testing.
 
 ### Automatic paragraphs and filler cleanup

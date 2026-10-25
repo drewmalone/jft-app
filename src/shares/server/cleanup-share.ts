@@ -1,5 +1,7 @@
 import 'server-only';
 import OpenAI from 'openai';
+import { ZodError } from 'zod';
+import { CleanupResultError } from './cleanup-result-error';
 import { zodTextFormat } from 'openai/helpers/zod';
 import { cleanupTextSchema } from '../cleanup/model';
 import { transcriptionKey } from './transcription-key';
@@ -21,19 +23,42 @@ export async function cleanShareText(
     maxRetries: 0,
     logLevel: 'off'
   });
-  const response = await client.responses.parse(
-    {
-      model: 'gpt-5.4-mini',
-      reasoning: { effort: 'none' },
-      store: false,
-      max_output_tokens: 8_192,
-      instructions,
-      input: text,
-      text: { format: zodTextFormat(cleanupTextSchema, 'cleaned_share') }
-    },
-    { signal }
-  );
-  if (response.status !== 'completed' || !response.output_parsed)
-    throw new Error('Cleanup did not complete');
-  return cleanupTextSchema.parse(response.output_parsed).text;
+  try {
+    const response = await client.responses.parse(
+      {
+        model: 'gpt-5.4-mini',
+        reasoning: { effort: 'none' },
+        store: false,
+        max_output_tokens: 8_192,
+        instructions,
+        input: text,
+        text: { format: zodTextFormat(cleanupTextSchema, 'cleaned_share') }
+      },
+      { signal }
+    );
+    if (response.status !== 'completed') {
+      const reason = response.incomplete_details?.reason;
+      throw new CleanupResultError(
+        'cleanup_not_completed',
+        reason === 'max_output_tokens' || reason === 'content_filter'
+          ? reason
+          : undefined
+      );
+    }
+    if (
+      response.output.some(
+        (item) =>
+          item.type === 'message' &&
+          item.content.some((part) => part.type === 'refusal')
+      )
+    )
+      throw new CleanupResultError('cleanup_refused');
+    if (!response.output_parsed)
+      throw new CleanupResultError('missing_cleanup_output');
+    return cleanupTextSchema.parse(response.output_parsed).text;
+  } catch (cause) {
+    if (cause instanceof ZodError || cause instanceof SyntaxError)
+      throw new CleanupResultError('invalid_cleanup_output');
+    throw cause;
+  }
 }

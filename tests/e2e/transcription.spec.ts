@@ -17,7 +17,7 @@ test('dictation combines with inline editing, repeated sessions, saving, history
   ).toBeVisible();
   await page.getByRole('textbox').fill('Typed fictional thought.');
   await page.getByRole('button', { name: 'Record your share' }).click();
-  await expect(page.getByText('Waiting for microphone access…')).toBeVisible();
+  await expect(page.getByText('Connecting transcription…')).toBeVisible();
   await emit(page, 'speechStart');
   await emit(page, 'speechResult', [['Provisional fiction', false]]);
   await expect(
@@ -533,3 +533,67 @@ for (const action of ['cancel', 'hide', 'navigate'] as const) {
     );
   });
 }
+
+test('permission granted shows cancellable connection progress, without claiming to listen before the transport opens', async ({
+  page
+}) => {
+  await mockSpeech(page);
+  let release!: () => void,
+    completed = false;
+  const pending = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  await page.route('**/api/transcription/session', async (route) => {
+    await pending;
+    try {
+      await route.fulfill({
+        json: { value: 'ephemeral-fiction', expires_at: 123 }
+      });
+    } catch {
+      /* The canceled startup is allowed to abort this request. */
+    }
+    completed = true;
+  });
+  await page.goto('/');
+  await page.getByRole('button', { name: 'Record your share' }).click();
+  await expect(
+    page.getByText('Connecting transcription…', { exact: true })
+  ).toBeVisible();
+  await expect(page.getByText('Listening...', { exact: true })).toHaveCount(0);
+  await expect(page.getByLabel('Listening time')).toHaveText('00:00');
+  await page.getByRole('button', { name: 'Cancel connection' }).click();
+  await expect(
+    page.getByRole('button', { name: 'Record your share' })
+  ).toBeEnabled();
+  expect(await page.evaluate(() => Reflect.get(window, 'aborted'))).toBe(true);
+  release();
+  await expect.poll(() => completed).toBe(true);
+  await expect(page.getByText('Listening...', { exact: true })).toHaveCount(0);
+});
+
+test('recording waits for private-session bootstrap before a parallel credential request can start', async ({
+  page
+}) => {
+  await mockSpeech(page);
+  let release!: () => void;
+  const pending = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  await page.route('**/api/shares', async (route) => {
+    if (route.request().method() === 'GET') {
+      await pending;
+      await route.fulfill({ json: [] });
+    } else await route.continue();
+  });
+  await page.goto('/');
+  await expect(
+    page.getByRole('button', { name: 'Record your share' })
+  ).toBeDisabled();
+  expect(
+    await page.evaluate(() => Reflect.get(window, 'microphoneRequests'))
+  ).toBeUndefined();
+  release();
+  await expect(
+    page.getByRole('button', { name: 'Record your share' })
+  ).toBeEnabled();
+});

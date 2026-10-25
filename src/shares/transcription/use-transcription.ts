@@ -64,7 +64,10 @@ export function useTranscription(
     speechDiagnostic('editor-state', { state });
   }, [state]);
   const active =
-    state === 'starting' || state === 'listening' || state === 'stopping';
+    state === 'starting' ||
+    state === 'connecting' ||
+    state === 'listening' ||
+    state === 'stopping';
   function stop() {
     speechDiagnostic('editor-stop');
     if (!engine.current) return;
@@ -117,6 +120,12 @@ export function useTranscription(
     };
     try {
       next.start({
+        connecting: () => {
+          if (live())
+            setState((current) =>
+              current === 'starting' ? 'connecting' : current
+            );
+        },
         activity: (value) => {
           if (!live()) return;
           clearTimeout(activityTimer.current);
@@ -125,7 +134,9 @@ export function useTranscription(
         listening: () => {
           if (live())
             setState((current) =>
-              current === 'starting' ? 'listening' : current
+              current === 'starting' || current === 'connecting'
+                ? 'listening'
+                : current
             );
         },
         interim: (value) => {

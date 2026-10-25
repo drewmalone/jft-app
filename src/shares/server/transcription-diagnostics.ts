@@ -1,5 +1,6 @@
 import 'server-only';
 import OpenAI from 'openai';
+import { CleanupResultError } from './cleanup-result-error';
 import { TranscriptionKeyError } from './transcription-key';
 
 const publicCodes = new Set([
@@ -30,7 +31,16 @@ export function reportTranscriptionFailure(
 ) {
   const label =
     operation === 'cleanup' ? '[Doorknob cleanup]' : '[Doorknob transcription]';
-  if (cause instanceof TranscriptionKeyError) {
+  if (cause instanceof CleanupResultError) {
+    console.warn(label, {
+      reason: cause.reason,
+      ...(cause.detail ? { code: cause.detail } : {})
+    });
+  } else if (cause instanceof OpenAI.APIConnectionTimeoutError) {
+    console.warn(label, { reason: 'provider_timeout' });
+  } else if (cause instanceof OpenAI.APIConnectionError) {
+    console.warn(label, { reason: 'provider_connection_failure' });
+  } else if (cause instanceof TranscriptionKeyError) {
     console.warn(label, { reason: cause.reason });
   } else if (cause instanceof OpenAI.APIError) {
     console.warn(label, {

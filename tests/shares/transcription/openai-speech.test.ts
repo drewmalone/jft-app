@@ -219,7 +219,9 @@ test('late permission grants and startup completions are cleaned up after cancel
   grant(s.stream);
   await settle();
   assert.equal(s.counts().stopped, 1);
-  assert.equal(s.calls.length, 0);
+  assert.equal(s.calls.length, 1); // Temporary credential work overlaps permission; SDP/audio must never start after cancellation.
+  assert.equal(s.calls[0].url, '/api/transcription/session');
+  assert.equal(s.calls[0].init?.signal?.aborted, true);
   assert.equal(s.counts().ended, 1);
   let token!: (response: Response) => void;
   const pending = setup({
@@ -353,4 +355,89 @@ test('optional predecessor links and textless delta events follow the SDK protoc
   s.final('a', 'First.');
   assert.deepEqual(s.finals, ['First.', 'Second.']);
   s.engine.dispose();
+});
+
+test('credential acquisition starts while microphone permission is pending, without opening the audio transport', async () => {
+  let grant!: (stream: MediaStream) => void;
+  const s = setup({
+    microphone: () =>
+      new Promise((resolve) => {
+        grant = resolve;
+      })
+  });
+  s.engine.start(s.events);
+  await settle();
+  assert.equal(s.calls.length, 1);
+  assert.equal(s.calls[0].url, '/api/transcription/session');
+  assert.equal(s.counts().listening, 0);
+  assert.equal(s.sent.length, 0);
+  grant(s.stream);
+  await settle();
+  assert.equal(s.calls.length, 2);
+  s.channel.onopen?.(new Event('open'));
+  assert.equal(s.counts().listening, 1);
+  s.engine.dispose();
+});
+
+test('SDP preparation is not blocked by a pending credential, but the provider call waits for both', async () => {
+  let issue!: (response: Response) => void,
+    prepared = false,
+    providerCalls = 0;
+  const s = setup({
+    fetch: async (url) => {
+      if (String(url).startsWith('/'))
+        return new Promise<Response>((resolve) => {
+          issue = resolve;
+        });
+      providerCalls++;
+      return new Response('fictional-answer');
+    }
+  });
+  s.peer.setLocalDescription = async () => {
+    prepared = true;
+  };
+  s.engine.start(s.events);
+  await settle();
+  assert.equal(prepared, true);
+  assert.equal(providerCalls, 0);
+  assert.equal(s.counts().listening, 0);
+  issue(Response.json({ value: 'ephemeral-fiction' }));
+  await settle();
+  assert.equal(providerCalls, 1);
+  s.engine.dispose();
+});
+
+test('an early credential rejection is handled while permission is pending and cancellation still releases a late grant', async () => {
+  let grant!: (stream: MediaStream) => void;
+  const s = setup({
+    microphone: () =>
+      new Promise((resolve) => {
+        grant = resolve;
+      }),
+    fetch: async () => new Response(null, { status: 503 })
+  });
+  s.engine.start(s.events);
+  await settle();
+  s.engine.stop();
+  grant(s.stream);
+  await settle();
+  assert.equal(s.counts().stopped, 1);
+  assert.equal(s.counts().ended, 1);
+  assert.deepEqual(s.errors, []);
+});
+
+test('cancellation from the connecting callback stops capture before allocating a peer', async () => {
+  let peers = 0;
+  const s = setup({
+    peer: () => {
+      peers++;
+      throw new Error('Must not allocate after cancellation');
+    }
+  });
+  s.events.connecting = () => s.engine.stop();
+  s.engine.start(s.events);
+  await settle();
+  assert.equal(peers, 0);
+  assert.equal(s.counts().stopped, 1);
+  assert.equal(s.counts().ended, 1);
 });

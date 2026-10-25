@@ -5,6 +5,7 @@ import {
   reportTranscriptionFailure,
   reportTranscriptionConfiguration
 } from '../../src/shares/server/transcription-diagnostics';
+import { CleanupResultError } from '../../src/shares/server/cleanup-result-error';
 import { TranscriptionKeyError } from '../../src/shares/server/transcription-key';
 
 test('server transcription diagnostics reveal only safe categories, statuses and allowlisted fields', (t) => {
@@ -60,6 +61,37 @@ test('server transcription diagnostics reveal only safe categories, statuses and
       code: 'unknown',
       param: 'unknown'
     }
+  ]);
+  assert.ok(!JSON.stringify(lines).includes('private'));
+});
+
+test('cleanup result categories and provider timeouts are distinguishable without leaking output', (t) => {
+  const log = t.mock.method(console, 'warn', () => {});
+  for (const reason of [
+    'cleanup_not_completed',
+    'cleanup_refused',
+    'missing_cleanup_output',
+    'invalid_cleanup_output'
+  ] as const)
+    reportTranscriptionFailure(new CleanupResultError(reason), 'cleanup');
+  reportTranscriptionFailure(
+    new CleanupResultError('cleanup_not_completed', 'max_output_tokens'),
+    'cleanup'
+  );
+  reportTranscriptionFailure(
+    new OpenAI.APIConnectionTimeoutError({
+      message: 'private timeout details'
+    }),
+    'cleanup'
+  );
+  const lines = log.mock.calls.map((call) => call.arguments);
+  assert.deepEqual(lines[4], [
+    '[Doorknob cleanup]',
+    { reason: 'cleanup_not_completed', code: 'max_output_tokens' }
+  ]);
+  assert.deepEqual(lines[5], [
+    '[Doorknob cleanup]',
+    { reason: 'provider_timeout' }
   ]);
   assert.ok(!JSON.stringify(lines).includes('private'));
 });

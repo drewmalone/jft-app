@@ -9,7 +9,7 @@ function enable(t: TestContext) {
     STT_ENABLED: 'true',
     STT_OPENAI_API_KEY: 'fictional-key'
   });
-  t.mock.method(console, 'warn', () => {});
+  return t.mock.method(console, 'warn', () => {});
 }
 async function cookie() {
   const response = await dispatch(new Request('http://localhost/api/shares'));
@@ -124,13 +124,14 @@ test('cleanup uses structured non-stored Responses and does not create shares or
 });
 
 test('empty, oversized, incomplete, refused and failed cleanup never returns a partial replacement', async (t) => {
-  enable(t);
+  const log = enable(t);
   let provider = response('');
   t.mock.method(globalThis, 'fetch', async () => provider);
   for (const invalid of [
     response(''),
     response('🌱'.repeat(10_001)),
     response('Partial', 'incomplete'),
+    Response.json({ status: 'completed', output: [] }),
     Response.json({
       status: 'completed',
       output: [
@@ -153,6 +154,19 @@ test('empty, oversized, incomplete, refused and failed cleanup never returns a p
     assert.equal(result.status, 503);
     assert.ok(!(await result.text()).includes('private provider details'));
   }
+  assert.deepEqual(
+    log.mock.calls.map(
+      (call) => (call.arguments[1] as { reason: string }).reason
+    ),
+    [
+      'invalid_cleanup_output',
+      'invalid_cleanup_output',
+      'cleanup_not_completed',
+      'missing_cleanup_output',
+      'cleanup_refused',
+      'provider_request_failed'
+    ]
+  );
 });
 
 test('cleanup counts Unicode code points and limits repeated paid requests independently', async (t) => {

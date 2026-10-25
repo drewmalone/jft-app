@@ -1,6 +1,7 @@
 /** Allowlisted diagnostic fields only: never pass text, URLs, event objects, or raw errors. */
 type DiagnosticDetails = {
   session?: number;
+  elapsedMs?: number;
   supported?: boolean;
   userActivation?: boolean;
   online?: boolean;

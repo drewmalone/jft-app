@@ -3,13 +3,13 @@ import { speechDiagnostic } from './diagnostics';
 /** App-authored configuration failure; never constructed from upstream response text. */
 export class TranscriptionUnavailable extends Error {}
 
-/** Exchange one ephemeral credential and SDP answer; only WebRTC carries subsequent microphone audio. */
-export async function connectOpenAI(
-  peer: RTCPeerConnection,
+/** Fetch only a temporary credential, after an explicit recording tap. No audio is transmitted. */
+export async function requestOpenAICredential(
   request: typeof fetch,
   signal: AbortSignal
-) {
-  const tokenResponse = await request('/api/transcription/session', {
+): Promise<string> {
+  const started = performance.now();
+  const response = await request('/api/transcription/session', {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
     body: '{}',
@@ -17,9 +17,12 @@ export async function connectOpenAI(
     cache: 'no-store'
   });
   signal.throwIfAborted();
-  speechDiagnostic('credential-response', { status: tokenResponse.status });
-  if (!tokenResponse.ok) throw new TranscriptionUnavailable();
-  const token: unknown = await tokenResponse.json();
+  speechDiagnostic('credential-response', {
+    status: response.status,
+    elapsedMs: Math.round(performance.now() - started)
+  });
+  if (!response.ok) throw new TranscriptionUnavailable();
+  const token: unknown = await response.json();
   signal.throwIfAborted();
   if (
     !token ||
@@ -28,16 +31,39 @@ export async function connectOpenAI(
     typeof token.value !== 'string'
   )
     throw new Error('Invalid credential');
+  return token.value;
+}
+
+async function prepareOffer(peer: RTCPeerConnection, signal: AbortSignal) {
+  const started = performance.now();
   const offer = await peer.createOffer();
-  speechDiagnostic('webrtc-offer-created');
   signal.throwIfAborted();
   await peer.setLocalDescription(offer);
   signal.throwIfAborted();
+  speechDiagnostic('webrtc-offer-created', {
+    elapsedMs: Math.round(performance.now() - started)
+  });
+  return offer;
+}
+
+/** Prepare SDP/ICE while credentials load; only WebRTC carries subsequent microphone audio. */
+export async function connectOpenAI(
+  peer: RTCPeerConnection,
+  request: typeof fetch,
+  signal: AbortSignal,
+  credential = requestOpenAICredential(request, signal)
+) {
+  const [offer, value] = await Promise.all([
+    prepareOffer(peer, signal),
+    credential
+  ]);
+  signal.throwIfAborted();
+  const started = performance.now();
   const answer = await request('https://api.openai.com/v1/realtime/calls', {
     method: 'POST',
     body: offer.sdp,
     headers: {
-      authorization: `Bearer ${token.value}`,
+      authorization: `Bearer ${value}`,
       'content-type': 'application/sdp'
     },
     signal,
@@ -45,7 +71,10 @@ export async function connectOpenAI(
     referrerPolicy: 'no-referrer'
   });
   signal.throwIfAborted();
-  speechDiagnostic('webrtc-answer-response', { status: answer.status });
+  speechDiagnostic('webrtc-answer-response', {
+    status: answer.status,
+    elapsedMs: Math.round(performance.now() - started)
+  });
   if (!answer.ok) throw new Error('Connection failed');
   const sdp = await answer.text();
   signal.throwIfAborted();

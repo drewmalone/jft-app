@@ -52,9 +52,9 @@ export function ShareForm({
         <RecordingControls
           state={voice.state}
           active={voice.active}
-          disabled={saving || cleanup.pending}
+          disabled={disabled || cleanup.pending}
           onToggle={() => {
-            if (!cleanup.isPending()) {
+            if (!disabled && !cleanup.isPending()) {
               if (voice.active) voice.stop();
               else voice.start();
             }

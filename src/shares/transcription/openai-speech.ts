@@ -1,6 +1,10 @@
 import type { TranscriptionEngine, TranscriptionEvents } from './types';
 import { createOpenAIResults } from './openai-results';
-import { connectOpenAI, TranscriptionUnavailable } from './openai-connection';
+import {
+  connectOpenAI,
+  requestOpenAICredential,
+  TranscriptionUnavailable
+} from './openai-connection';
 import { watchMicrophone } from './microphone-activity';
 import {
   requestMicrophone,
@@ -165,6 +169,7 @@ export function createOpenAISpeech(deps = browser): TranscriptionEngine {
     start(callbacks) {
       if (used) return;
       used = true;
+      const started = performance.now();
       live = true;
       events = callbacks;
       results = createOpenAIResults({
@@ -195,7 +200,11 @@ export function createOpenAISpeech(deps = browser): TranscriptionEngine {
         let acquiring = true;
         try {
           // Begin permission request directly from the user gesture; release late grants after cancellation.
-          const acquired = await deps.microphone();
+          const microphone = deps.microphone();
+          // Permission and credential fetch can overlap; handle early rejection until the microphone resolves.
+          const credential = requestOpenAICredential(deps.fetch, abort.signal);
+          void credential.catch(() => {});
+          const acquired = await microphone;
           acquiring = false;
           if (!live) {
             acquired.getTracks().forEach((track) => track.stop());
@@ -205,7 +214,11 @@ export function createOpenAISpeech(deps = browser): TranscriptionEngine {
           stream.getTracks().forEach((track) => {
             track.onended = interrupted;
           });
-          speechDiagnostic('microphone-permission-granted');
+          speechDiagnostic('microphone-permission-granted', {
+            elapsedMs: Math.round(performance.now() - started)
+          });
+          events.connecting?.();
+          if (!live) return;
           peer = deps.peer();
           stream.getTracks().forEach((track) => peer!.addTrack(track, stream!));
           peer.onconnectionstatechange = () => {
@@ -283,7 +296,9 @@ export function createOpenAISpeech(deps = browser): TranscriptionEngine {
             clearTimeout(startup);
             timers.delete(startup);
             ready = true;
-            speechDiagnostic('data-channel-open');
+            speechDiagnostic('data-channel-open', {
+              elapsedMs: Math.round(performance.now() - started)
+            });
             unwatchStats = watchWebRTCStats(peer!);
             try {
               unwatch = deps.watch(
@@ -319,7 +334,7 @@ export function createOpenAISpeech(deps = browser): TranscriptionEngine {
               finish(FAILURE);
             }
           };
-          await connectOpenAI(peer, deps.fetch, abort.signal);
+          await connectOpenAI(peer, deps.fetch, abort.signal, credential);
           speechDiagnostic('start-returned');
         } catch (cause) {
           if (!live) return;

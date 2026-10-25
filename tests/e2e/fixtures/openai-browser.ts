@@ -165,10 +165,10 @@ export async function emit(page: Page, name: string, value?: unknown) {
     await page.waitForFunction(() => Reflect.get(window, 'speechReady'));
   if (name === 'speechEnd') {
     const canceling = await page
-      .getByRole('button', { name: 'Cancel microphone' })
+      .getByRole('button', { name: /^Cancel (microphone|connection)$/ })
       .isVisible();
     const stop = page.getByRole('button', {
-      name: /^(Stop listening|Cancel microphone)$/
+      name: /^(Stop listening|Cancel microphone|Cancel connection)$/
     });
     if (await stop.isVisible()) await stop.click();
     await expect

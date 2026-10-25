@@ -292,3 +292,20 @@ test('automatic cleanup is notified only after an explicit stop successfully fin
   });
   assert.equal(completed.length, 1);
 });
+
+test('microphone grant advances to connecting and late connection callbacks cannot resume a canceled session', () => {
+  const s = setup();
+  act(() => s.result.current.start());
+  const engine = s.latest();
+  act(() => engine.events!.connecting?.());
+  assert.equal(s.result.current.state, 'connecting');
+  assert.equal(s.result.current.active, true);
+  act(() => s.result.current.stop());
+  act(() => {
+    engine.events!.connecting?.();
+    engine.events!.listening();
+  });
+  assert.equal(s.result.current.state, 'stopping');
+  act(() => engine.events!.ended());
+  assert.equal(s.result.current.state, 'idle');
+});
