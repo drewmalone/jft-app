@@ -185,27 +185,22 @@ export function useTranscription(
         finish(true, 'Speech recognition could not start. Please try again.');
       }
     };
-    cancelPending.current = () => finish(false, 'Tap to record more.');
-    try {
-      const requested = permission.request();
-      if (requested) {
-        void requested.then(begin, (cause: unknown) => {
-          if (live())
-            finish(
-              true,
-              cause instanceof Error
-                ? cause.message
-                : 'Microphone access could not start. Please try again.'
-            );
-        });
-      } else begin();
-    } catch (cause) {
+    const permissionFailed = (cause: unknown) => {
+      if (!live()) return;
       finish(
         true,
         cause instanceof Error
           ? cause.message
           : 'Microphone access could not start. Please try again.'
       );
+    };
+    cancelPending.current = () => finish(false, 'Tap to record more.');
+    try {
+      const requested = permission.request();
+      if (requested) void requested.then(begin, permissionFailed);
+      else begin();
+    } catch (cause) {
+      permissionFailed(cause);
     }
   }
   return { state, interim, message, active, speaking, start, stop };

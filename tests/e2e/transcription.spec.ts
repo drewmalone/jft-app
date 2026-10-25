@@ -164,7 +164,7 @@ test('permission/service errors recover, navigation cleans up, stale callbacks a
         error === 'not-allowed'
           ? /Speech recognition is not allowed/
           : error === 'service-not-allowed'
-            ? /speech recognition service is unavailable or not allowed/
+            ? /We couldn’t start listening.*Siri/
             : /Speech recognition could not continue/
       )
     ).toBeVisible();

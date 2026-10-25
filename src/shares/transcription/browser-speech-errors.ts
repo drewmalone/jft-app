@@ -4,7 +4,7 @@ export function browserSpeechErrorMessage(code: string): string {
     case 'not-allowed':
       return 'Speech recognition is not allowed. Check this website’s permissions in Safari’s website settings or your browser’s site settings, then try again.';
     case 'service-not-allowed':
-      return 'The speech recognition service is unavailable or not allowed. Check device speech recognition settings, or type your share.';
+      return 'We couldn’t start listening. On iPhone, check that Siri is turned on, then try again. You can always type your share.';
     case 'language-not-supported':
       return 'Speech recognition does not support this language. Try another browser or type your share.';
     case 'audio-capture':

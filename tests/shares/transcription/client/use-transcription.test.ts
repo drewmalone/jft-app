@@ -318,6 +318,36 @@ test('permission precedes recognition, rapid starts share one session, and repea
   assert.equal(hook.result.current.message, 'Speech service is not allowed.');
 });
 
+test('cancel then restart while permission is pending starts only the newest session', async () => {
+  const hook = permissionSetup();
+  act(() => hook.result.current.start());
+  const canceled = hook.latest();
+  act(() => {
+    hook.result.current.stop();
+    hook.result.current.start();
+  });
+  const restarted = hook.latest();
+  assert.notEqual(restarted, canceled);
+  assert.equal(hook.requests, 1);
+  assert.equal(canceled.disposed, true);
+  assert.equal(restarted.events, undefined);
+  assert.equal(hook.result.current.state, 'starting');
+
+  await act(async () => hook.grant());
+  assert.equal(hook.requests, 1);
+  assert.equal(hook.stopped, 1);
+  assert.equal(canceled.events, undefined);
+  assert.equal(restarted.disposed, false);
+  assert.equal(hook.engines.filter((engine) => engine.events).length, 1);
+  act(() => {
+    restarted.events!.listening();
+    restarted.events!.final('A fresh start.');
+    restarted.events!.ended();
+  });
+  assert.equal(hook.result.current.state, 'idle');
+  assert.equal(hook.result.current.text, 'Existing words.\n\nA fresh start.');
+});
+
 test('permission denial preserves the draft and never starts recognition', async () => {
   const hook = permissionSetup();
   act(() => hook.result.current.start());

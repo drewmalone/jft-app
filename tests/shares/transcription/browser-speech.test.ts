@@ -132,7 +132,7 @@ const expectedRecognitionErrors = {
   'not-allowed':
     'Speech recognition is not allowed. Check this website’s permissions in Safari’s website settings or your browser’s site settings, then try again.',
   'service-not-allowed':
-    'The speech recognition service is unavailable or not allowed. Check device speech recognition settings, or type your share.',
+    'We couldn’t start listening. On iPhone, check that Siri is turned on, then try again. You can always type your share.',
   network:
     'Speech recognition could not continue. Check your connection and try again.',
   'audio-capture':
