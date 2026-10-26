@@ -70,3 +70,22 @@ Use **Squash and merge** with the validated PR title as the commit title. Follow
 ## Dependency maintenance
 
 Commit `package-lock.json` and install with `npm ci`. Review dependency changes and merge manually after checks pass. See [shared repository standards](docs/REPOSITORY_STANDARDS.md#7-dependency-and-security-maintenance) for the update schedule, grouping, and security-check policy. Those cross-repository decisions are maintained there rather than repeated here.
+
+## Browser quality checks
+
+`npm run test:e2e` runs mobile and desktop projects for Chromium and WebKit against a production build, with two workers. The harness runs Next on HTTP port 3101 behind a loopback-only HTTPS proxy on port 3100 so every engine exercises production Secure cookies. OpenSSL generates an ephemeral self-signed localhost certificate at startup; certificate files are deleted immediately after loading. Only the isolated browser/API test contexts ignore that test certificate; application cookie security and package/browser download verification are unchanged. Independently created browser contexts must use `ignoreHTTPSErrors: true` for this localhost fixture. Install engines with `npx playwright install --with-deps chromium webkit`; run `npm run build` first. For one engine:
+
+```bash
+npm run test:e2e -- --project=mobile-chromium --project=desktop-chromium
+npm run test:e2e -- --project=mobile-webkit --project=desktop-webkit
+```
+
+WebKit is Safari-engine coverage on Linux, not physical iOS microphone or permission testing. Keep the [device checks](docs/MICROPHONE_TESTING.md) for real audio, interruption and final-word behavior. `PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH` overrides Chromium only; it never changes WebKit's executable.
+
+All browser specs import `test`/`expect` from `tests/e2e/fixtures/test.ts`. Its automatic guard fails on uncaught page exceptions, hydration errors/warnings and unexpected console errors. It records redacted categories rather than raw messages. HTTP resource diagnostics are excluded only when matched to an observed failed document/fetch/XHR response; intentional API failure behavior is asserted in endpoint tests. Missing assets/network failures still fail. The isolated error-page test narrowly allows React's production Server Components failure (including the installed version's minified code #441); other tests have no such exception. Intentional exceptions require a test-local pattern, error kind and written reason. New pages in independently created browser contexts must call the `watchPage` fixture before navigation.
+
+`accessibility.spec.ts` runs axe WCAG A/AA scans on writing, listening, Tidying, editable results, saved previews/expanded thoughts, manual copying, history hover and recipient pages. Fix violations rather than globally disabling rules. Automated scans supplement keyboard, screen-reader and physical-device testing.
+
+The HTML report is written to ignored `playwright-report/`; inspect it with `npx playwright show-report`. CI uploads this directory for failed browser jobs, retained for seven days. Use only fictional fixtures: reports and assertion contexts can contain test text and synthetic link IDs. Traces, screenshots and video are disabled. Never run this suite against real reflections or inject live provider credentials; the isolated server sets `STT_ENABLED=false` and browser provider requests require mocks.
+
+The Checks workflow runs on pull requests and main pushes. PR runs use a concurrency group per PR, avoiding duplicate branch/PR runs. It cancels superseded runs without making the aggregate Verify check report a false failure. Runners are pinned to Ubuntu 24.04 for repeatable browser dependencies. It separates code/contracts from Chromium and WebKit jobs, and keeps the existing `Verify` status as an aggregate gate: both engines and code checks must pass. No branch-protection status rename is required. Browser jobs build their own isolated production app; compiled apps are not retained as artifacts. Provider quality evaluations and OpenAPI compatibility comparisons remain separate future work.
