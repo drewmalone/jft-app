@@ -355,3 +355,116 @@ test('save-time link and public responses conform to generated contracts', async
     'options'
   );
 });
+
+test('paid operations share documented errors, origin requirements, expiry and retry headers', async (t) => {
+  t.mock.property(process, 'env', {
+    ...process.env,
+    STT_ENABLED: 'true',
+    STT_OPENAI_API_KEY: 'fictional-key'
+  });
+  t.mock.method(console, 'warn', () => {});
+  t.mock.method(globalThis, 'fetch', async () =>
+    Response.json({
+      value: 'ephemeral-fiction',
+      expires_at: 123,
+      ignored: 'private provider metadata'
+    })
+  );
+  const document = getOpenApiDocument();
+  for (const name of ['ApiError', 'DraftText', 'TranscriptionCredential'])
+    assert.ok(document.components?.schemas?.[name]);
+  const credential = document.components?.schemas?.TranscriptionCredential;
+  assert.ok(credential && !('$ref' in credential));
+  const expiry = credential.properties?.expires_at;
+  assert.ok(expiry && !('$ref' in expiry));
+  assert.equal(expiry.type, 'integer');
+  assert.match(expiry.description!, /Unix time in seconds/);
+  for (const path of ['/api/transcription/session', '/api/shares/cleanup']) {
+    const post = document.paths?.[path]?.post;
+    assert.deepEqual(post?.security, [{ AnonymousSession: [] }]);
+    assert.ok(
+      post?.parameters?.some(
+        (parameter) =>
+          !('$ref' in parameter) &&
+          parameter.in === 'header' &&
+          parameter.name === 'origin' &&
+          parameter.required
+      )
+    );
+    for (const origin of [undefined, 'https://foreign.example']) {
+      const response = await request(
+        'POST',
+        path,
+        undefined,
+        undefined,
+        origin ? { origin } : undefined
+      );
+      assert.equal(
+        (await response.clone().json()).error.code,
+        'CROSS_ORIGIN_REQUEST'
+      );
+      assert.equal(response.headers.get('set-cookie'), null);
+      await contract(response, path, 'post');
+    }
+    const absent = await request('POST', path, undefined, undefined, {
+      origin: 'http://localhost'
+    });
+    assert.equal((await absent.clone().json()).error.code, 'SESSION_REQUIRED');
+    await contract(absent, path, 'post');
+  }
+  const cookie = cookieFrom(await request());
+  for (let attempt = 0; attempt < 5; attempt++) {
+    const issued = await request(
+      'POST',
+      '/api/transcription/session',
+      cookie,
+      undefined,
+      { origin: 'http://localhost' }
+    );
+    assert.equal(issued.status, 200);
+    await contract(issued, '/api/transcription/session', 'post');
+  }
+  const limited = await request(
+    'POST',
+    '/api/transcription/session',
+    cookie,
+    undefined,
+    { origin: 'http://localhost' }
+  );
+  assert.equal((await limited.clone().json()).error.code, 'RATE_LIMITED');
+  await contract(limited, '/api/transcription/session', 'post');
+  // A separate allowance: exhausted credential issuance must not block cleanup.
+  for (let attempt = 0; attempt < 5; attempt++) {
+    const failedCleanup = await request(
+      'POST',
+      '/api/shares/cleanup',
+      cookie,
+      JSON.stringify({ text: 'Fictional draft.' }),
+      { origin: 'http://localhost' }
+    );
+    assert.equal(failedCleanup.status, 503); // Credential-shaped mock is intentionally invalid cleanup output.
+    await contract(failedCleanup, '/api/shares/cleanup', 'post');
+  }
+  const cleanupLimited = await request(
+    'POST',
+    '/api/shares/cleanup',
+    cookie,
+    JSON.stringify({ text: 'Fictional draft.' }),
+    { origin: 'http://localhost' }
+  );
+  assert.equal(cleanupLimited.status, 429);
+  await contract(cleanupLimited, '/api/shares/cleanup', 'post');
+  process.env.STT_ENABLED = 'false';
+  for (const path of ['/api/transcription/session', '/api/shares/cleanup']) {
+    const unavailable = await request('POST', path, cookie, undefined, {
+      origin: 'http://localhost'
+    });
+    assert.equal(unavailable.status, 503);
+    await contract(unavailable, path, 'post');
+  }
+  await contract(
+    await request('OPTIONS', '/api/transcription/session'),
+    '/api/transcription/session',
+    'options'
+  );
+});

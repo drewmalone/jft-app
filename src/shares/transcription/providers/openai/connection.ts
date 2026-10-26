@@ -1,3 +1,4 @@
+import { transcriptionCredentialSchema } from '../../model';
 import { speechDiagnostic } from '../../diagnostics';
 
 /** App-authored configuration failure; never constructed from upstream response text. */
@@ -24,14 +25,7 @@ export async function requestOpenAICredential(
   if (!response.ok) throw new TranscriptionUnavailable();
   const token: unknown = await response.json();
   signal.throwIfAborted();
-  if (
-    !token ||
-    typeof token !== 'object' ||
-    !('value' in token) ||
-    typeof token.value !== 'string'
-  )
-    throw new Error('Invalid credential');
-  return token.value;
+  return transcriptionCredentialSchema.parse(token).value;
 }
 
 /** Application-owned authenticated SDP exchange; the SDK owns native negotiation. */

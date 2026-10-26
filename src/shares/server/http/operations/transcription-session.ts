@@ -1,26 +1,28 @@
 import 'server-only';
 import { burstLimited } from '../../auth/burst-limit';
-import { createRoute, z, type RouteHandler } from '@hono/zod-openapi';
-import { getSession } from '../../auth/session';
+import { createRoute, type RouteHandler } from '@hono/zod-openapi';
 import {
   reportTranscriptionFailure,
   reportTranscriptionConfiguration,
   issueTranscriptionCredential
 } from '../../transcription-provider';
-import { privateHeaders, commonFailures } from '../openapi';
-import type { SessionEnvironment } from '../middleware';
-
-const credentials = z.object({ value: z.string(), expires_at: z.number() });
-const unavailable = {
-  error: 'Transcription is unavailable. You can still type and save your share.'
-};
-const failure = (description: string) => ({
-  description,
-  headers: privateHeaders,
-  content: { 'application/json': { schema: z.object({ error: z.string() }) } }
-});
+import {
+  privateHeaders,
+  commonFailures,
+  failed,
+  transcriptionCredential,
+  retryAfterHeaders,
+  browserOriginHeaders
+} from '../openapi';
+import {
+  exactSameOrigin,
+  existingSession,
+  type SessionEnvironment
+} from '../middleware';
+import { errorBody } from '../errors';
 
 export const transcriptionSessionRoute = createRoute({
+  middleware: [exactSameOrigin, existingSession] as const,
   method: 'post',
   path: '/transcription/session',
   operationId: 'createTranscriptionSession',
@@ -29,18 +31,17 @@ export const transcriptionSessionRoute = createRoute({
   description:
     'Requires an existing signed session and an exact same-origin Origin header. No audio or transcript body is accepted. Disabled unless STT_ENABLED=true. Credentials are never cached.',
   security: [{ AnonymousSession: [] }],
+  request: { headers: browserOriginHeaders },
   responses: {
     200: {
       description:
         'Ephemeral OpenAI credential; expires after 60 seconds for establishing connections, not terminating active sessions.',
       headers: privateHeaders,
-      content: { 'application/json': { schema: credentials } }
+      content: { 'application/json': { schema: transcriptionCredential } }
     },
-    403: failure('Origin or existing signed session is missing or invalid.'),
-    429: failure(
-      'Process-local issuance limit exceeded; Retry-After is 60 seconds.'
-    ),
-    503: failure('Disabled, missing configuration, or provider unavailable.'),
+    403: failed(['CROSS_ORIGIN_REQUEST', 'SESSION_REQUIRED']),
+    429: failed(['RATE_LIMITED'], retryAfterHeaders),
+    503: failed(['TRANSCRIPTION_UNAVAILABLE']),
     ...commonFailures
   }
 });
@@ -50,31 +51,24 @@ export const createTranscriptionSession: RouteHandler<
   typeof transcriptionSessionRoute,
   SessionEnvironment
 > = async (c) => {
-  const url = new URL(c.req.url);
-  // Match the existing BFF origin boundary when the Node listener differs from the public Host.
-  const authority = c.req.header('host') ?? url.host;
-  if (c.req.header('origin') !== `${url.protocol}//${authority}`)
-    return c.json(unavailable, 403);
   try {
-    const session = await getSession(c.req.raw);
-    if (session.newSession) return c.json(unavailable, 403);
     if (process.env.STT_ENABLED !== 'true') {
       reportTranscriptionConfiguration('disabled');
-      return c.json(unavailable, 503);
+      return c.json(errorBody('TRANSCRIPTION_UNAVAILABLE'), 503);
     }
-    if (burstLimited('transcription', session.ownerId)) {
+    if (burstLimited('transcription', c.get('ownerId'))) {
       c.header('Retry-After', '60');
-      return c.json(unavailable, 429);
+      return c.json(errorBody('RATE_LIMITED'), 429);
     }
     const token = await issueTranscriptionCredential(c.req.raw.signal);
-    const result = credentials.safeParse(token);
+    const result = transcriptionCredential.safeParse(token);
     if (!result.success) {
       reportTranscriptionConfiguration('invalid_provider_response');
-      return c.json(unavailable, 503);
+      return c.json(errorBody('TRANSCRIPTION_UNAVAILABLE'), 503);
     }
     return c.json(result.data, 200);
   } catch (cause) {
     reportTranscriptionFailure(cause);
-    return c.json(unavailable, 503);
+    return c.json(errorBody('TRANSCRIPTION_UNAVAILABLE'), 503);
   }
 };

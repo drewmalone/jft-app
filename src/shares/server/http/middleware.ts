@@ -25,13 +25,36 @@ const limitShareBody = bodyLimit({
   onError: () => error('PAYLOAD_TOO_LARGE')
 });
 
-/** Rejects foreign browser origins before reading a write body. */
+/** Browser request policy only. Origin is not proof of client identity. */
+function matchesOrigin(request: Request, required: boolean) {
+  const origin = request.headers.get('origin');
+  if (!origin) return !required;
+  const url = new URL(request.url);
+  return (
+    origin === `${url.protocol}//${request.headers.get('host') ?? url.host}`
+  );
+}
+
+/** Existing share writes permit an absent Origin; a foreign supplied Origin is rejected. */
 export const sameOrigin: MiddlewareHandler = async (c, next) => {
-  const origin = c.req.header('origin');
-  const url = new URL(c.req.url);
-  const authority = c.req.header('host') ?? url.host;
-  if (origin && origin !== `${url.protocol}//${authority}`)
-    return error('CROSS_ORIGIN_REQUEST');
+  if (!matchesOrigin(c.req.raw, false)) return error('CROSS_ORIGIN_REQUEST');
+  await next();
+};
+
+/** Paid browser operations require an exact Origin, before inspecting session credentials. */
+export const exactSameOrigin: MiddlewareHandler = async (c, next) => {
+  if (!matchesOrigin(c.req.raw, true)) return error('CROSS_ORIGIN_REQUEST');
+  await next();
+};
+
+/** Identity boundary only: verify an existing cookie without establishing or renewing ownership. */
+export const existingSession: MiddlewareHandler<SessionEnvironment> = async (
+  c,
+  next
+) => {
+  const session = await getSession(c.req.raw);
+  if (session.newSession) return error('SESSION_REQUIRED');
+  c.set('ownerId', session.ownerId);
   await next();
 };
 

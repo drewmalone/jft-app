@@ -7,11 +7,16 @@ export const MAX_SHARE_REQUEST_BYTES = 64 * 1024;
 export const apiFailures = {
   SESSION_REQUIRED: {
     status: 403,
-    message: 'Prepare your private session before tidying your text.'
+    message: 'Prepare your private session before using this operation.'
   },
   RATE_LIMITED: {
     status: 429,
-    message: 'Please wait a minute before trying cleanup again.'
+    message: 'Please wait a minute before trying again.'
+  },
+  TRANSCRIPTION_UNAVAILABLE: {
+    status: 503,
+    message:
+      'Transcription is unavailable. You can still type and save your share.'
   },
   CLEANUP_UNAVAILABLE: {
     status: 503,

@@ -12,7 +12,8 @@ export const apiErrorCodeSchema = z.enum([
   'INTERNAL_ERROR',
   'SESSION_REQUIRED',
   'RATE_LIMITED',
-  'CLEANUP_UNAVAILABLE'
+  'CLEANUP_UNAVAILABLE',
+  'TRANSCRIPTION_UNAVAILABLE'
 ]);
 
 export type ApiErrorCode = z.infer<typeof apiErrorCodeSchema>;

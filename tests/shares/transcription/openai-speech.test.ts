@@ -268,7 +268,7 @@ test('late permission grants and startup completions are cleaned up after cancel
   pending.engine.start(pending.events);
   await settle();
   pending.engine.dispose();
-  token(Response.json({ value: 'late' }));
+  token(Response.json({ value: 'late', expires_at: 123 }));
   await settle();
   assert.equal(pending.counts().closed, 2);
   assert.equal(pending.counts().listening, 0);
@@ -438,7 +438,7 @@ test('SDP preparation is not blocked by a pending credential, but the provider c
   assert.equal(prepared, true);
   assert.equal(providerCalls, 0);
   assert.equal(s.counts().listening, 0);
-  issue(Response.json({ value: 'ephemeral-fiction' }));
+  issue(Response.json({ value: 'ephemeral-fiction', expires_at: 123 }));
   await settle();
   assert.equal(providerCalls, 1);
   s.engine.dispose();
@@ -499,7 +499,7 @@ test('SDK readiness requires the SDP answer, connected peer and open channel', a
   const s = setup({
     fetch: async (url) =>
       String(url).startsWith('/')
-        ? Response.json({ value: 'ephemeral-fiction' })
+        ? Response.json({ value: 'ephemeral-fiction', expires_at: 123 })
         : new Promise<Response>((resolve) => {
             answer = resolve;
           })
@@ -543,7 +543,7 @@ test('cancel during SDK signaling stops capture and ignores a late SDP answer', 
   const s = setup({
     fetch: async (url) =>
       String(url).startsWith('/')
-        ? Response.json({ value: 'ephemeral-fiction' })
+        ? Response.json({ value: 'ephemeral-fiction', expires_at: 123 })
         : new Promise<Response>((resolve) => {
             answer = resolve;
           })

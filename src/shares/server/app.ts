@@ -36,8 +36,14 @@ app.openapi(createShareRoute, createShare);
 
 app.openapi(readPublicShareRoute, getPublicShare, publicShareValidation);
 app.openapi(transcriptionSessionRoute, createTranscriptionSession);
-app.options('/transcription/session', (c) =>
-  c.body(null, 204, { Allow: 'POST, OPTIONS' })
+app.openapi(
+  optionsRoute(
+    '/transcription/session',
+    'POST, OPTIONS',
+    'transcriptionOptions',
+    'Transcription'
+  ),
+  (c) => c.body(null, 204, { Allow: 'POST, OPTIONS' })
 );
 app.all('/transcription/session', () =>
   error('METHOD_NOT_ALLOWED', { Allow: 'POST, OPTIONS' })
@@ -57,7 +63,7 @@ app.openAPIRegistry.registerComponent('securitySchemes', 'AnonymousSession', {
   in: 'cookie',
   name: 'doorknob-session',
   description:
-    'Signed HttpOnly cookie. Missing, invalid or expired cookies start a fresh empty owner. 30-day absolute expiry, SameSite=Lax, Secure in production.'
+    'Signed HttpOnly cookie, 30-day absolute expiry, SameSite=Lax, Secure in production. Share operations may establish a fresh owner for missing/invalid/expired cookies; paid operations require an existing valid cookie and never issue one.'
 });
 app.options('/openapi.json', (c) =>
   c.newResponse(null, 204, { Allow: specificationAllow })

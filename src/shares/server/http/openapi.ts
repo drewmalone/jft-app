@@ -3,11 +3,37 @@ import { createRoute, type RouteConfig, z } from '@hono/zod-openapi';
 import type { HeadersObject } from 'openapi3-ts/oas31';
 import type { ApiErrorCode } from '../../errors';
 import { shareSchema } from '../../model';
+import { apiErrorSchema } from '../../errors';
+import { cleanupTextSchema } from '../../cleanup/model';
+import { transcriptionCredentialSchema } from '../../transcription/model';
 import { apiFailures } from './errors';
 
 export const share = shareSchema.openapi('Share', {
   additionalProperties: false
 });
+
+export const browserOriginHeaders = z.object({
+  origin: z
+    .string()
+    .describe(
+      'Exact public scheme and authority of this browser API, for example https://preview.example. Required browser request policy; not authentication.'
+    )
+});
+
+export const draftText = cleanupTextSchema.openapi('DraftText');
+export const transcriptionCredential = transcriptionCredentialSchema.openapi(
+  'TranscriptionCredential'
+);
+const apiError = apiErrorSchema.openapi('ApiError');
+
+export const retryAfterHeaders = {
+  'Retry-After': {
+    required: true,
+    description:
+      'Seconds to wait before retrying; process-local burst window only, not a shared quota.',
+    schema: { type: 'string' as const, enum: ['60'] }
+  }
+};
 
 const privateHeader = {
   description: 'Private responses are never cached.',
@@ -41,8 +67,8 @@ export function failed(
     headers: { ...privateHeaders, ...extraHeaders },
     content: {
       'application/json': {
-        schema: z.object({
-          error: z.object({ code: z.enum(codes), message: z.string() })
+        schema: apiError.extend({
+          error: apiError.shape.error.extend({ code: z.enum(codes) })
         })
       }
     }
@@ -70,12 +96,17 @@ export function headRoute(route: RouteConfig) {
   });
 }
 
-export function optionsRoute(path: string, allow: string, operationId: string) {
+export function optionsRoute(
+  path: string,
+  allow: string,
+  operationId: string,
+  tag: 'Shares' | 'Transcription' = 'Shares'
+) {
   return createRoute({
     method: 'options',
     path,
     operationId,
-    tags: ['Shares'],
+    tags: [tag],
     summary: 'Discover supported HTTP methods',
     description:
       'No session required or issued. No CORS permission is granted.',

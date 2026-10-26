@@ -180,3 +180,56 @@ test('credential origin checks use the public Host when the internal listener di
   );
   assert.equal(foreign.status, 403);
 });
+
+test('browser policy precedes identity checks; authentication configuration failures remain coded and private', async (t) => {
+  setEnv(t, 'SESSION_SECRET', 'invalid-short-secret');
+  const calls = t.mock.method(globalThis, 'fetch', async () => {
+    throw new Error('Must not contact provider');
+  });
+  for (const path of ['/api/transcription/session', '/api/shares/cleanup']) {
+    const foreign = await dispatch(
+      new Request(`http://localhost${path}`, {
+        method: 'POST',
+        headers: { origin: 'https://foreign.example' }
+      })
+    );
+    assert.equal(foreign.status, 403);
+    assert.equal((await foreign.json()).error.code, 'CROSS_ORIGIN_REQUEST');
+    const same = await dispatch(
+      new Request(`http://localhost${path}`, {
+        method: 'POST',
+        headers: { origin: 'http://localhost' }
+      })
+    );
+    assert.equal(same.status, 500);
+    assert.equal((await same.json()).error.code, 'INTERNAL_ERROR');
+    assert.equal(same.headers.get('set-cookie'), null);
+    assert.equal(same.headers.get('cache-control'), 'private, no-store');
+  }
+  assert.equal(calls.mock.callCount(), 0);
+});
+
+test('invalid credential shape never crosses the browser boundary', async (t) => {
+  setEnv(t, 'STT_ENABLED', 'true');
+  setEnv(t, 'STT_OPENAI_API_KEY', 'fictional-key');
+  t.mock.method(console, 'warn', () => {});
+  for (const token of [
+    { value: '', expires_at: 123 },
+    { value: 'private-token', expires_at: '123' },
+    { value: 'private-token', expires_at: 123.5 }
+  ]) {
+    t.mock.method(globalThis, 'fetch', async () => Response.json(token));
+    const result = await request({
+      origin: 'http://localhost',
+      cookie: await cookie()
+    });
+    assert.equal(result.status, 503);
+    assert.deepEqual(await result.json(), {
+      error: {
+        code: 'TRANSCRIPTION_UNAVAILABLE',
+        message:
+          'Transcription is unavailable. You can still type and save your share.'
+      }
+    });
+  }
+});
