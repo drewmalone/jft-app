@@ -27,6 +27,10 @@ test('a stale prototype cookie automatically starts an empty session and allows 
   const cookie = (await context.cookies()).find(
     (item) => item.name === 'doorknob-session'
   );
+  expect(cookie).toBeDefined();
+  expect(cookie?.secure).toBe(true);
+  expect(cookie?.httpOnly).toBe(true);
+  expect(cookie?.sameSite).toBe('Lax');
   expect(cookie?.value).not.toBe('fictional-stale-cookie');
   await page.getByRole('button', { name: 'Save privately' }).click();
   await expect(

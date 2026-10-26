@@ -54,7 +54,7 @@ test('share icon uses the saved URL directly for native sharing and session-free
       exact: true
     })
   ).toBeVisible();
-  const recipient = await browser.newContext();
+  const recipient = await browser.newContext({ ignoreHTTPSErrors: true });
   try {
     const reader = await recipient.newPage();
     watchPage(reader);
@@ -287,7 +287,7 @@ test('owner thoughts collapse while sharing stays visible and recipients see the
   await expect(
     page.getByText('A moment you made space for yourself.')
   ).toHaveCount(0);
-  const recipient = await browser.newContext();
+  const recipient = await browser.newContext({ ignoreHTTPSErrors: true });
   try {
     const reader = await recipient.newPage();
     watchPage(reader);

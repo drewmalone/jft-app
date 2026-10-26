@@ -94,7 +94,7 @@ test('saved preview, expanded thoughts, manual copying, history and recipient pa
   await expect(page.getByRole('listitem')).toHaveCount(1);
   await page.getByRole('listitem').getByRole('button').hover();
   await accessible(page);
-  const recipient = await browser.newContext();
+  const recipient = await browser.newContext({ ignoreHTTPSErrors: true });
   try {
     const reader = await recipient.newPage();
     watchPage(reader);

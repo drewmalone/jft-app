@@ -105,7 +105,7 @@ test('Stop automatically tidies final text, waits before saving, and preserves p
   await expect(page.getByRole('listitem')).toContainText(
     'I called someone today.'
   );
-  const reader = await browser.newContext();
+  const reader = await browser.newContext({ ignoreHTTPSErrors: true });
   try {
     const other = await reader.newPage();
     watchPage(other);

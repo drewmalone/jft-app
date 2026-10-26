@@ -64,7 +64,7 @@ test('dictation combines with inline editing, repeated sessions, saving, history
     .getByRole('button', { name: 'Past shares', exact: true })
     .click();
   await expect(page.getByRole('listitem')).toContainText('Another session.');
-  const recipient = await browser.newContext();
+  const recipient = await browser.newContext({ ignoreHTTPSErrors: true });
   try {
     const reader = await recipient.newPage();
     watchPage(reader);
