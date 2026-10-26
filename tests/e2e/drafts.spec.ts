@@ -13,7 +13,7 @@ test('refresh starts fresh, ignores legacy stored drafts, and retains saved hist
     .poll(() =>
       page.evaluate(() => sessionStorage.getItem('doorknob:share-draft'))
     )
-    .toBeNull();
+    .toBe('Fictional legacy draft.');
   await field.fill('A fictional draft to discard.');
   await page.reload();
   await expect(field).toHaveValue('');

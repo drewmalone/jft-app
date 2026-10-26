@@ -45,7 +45,7 @@ Responses carry `Cache-Control: private, no-store`. Share/error bodies use JSON;
 }
 ```
 
-Messages are intended for display. Branch on `error.code` and the HTTP status, never by matching message text. The fetch client exposes these as `ShareApiError.code`, `.status`, and `.message` and does not retry writes. Non-JSON HTTP failures retain their status with a safe fallback message.
+Messages are intended for display. Branch on `error.code` and the HTTP status, never by matching message text. The fetch client exposes these as `ApiRequestError.code`, `.status`, and `.message` and does not retry writes. Non-JSON HTTP failures retain their status with a safe fallback message.
 
 ## Save-time sharing URL
 

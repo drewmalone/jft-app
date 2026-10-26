@@ -167,6 +167,22 @@ test('unsupported native sharing copies directly, with manual copying only when 
   );
   await button.click();
   await expect(page.getByLabel('Sharing link')).toBeFocused();
+  // The footer stays above the actual bar height as manual controls grow and text wraps.
+  await page.addStyleTag({ content: 'html { font-size: 22px; }' });
+  await page.setViewportSize({ width: 340, height: 760 });
+  await expect
+    .poll(async () => {
+      await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight));
+      const footer = await page
+        .getByRole('link', { name: 'About Doorknob' })
+        .boundingBox();
+      const actions = await page
+        .getByRole('region', { name: 'Share actions' })
+        .boundingBox();
+      return footer!.y + footer!.height <= actions!.y;
+    })
+    .toBe(true);
+  await expect(button).toBeInViewport();
 });
 
 test('native cancellation stays silent and native failures fall back to copying', async ({

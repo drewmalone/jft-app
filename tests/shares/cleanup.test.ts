@@ -198,3 +198,27 @@ test('cleanup client rejects invalid responses and never exposes upstream respon
     message: 'Cleanup unavailable'
   });
 });
+
+test('shared HTTP handling forwards cleanup cancellation without retrying or swallowing aborts', async (t) => {
+  const controller = new AbortController();
+  let received: AbortSignal | null | undefined;
+  const calls = t.mock.method(
+    globalThis,
+    'fetch',
+    async (_url: RequestInfo | URL, init?: RequestInit) => {
+      received = init?.signal;
+      return new Promise<Response>((_resolve, reject) =>
+        received?.addEventListener(
+          'abort',
+          () => reject(new DOMException('Canceled', 'AbortError')),
+          { once: true }
+        )
+      );
+    }
+  );
+  const request = cleanDraft('Fictional draft.', controller.signal);
+  controller.abort();
+  await assert.rejects(request, { name: 'AbortError' });
+  assert.equal(received, controller.signal);
+  assert.equal(calls.mock.callCount(), 1);
+});

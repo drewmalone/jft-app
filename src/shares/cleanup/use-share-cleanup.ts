@@ -1,7 +1,8 @@
 import { useEffect, useRef, useState } from 'react';
 import { cleanDraft } from './api';
+import type { CleanupStatus } from './model';
 
-type CleanupState = { status: 'idle' | 'pending' | 'failed' };
+type CleanupState = { status: CleanupStatus };
 
 /** Parent-owned draft cleanup. Edits/navigation cancel pending work; stale responses never overwrite newer words. */
 export function useShareCleanup(

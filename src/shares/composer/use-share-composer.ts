@@ -1,11 +1,14 @@
 import type { FormEvent } from 'react';
-import type { ShareCleanup } from '../cleanup/use-share-cleanup';
+import type { CleanupStatus } from '../cleanup/model';
 import { useTranscription } from '../transcription/use-transcription';
 
 export interface ShareComposerOptions {
   text: string;
-  cleanup: ShareCleanup;
-  disabled: boolean;
+  cleanupStatus: CleanupStatus;
+  /** Synchronous guard covers a request starting before React has rendered pending state. */
+  isCleanupPending: () => boolean;
+  onCleanup: (text: string) => Promise<void>;
+  sessionReady: boolean;
   saving: boolean;
   onTextChange: (text: string) => void;
   onSave: (event: FormEvent<HTMLFormElement>) => void;
@@ -14,38 +17,43 @@ export interface ShareComposerOptions {
 /** Coordinates mounted editor workflows; the parent retains draft/save ownership across views. */
 export function useShareComposer({
   text,
-  cleanup,
-  disabled,
+  cleanupStatus,
+  isCleanupPending,
+  onCleanup,
+  sessionReady,
   saving,
   onTextChange,
   onSave
 }: ShareComposerOptions) {
   const voice = useTranscription(text, onTextChange, {
     onStopped: (value) => {
-      void cleanup.run(value);
+      void onCleanup(value);
     }
   });
   return {
     voice,
-    recordingDisabled: disabled || saving || cleanup.pending,
+    recordingDisabled: !sessionReady || saving || cleanupStatus === 'pending',
     saveDisabled:
-      disabled || saving || voice.active || cleanup.pending || !text.trim(),
+      !sessionReady ||
+      saving ||
+      voice.active ||
+      cleanupStatus === 'pending' ||
+      !text.trim(),
     retryDisabled: voice.active || saving,
     submit(event: FormEvent<HTMLFormElement>) {
-      if (disabled || saving || voice.active || cleanup.isPending()) {
+      if (!sessionReady || saving || voice.active || isCleanupPending()) {
         event.preventDefault();
         return;
       }
       onSave(event);
     },
     toggleRecording() {
-      if (disabled || saving || cleanup.isPending()) return;
+      if (!sessionReady || saving || isCleanupPending()) return;
       if (voice.active) voice.stop();
       else voice.start();
     },
     retryCleanup() {
-      if (!voice.active && !saving && !cleanup.isPending())
-        void cleanup.run(text);
+      if (!voice.active && !saving && !isCleanupPending()) void onCleanup(text);
     }
   };
 }

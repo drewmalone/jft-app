@@ -1,17 +1,11 @@
 import type { Share } from '../model';
 import { ExpandableThoughts } from './expandable-thoughts';
-import { ShareButton } from './share-button';
 import { dateLabel, readingDateLabel } from '../dates';
 
 /** Render the saved reading snapshot, not the current reading. */
 export function ShareDetail({ share }: { share: Share }) {
   return (
     <section aria-label="Saved share">
-      <div className="fixed inset-x-0 bottom-0 z-20 border-t border-[var(--line)] bg-[#faf8f1] pb-[max(0.75rem,env(safe-area-inset-bottom))] pt-3">
-        <div className="mx-auto max-w-xl px-6 sm:px-8">
-          <ShareButton url={share.shareUrl} />
-        </div>
-      </div>
       <article className="share-card mt-8 rounded-xl border border-[var(--line)] p-6 sm:p-8">
         <p className="eyebrow">
           Saved {dateLabel(share.createdAt)} ·{' '}

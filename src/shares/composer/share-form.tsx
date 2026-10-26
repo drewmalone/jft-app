@@ -14,8 +14,10 @@ type ShareFormProps = ShareComposerOptions & { error: string };
 /** The parent owns the draft and clears it only after a confirmed save. */
 export function ShareForm({
   text,
-  cleanup,
-  disabled,
+  cleanupStatus,
+  isCleanupPending,
+  onCleanup,
+  sessionReady,
   saving,
   error,
   onTextChange,
@@ -23,8 +25,10 @@ export function ShareForm({
 }: ShareFormProps) {
   const composer = useShareComposer({
     text,
-    cleanup,
-    disabled,
+    cleanupStatus,
+    isCleanupPending,
+    onCleanup,
+    sessionReady,
     saving,
     onTextChange,
     onSave
@@ -47,10 +51,10 @@ export function ShareForm({
           onToggle={composer.toggleRecording}
         />
         <ListeningClock listening={voice.state === 'listening'} />
-        {!cleanup.pending && (
+        {cleanupStatus !== 'pending' && (
           <RecordingStatus state={voice.state} message={voice.message} />
         )}
-        {cleanup.pending && (
+        {cleanupStatus === 'pending' && (
           <div
             role="status"
             className="mt-3 flex items-center justify-center gap-2 text-sm text-[var(--muted)]"
@@ -71,7 +75,7 @@ export function ShareForm({
         />
       </div>
       <div className="mt-3 text-sm text-[var(--muted)]" aria-live="polite">
-        {cleanup.state.status === 'failed' && (
+        {cleanupStatus === 'failed' && (
           <div>
             <p role="alert">
               Your text could not be tidied. Your original words are still here.
