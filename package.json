@@ -7,7 +7,7 @@
     "build": "next build",
     "start": "next start --hostname 0.0.0.0",
     "typecheck": "tsc --noEmit",
-    "test": "node --conditions=react-server --import tsx --test --test-isolation=none tests/shares/*.test.ts tests/shares/transcription/*.test.ts && node --import tsx --test --test-isolation=none tests/shares/transcription/client/*.test.ts",
+    "test": "node --conditions=react-server --import tsx --test --test-isolation=none tests/shares/*.test.ts tests/shares/transcription/*.test.ts && node --import tsx --test --test-isolation=none tests/shares/transcription/client/*.test.ts && node --import tsx --test --test-isolation=none tests/shares/cleanup/client/*.test.ts",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "check": "npm run format:check && npm run lint && npm run openapi:lint && npm test && npm run build",
@@ -17,10 +17,12 @@
     "openapi:lint": "npm run openapi:generate && spectral lint .tmp/openapi.yaml --ruleset .spectral.yaml --fail-severity warn"
   },
   "dependencies": {
+    "@aws-sdk/client-secrets-manager": "^3.1156.0",
     "@hono/zod-openapi": "^1.6.3",
     "content-type": "^3.1.1",
     "hono": "^4.13.13",
     "next": "^16.4.2",
+    "openai": "^7.43.0",
     "react": "^19.1.0",
     "react-dom": "^19.1.0",
     "react-textarea-autosize": "^8.5.9",

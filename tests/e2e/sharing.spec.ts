@@ -167,6 +167,22 @@ test('unsupported native sharing copies directly, with manual copying only when 
   );
   await button.click();
   await expect(page.getByLabel('Sharing link')).toBeFocused();
+  // The footer stays above the actual bar height as manual controls grow and text wraps.
+  await page.addStyleTag({ content: 'html { font-size: 22px; }' });
+  await page.setViewportSize({ width: 340, height: 760 });
+  await expect
+    .poll(async () => {
+      await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight));
+      const footer = await page
+        .getByRole('link', { name: 'About Doorknob' })
+        .boundingBox();
+      const actions = await page
+        .getByRole('region', { name: 'Share actions' })
+        .boundingBox();
+      return footer!.y + footer!.height <= actions!.y;
+    })
+    .toBe(true);
+  await expect(button).toBeInViewport();
 });
 
 test('native cancellation stays silent and native failures fall back to copying', async ({
@@ -212,7 +228,7 @@ test('native cancellation stays silent and native failures fall back to copying'
   await expect(page.getByRole('status')).toHaveText('Link copied.');
 });
 
-test('long thoughts appear in full on owner and recipient pages, and recipients can start writing', async ({
+test('owner thoughts collapse while sharing stays visible and recipients see the full share', async ({
   page,
   browser,
   baseURL
@@ -227,11 +243,33 @@ test('long thoughts appear in full on owner and recipient pages, and recipients 
   );
   await page.getByRole('button', { name: 'Save privately' }).click();
   const saved = await (await response).json();
+  const sharing = page.getByRole('button', {
+    name: 'Share with fellow alcoholic',
+    exact: true
+  });
+  await expect(sharing).toBeInViewport();
+  const expand = page.getByRole('button', { name: 'Read more', exact: true });
+  await expect(expand).toHaveAttribute('aria-expanded', 'false');
+  await expect(
+    page.locator('article').getByText(text, { exact: true })
+  ).toHaveCount(0);
+  await expand.click();
+  await expect(page.getByRole('button', { name: 'Show less' })).toHaveAttribute(
+    'aria-expanded',
+    'true'
+  );
   await expect(
     page.locator('article').getByText(text, { exact: true })
   ).toBeVisible();
+  await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight));
+  await expect(sharing).toBeInViewport();
+  const note = page.getByText('Anyone with this link can view your share.', {
+    exact: true
+  });
+  await expect(note).toHaveCSS('text-align', 'center');
+  await page.getByRole('button', { name: 'Show less' }).click();
   await expect(
-    page.getByRole('button', { name: /Read more|Show less/ })
+    page.locator('article').getByText(text, { exact: true })
   ).toHaveCount(0);
   await page
     .getByRole('main')
@@ -239,6 +277,7 @@ test('long thoughts appear in full on owner and recipient pages, and recipients 
     .click();
   await expect(page.getByRole('listitem')).toContainText(text);
   await page.getByRole('listitem').getByRole('button').click();
+  await page.getByRole('button', { name: 'Read more', exact: true }).click();
   await expect(
     page.locator('article').getByText(text, { exact: true })
   ).toBeVisible();

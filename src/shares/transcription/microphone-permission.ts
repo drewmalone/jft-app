@@ -1,4 +1,4 @@
-import { speechDiagnostic, speechErrorCode } from './diagnostics';
+import { speechDiagnostic } from './diagnostics';
 
 export const MICROPHONE_DENIED =
   'Microphone access was denied or blocked. In Safari, open this website’s settings and set Microphone to Allow, then try again. In other browsers, check site permissions.';
@@ -20,75 +20,32 @@ export function microphoneErrorMessage(code: string): string {
   }
 }
 
-/** Per-editor permission gate, independent of the chosen transcription provider.
- * Only request() touches capture APIs; call it directly from a user action.
- * No stream escapes this module, and no audio is stored or uploaded.
- */
-export function createMicrophonePermission() {
-  let granted = false;
-  let revision = 0;
-  let pending: Promise<void> | undefined;
-  const fail = (cause: unknown): never => {
-    const code = speechErrorCode(
-      typeof cause === 'object' && cause !== null && 'name' in cause
-        ? cause.name
-        : undefined
-    );
-    speechDiagnostic(
-      code === 'NotAllowedError'
-        ? 'microphone-permission-denied'
-        : 'microphone-permission-failed',
-      { code }
-    );
-    throw new Error(microphoneErrorMessage(code));
-  };
-  return {
-    reset() {
-      granted = false;
-      revision++;
-    },
-    request(): void | Promise<void> {
-      if (pending) return pending;
-      if (granted) return;
-      if (typeof window === 'undefined' || !window.isSecureContext) {
-        speechDiagnostic('microphone-unavailable', { code: 'SecurityError' });
-        throw new Error(microphoneErrorMessage('SecurityError'));
-      }
-      if (!navigator.mediaDevices?.getUserMedia) {
-        speechDiagnostic('microphone-api-unavailable');
-        throw new Error(microphoneErrorMessage('NotSupportedError'));
-      }
-      const requestedRevision = revision;
-      speechDiagnostic('microphone-permission-request', {
-        userActivation: navigator.userActivation?.isActive
-      });
-      // Invoke synchronously in the click handler, before any await/query.
-      try {
-        pending = navigator.mediaDevices
-          .getUserMedia({ audio: true })
-          .then((stream) => {
-            for (const track of stream.getTracks()) {
-              try {
-                track.stop();
-              } catch {
-                // One failing track must not prevent stopping the others.
-              }
-            }
-            granted = requestedRevision === revision;
-            speechDiagnostic('microphone-permission-granted');
-          })
-          .catch(fail)
-          .finally(() => {
-            pending = undefined;
-          });
-        return pending;
-      } catch (cause) {
-        fail(cause);
-      }
-    }
-  };
+/** Capture once from the recording tap. The engine owns this stream and releases late grants after cancellation. */
+export function requestMicrophone(): Promise<MediaStream> {
+  speechDiagnostic('microphone-permission-request', {
+    userActivation: navigator.userActivation?.isActive
+  });
+  return navigator.mediaDevices.getUserMedia({
+    audio: { channelCount: 1, echoCancellation: true, noiseSuppression: true },
+    video: false
+  });
 }
 
-export type MicrophonePermission = ReturnType<
-  typeof createMicrophonePermission
->;
+/** Only public microphone exception names may reach diagnostics. */
+export function microphoneErrorCode(cause: unknown): string {
+  const name =
+    typeof cause === 'object' && cause !== null && 'name' in cause
+      ? cause.name
+      : undefined;
+  return typeof name === 'string' &&
+    [
+      'NotAllowedError',
+      'NotFoundError',
+      'NotReadableError',
+      'OverconstrainedError',
+      'SecurityError',
+      'NotSupportedError'
+    ].includes(name)
+    ? name
+    : 'unknown';
+}
