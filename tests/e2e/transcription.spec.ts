@@ -1,10 +1,11 @@
-import { expect, test } from '@playwright/test';
+import { expect, test } from './fixtures/test';
 
 import { mockSpeech, emit } from './fixtures/openai-browser';
 
 test('dictation combines with inline editing, repeated sessions, saving, history and recipient reading', async ({
   page,
   browser,
+  watchPage,
   baseURL
 }) => {
   await mockSpeech(page);
@@ -66,6 +67,7 @@ test('dictation combines with inline editing, repeated sessions, saving, history
   const recipient = await browser.newContext();
   try {
     const reader = await recipient.newPage();
+    watchPage(reader);
     await reader.goto(new URL(saved.shareUrl, baseURL).href);
     await expect(reader.getByLabel('Shared thoughts')).toContainText(
       'Another session.'

@@ -1,4 +1,4 @@
-import { expect, test } from '@playwright/test';
+import { expect, test } from './fixtures/test';
 
 test('a stale prototype cookie automatically starts an empty session and allows saving', async ({
   page,

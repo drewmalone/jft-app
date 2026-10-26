@@ -1,4 +1,4 @@
-import { expect, test } from '@playwright/test';
+import { expect, test } from './fixtures/test';
 
 test('refresh starts fresh, ignores legacy stored drafts, and retains saved history', async ({
   page

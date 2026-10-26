@@ -1,4 +1,4 @@
-import { expect, test, type Page } from '@playwright/test';
+import { expect, test, type Page } from './fixtures/test';
 import { mockSpeech, emit } from './fixtures/openai-browser';
 
 const original =
@@ -16,6 +16,7 @@ async function recordAndStop(page: Page) {
 test('Stop automatically tidies final text, waits before saving, and preserves paragraph sharing and history', async ({
   page,
   browser,
+  watchPage,
   baseURL
 }) => {
   await mockSpeech(page);
@@ -107,6 +108,7 @@ test('Stop automatically tidies final text, waits before saving, and preserves p
   const reader = await browser.newContext();
   try {
     const other = await reader.newPage();
+    watchPage(other);
     await other.goto(new URL(share.shareUrl, baseURL).href);
     await expect(
       other.getByRole('region', { name: 'Shared thoughts' }).locator('p')

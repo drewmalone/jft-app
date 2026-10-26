@@ -1,4 +1,4 @@
-import { expect, test, type Page } from '@playwright/test';
+import { expect, test, type Page } from './fixtures/test';
 import { reflection } from '../../src/shares/reflection/reflection-fixture';
 
 const fictionalText =
@@ -19,6 +19,7 @@ async function save(page: Page) {
 test('share icon uses the saved URL directly for native sharing and session-free reading', async ({
   page,
   browser,
+  watchPage,
   baseURL
 }) => {
   await page.addInitScript(() =>
@@ -56,6 +57,7 @@ test('share icon uses the saved URL directly for native sharing and session-free
   const recipient = await browser.newContext();
   try {
     const reader = await recipient.newPage();
+    watchPage(reader);
     const response = await reader.goto(link);
     expect(response!.status()).toBe(200);
     expect(response!.headers()['cache-control']).toContain('private');
@@ -231,6 +233,7 @@ test('native cancellation stays silent and native failures fall back to copying'
 test('owner thoughts collapse while sharing stays visible and recipients see the full share', async ({
   page,
   browser,
+  watchPage,
   baseURL
 }) => {
   const text =
@@ -287,6 +290,7 @@ test('owner thoughts collapse while sharing stays visible and recipients see the
   const recipient = await browser.newContext();
   try {
     const reader = await recipient.newPage();
+    watchPage(reader);
     await reader.goto(new URL(saved.shareUrl, baseURL).href);
     await expect(
       reader

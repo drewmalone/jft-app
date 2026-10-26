@@ -5,21 +5,35 @@ export default defineConfig({
   fullyParallel: true,
   forbidOnly: Boolean(process.env.CI),
   retries: process.env.CI ? 1 : 0,
-  reporter: 'list',
+  workers: 2,
+  reporter: [['list'], ['html', { open: 'never' }]],
   use: {
     baseURL: 'http://127.0.0.1:3100',
     // Use synthetic test text only; do not retain reflection text in traces.
-    trace: 'off',
-    launchOptions: process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH
-      ? { executablePath: process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH }
-      : {}
+    trace: 'off'
   },
   projects: [
     {
       name: 'mobile-chromium',
-      use: { ...devices['iPhone 13'], defaultBrowserType: 'chromium' }
+      use: {
+        ...devices['iPhone 13'],
+        defaultBrowserType: 'chromium',
+        launchOptions: process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH
+          ? { executablePath: process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH }
+          : {}
+      }
     },
-    { name: 'desktop-chromium', use: { ...devices['Desktop Chrome'] } }
+    {
+      name: 'desktop-chromium',
+      use: {
+        ...devices['Desktop Chrome'],
+        launchOptions: process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH
+          ? { executablePath: process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH }
+          : {}
+      }
+    },
+    { name: 'mobile-webkit', use: { ...devices['iPhone 13'] } },
+    { name: 'desktop-webkit', use: { ...devices['Desktop Safari'] } }
   ],
   webServer: {
     command: 'npm run start -- --port 3100',
