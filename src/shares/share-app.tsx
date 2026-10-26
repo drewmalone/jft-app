@@ -133,7 +133,9 @@ export function ShareApp() {
           navigationView === 'today' ? 'Today’s reflection' : 'Past shares'
         }
       />
-      <main className="mx-auto max-w-xl px-6 pb-12 pt-8 sm:px-8 sm:pt-14">
+      <main
+        className={`mx-auto max-w-xl px-6 pt-8 sm:px-8 sm:pt-14 ${view === 'saved' || view === 'detail' ? 'pb-64' : 'pb-12'}`}
+      >
         {view === 'today' && <ReflectionReading />}
         {view === 'saved' && (
           <div
