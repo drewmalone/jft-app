@@ -3,13 +3,13 @@ name: Checks
 on:
   pull_request:
   push:
-    branches: [main, 'ci/**']
+    branches: [main]
 
 permissions:
   contents: read
 
 concurrency:
-  group: checks-${{ github.head_ref || github.ref_name }}
+  group: checks-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
 
 jobs:
