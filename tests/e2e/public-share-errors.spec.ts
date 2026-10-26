@@ -90,6 +90,8 @@ test('server failures use a retryable error page and sanitized diagnostics', asy
     ).toBeVisible();
     expect(await page.context().cookies()).toEqual([]);
   } finally {
+    // Close the client before stopping its server: WebKit reports late stream failures otherwise.
+    await page.close();
     if (server.exitCode === null && server.signalCode === null) {
       const exited = once(server, 'exit');
       server.kill('SIGKILL');
