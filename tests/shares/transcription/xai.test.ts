@@ -4,8 +4,6 @@ import {
   createXaiSpeech,
   type XaiDependencies
 } from '../../../src/shares/transcription/providers/xai/engine';
-import { createXaiProtocol } from '../../../src/shares/transcription/providers/xai/protocol';
-import { parseTranscriptionProvider } from '../../../src/shares/transcription/config';
 import { issueXaiSession } from '../../../src/shares/server/providers/xai/session';
 import {
   signRelayTicket,
@@ -21,31 +19,6 @@ const origin = 'https://doorknob.example';
 const settle = async () => {
   for (let i = 0; i < 12; i++) await Promise.resolve();
 };
-const partial = (
-  text: string,
-  start: number,
-  duration: number,
-  is_final = false,
-  speech_final = false
-) => ({
-  type: 'transcript.partial',
-  text,
-  start,
-  duration,
-  is_final,
-  speech_final
-});
-
-test('provider configuration defaults only when absent and accepts exactly two choices', () => {
-  assert.equal(parseTranscriptionProvider(undefined), 'openai');
-  assert.equal(parseTranscriptionProvider('openai'), 'openai');
-  assert.equal(parseTranscriptionProvider('xai'), 'xai');
-  for (const value of ['', 'OPENAI', ' xai', 'other', 'private config'])
-    assert.throws(
-      () => parseTranscriptionProvider(value),
-      /^Error: STT_PROVIDER must be openai or xai$/
-    );
-});
 
 test('relay issuance exposes only an expiring ticket and requires secure configuration', async (t) => {
   t.mock.property(process, 'env', {
@@ -123,79 +96,11 @@ test('Amplify signing-secret reads cache successes and recover after safe failur
   assert.equal(await relaySigningSecret(), secret);
 });
 
-test('chunk finals remain provisional; stitched utterances and cumulative done never duplicate words', () => {
-  const finals: string[] = [],
-    interim: string[] = [];
-  const p = createXaiProtocol({
-    final: (v) => finals.push(v),
-    interim: (v) => interim.push(v)
-  });
-  p.accept(partial('Hello', 0, 1));
-  p.accept(partial('Hello there', 0, 2));
-  assert.equal(interim.at(-1), 'Hello there');
-  p.accept(partial('Hello there', 0, 2, true));
-  p.accept(partial('again', 2, 1, true));
-  p.accept(partial('Stale', 0, 1));
-  assert.equal(interim.at(-1), 'Hello there again');
-  assert.deepEqual(finals, []);
-  p.accept(partial('Hello there again.', 0, 3, true, true));
-  p.accept(partial('Hello there again.', 0, 3, true, true));
-  assert.deepEqual(finals, ['Hello there again.']);
-  assert.equal(
-    p.accept({
-      type: 'transcript.done',
-      text: 'Hello there again.',
-      duration: 3
-    }),
-    true
-  );
-  assert.deepEqual(finals, ['Hello there again.']);
-});
-
-test('out-of-order chunks are sorted, stale results ignored, overlapping finals fail safely', () => {
-  const finals: string[] = [],
-    interim: string[] = [];
-  const p = createXaiProtocol({
-    final: (v) => finals.push(v),
-    interim: (v) => interim.push(v)
-  });
-  p.accept(partial('second', 1, 1, true));
-  p.accept(partial('first', 0, 1, true));
-  assert.equal(interim.at(-1), 'first second');
-  p.accept(partial('First second.', 0, 2, true, true));
-  p.accept(partial('old', 0, 1));
-  assert.throws(() => p.accept(partial('Overlap', 1, 2, true, true)));
-  assert.deepEqual(finals, ['First second.']);
-  assert.throws(
-    () => p.accept(partial('Unknown earlier utterance.', 0.2, 0.5, true, true)),
-    /Out of order/
-  );
-});
-
-test('done reconciles trailing words by audio time, including intentional repeated words', () => {
-  const finals: string[] = [];
-  const p = createXaiProtocol({
-    final: (v) => finals.push(v),
-    interim: () => {}
-  });
-  p.accept(partial('Again.', 0, 1, true, true));
-  p.accept({
-    type: 'transcript.done',
-    duration: 2,
-    text: 'Again. Again.',
-    words: [
-      { text: 'Again.', start: 1.2, end: 2 },
-      { text: 'Again.', start: 0, end: 1 }
-    ]
-  });
-  assert.deepEqual(finals, ['Again.', 'Again.']);
-});
-
 test('an interruption retains locked chunks once and discards only unlocked provisional text', async () => {
   const s = setup();
   await s.open();
-  s.message(partial('Locked words.', 0, 1, true));
-  s.message(partial('Unfinished thought', 1, 1));
+  s.message({ type: 'final', text: 'Locked words.' });
+  s.message({ type: 'interim', text: 'Unfinished thought' });
   s.socket.onclose?.(new Event('close') as CloseEvent);
   assert.deepEqual(s.finals, ['Locked words.']);
   assert.equal(s.errors.length, 1);
@@ -294,7 +199,7 @@ function setup(overrides: Partial<XaiDependencies> = {}) {
       engine.start(events);
       await settle();
       socket.onopen?.(new Event('open'));
-      message({ type: 'transcript.created' });
+      message({ type: 'ready' });
       await settle();
     },
     frame: (value = new ArrayBuffer(9600)) => frame(value),
@@ -311,7 +216,7 @@ function setup(overrides: Partial<XaiDependencies> = {}) {
   };
 }
 
-test('listening waits for provider readiness and PCM startup; Stop flushes audio before audio.done', async () => {
+test('listening waits for provider readiness and PCM startup; Stop flushes audio before requesting completion', async () => {
   const s = setup();
   s.engine.start(s.events);
   await settle();
@@ -320,7 +225,7 @@ test('listening waits for provider readiness and PCM startup; Stop flushes audio
   s.socket.onopen?.(new Event('open'));
   assert.match(String(s.sent[0]), /authenticate/);
   assert.equal(s.headers()?.get('x-stt-provider'), 'xai');
-  s.message({ type: 'transcript.created' });
+  s.message({ type: 'ready' });
   await settle();
   assert.equal(s.counts().listening, 1);
   s.frame();
@@ -333,10 +238,10 @@ test('listening waits for provider readiness and PCM startup; Stop flushes audio
   s.frame(new ArrayBuffer(128)); // Worklet's final short frame.
   s.flush();
   await settle();
-  assert.equal(s.sent.at(-1), '{"type":"audio.done"}');
-  s.message(partial('Trailing phrase.', 0, 1, true, true));
-  assert.equal(s.counts().ended, 0); // speech_final is not Stop completion.
-  s.message({ type: 'transcript.done', text: 'Trailing phrase.', duration: 1 });
+  assert.equal(s.sent.at(-1), '{"type":"stop"}');
+  s.message({ type: 'final', text: 'Trailing phrase.' });
+  assert.equal(s.counts().ended, 0); // A final text event is not Stop completion.
+  s.message({ type: 'ended', text: 'Trailing phrase.', duration: 1 });
   assert.deepEqual(s.finals, ['Trailing phrase.']);
   assert.equal(s.counts().ended, 1);
 });
@@ -348,12 +253,12 @@ test('Stop during silence ends only on done; finalization timeout preserves emit
   silent.engine.stop();
   silent.flush();
   await settle();
-  silent.message({ type: 'transcript.done', text: '', duration: 1 });
+  silent.message({ type: 'ended', text: '', duration: 1 });
   assert.equal(silent.counts().ended, 1);
   assert.deepEqual(silent.errors, []);
   const s = setup();
   await s.open();
-  s.message(partial('Keep this.', 0, 1, true, true));
+  s.message({ type: 'final', text: 'Keep this.' });
   s.engine.stop();
   s.flush();
   await settle();
@@ -385,7 +290,7 @@ test('Stop during microphone acquisition and disposal silence late asynchronous 
   live.engine.dispose();
   live.engine.start(live.events);
   stale?.call(live.socket, {
-    data: JSON.stringify(partial('Must not appear.', 0, 1, true, true))
+    data: JSON.stringify({ type: 'final', text: 'Must not appear.' })
   } as MessageEvent);
   assert.deepEqual(live.finals, []);
   assert.equal(live.counts().tracksStopped, 1);
@@ -396,7 +301,7 @@ test('disconnects, provider errors, malformed events and backpressure retain fin
   for (const failure of ['close', 'error', 'malformed', 'backpressure']) {
     const s = setup();
     await s.open();
-    s.message(partial('Keep this.', 0, 1, true, true));
+    s.message({ type: 'final', text: 'Keep this.' });
     if (failure === 'close')
       s.socket.onclose?.(new Event('close') as CloseEvent);
     if (failure === 'error')
@@ -444,7 +349,7 @@ test('credential mismatch never opens transport; cancellation during PCM startup
   s.engine.start(s.events);
   await settle();
   s.socket.onopen?.(new Event('open'));
-  s.message({ type: 'transcript.created' });
+  s.message({ type: 'ready' });
   s.engine.stop();
   started();
   await settle();

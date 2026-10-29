@@ -9,6 +9,7 @@ import {
 } from '../../../services/xai-relay/bridge.mjs';
 import { relayConfiguration } from '../../../services/xai-relay/config.mjs';
 import { signRelayTicket } from '../../../services/xai-relay/ticket.mjs';
+import { relayEventSchema } from '../../../src/shares/transcription/providers/xai/relay';
 
 const secret = 'fictional-shared-signing-key-at-least-32-bytes';
 const audience = 'wss://relay.example/stt';
@@ -120,11 +121,13 @@ test('relay fixes model/settings/authorization and forwards PCM and ordered fina
   const pcm = Buffer.alloc(9600);
   s.client.emit('message', pcm, true);
   assert.equal(s.upstream.sent[0], pcm);
-  s.client.message({ type: 'audio.done' });
+  s.client.message({ type: 'stop' });
   assert.equal(s.upstream.sent[1], '{"type":"audio.done"}');
   s.upstream.message({
     type: 'transcript.partial',
     text: 'Fictional.',
+    start: 0,
+    duration: 1,
     is_final: true,
     speech_final: true
   });
@@ -133,8 +136,58 @@ test('relay fixes model/settings/authorization and forwards PCM and ordered fina
     text: 'Fictional.',
     duration: 1
   });
-  assert.equal(s.client.sent.length, 3);
+  assert.deepEqual(
+    s.client.sent.map((frame) =>
+      relayEventSchema.parse(JSON.parse(String(frame)))
+    ),
+    [
+      { type: 'ready' },
+      { type: 'final', text: 'Fictional.' },
+      { type: 'interim', text: '' },
+      { type: 'ended' }
+    ]
+  );
   assert.equal(s.client.closes, 1);
+  assert.equal(s.upstream.closes, 1);
+});
+
+test('locked chunks reach the browser before errors and cumulative provider frames never leak through', () => {
+  const s = setup();
+  s.authenticate();
+  s.upstream.message({
+    type: 'transcript.created',
+    private_metadata: 'never forwarded'
+  });
+  s.upstream.message({
+    type: 'transcript.partial',
+    text: 'Keep these words.',
+    start: 0,
+    duration: 1,
+    is_final: true,
+    speech_final: false
+  });
+  s.upstream.message({
+    type: 'transcript.partial',
+    text: 'Keep these words.',
+    start: 0,
+    duration: 1,
+    is_final: true,
+    speech_final: true
+  });
+  s.upstream.message({ type: 'error', message: 'private provider error' });
+  assert.deepEqual(
+    s.client.sent.map((frame) =>
+      relayEventSchema.parse(JSON.parse(String(frame)))
+    ),
+    [
+      { type: 'ready' },
+      { type: 'final', text: 'Keep these words.' },
+      { type: 'interim', text: '' },
+      { type: 'error' }
+    ]
+  );
+  assert.ok(!JSON.stringify(s.client.sent).includes('private'));
+  assert.ok(!JSON.stringify(s.client.sent).includes('transcript.partial'));
   assert.equal(s.upstream.closes, 1);
 });
 

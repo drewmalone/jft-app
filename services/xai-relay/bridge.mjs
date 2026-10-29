@@ -1,4 +1,5 @@
 import { verifyRelayTicket } from './ticket.mjs';
+import { createXaiTranscript } from './transcript.mjs';
 
 /** One replica owns ticket replay protection. Expired ticket IDs contain no audio or text. */
 export function createTicketConsumer() {
@@ -15,7 +16,7 @@ export function createTicketConsumer() {
 
 /**
  * Authenticate before dialing a fixed upstream. Both sockets are ws-compatible event emitters.
- * Payloads are forwarded in wire order, never logged, persisted or exposed in close reasons.
+ * Own xAI protocol handling here; the browser receives only normalized application events.
  */
 export function bridge(
   client,
@@ -29,6 +30,16 @@ export function bridge(
   let bytes = 0;
   let started = 0;
   const timers = new Set();
+  const send = (event) => {
+    if (closed) return;
+    if (client.readyState !== 1 || client.bufferedAmount > 192_000)
+      throw new Error('Client unavailable');
+    client.send(JSON.stringify(event));
+  };
+  const transcript = createXaiTranscript({
+    interim: (text) => send({ type: 'interim', text }),
+    final: (text) => send({ type: 'final', text })
+  });
   const later = (callback, ms) => {
     const timer = setTimeout(callback, ms);
     timers.add(timer);
@@ -44,8 +55,13 @@ export function bridge(
   };
   const fail = () => {
     if (closed) return;
-    if (client.readyState === 1) client.send(JSON.stringify({ type: 'error' }));
-    close();
+    try {
+      send({ type: 'error' });
+    } catch {
+      /* A failed transport cannot receive a notice. */
+    } finally {
+      close();
+    }
   };
   const authDeadline = later(fail, 5_000);
   client.on('error', close);
@@ -98,21 +114,16 @@ export function bridge(
               ready = true;
               started = Date.now();
               clearTimeout(startDeadline);
-            } else if (
-              !ready ||
-              !['transcript.partial', 'transcript.done', 'error'].includes(
-                event.type
-              )
-            )
-              throw new Error('Invalid event');
-            if (event.type === 'error') {
-              fail();
+              send({ type: 'ready' });
               return;
             }
+            if (!ready) throw new Error('Transcript before readiness');
             if (event.type === 'transcript.done' && !endedAudio)
               throw new Error('Unexpected completion');
-            client.send(frame.toString());
-            if (event.type === 'transcript.done') close();
+            if (transcript.accept(event)) {
+              send({ type: 'ended' });
+              close();
+            }
           } catch {
             fail();
           }
@@ -138,10 +149,7 @@ export function bridge(
           throw new Error('Audio limit');
         upstream.send(data, { binary: true });
       } else {
-        if (
-          data.length > 128 ||
-          JSON.parse(data.toString()).type !== 'audio.done'
-        )
+        if (data.length > 128 || JSON.parse(data.toString()).type !== 'stop')
           throw new Error('Invalid control');
         endedAudio = true;
         upstream.send(JSON.stringify({ type: 'audio.done' }));

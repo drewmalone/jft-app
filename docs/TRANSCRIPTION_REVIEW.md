@@ -44,3 +44,7 @@ A query cache, state-machine package, agent framework or generic provider plugin
 ## Follow-up organization refactor
 
 All six follow-up areas are implemented: explicit session ownership with one lifecycle phase, protocol/transport separation, adoption of the SDK WebRTC helper, a composer coordination hook, server folders by responsibility, and immutable provider settings separate from secrets. Classes are reserved for the resource-owning recording session and existing repository; stateless HTTP operations/configuration remain functions/data. See [architecture](ARCHITECTURE.md#recording-ownership-and-lifecycle) for lifecycle transitions and the server map.
+
+## Simplified xAI boundary
+
+Provider configuration is reviewed independently from xAI transport. In the xAI integration, the browser owns capture and a single session deadline; the relay owns xAI validation and cumulative transcript normalization. Locked chunks are committed immediately and later summaries skip already committed audio. The application event contract is ready/interim/final/ended/error, so raw provider frames never reach browser code. OpenAI's existing transport and protocol are unchanged. The Speechmatics PCM recorder was evaluated but not added because its startup cancellation and flush semantics would require extra wrappers; details are in the deployment guide.

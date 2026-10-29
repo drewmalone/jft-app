@@ -6,7 +6,7 @@ import {
 } from '../../microphone-permission';
 import { xaiSessionSchema } from '../../model';
 import { createPcmCapture, type PcmCapture } from './audio';
-import { createXaiProtocol } from './protocol';
+import { relayEventSchema } from './relay';
 import { xaiConfig } from './config';
 
 const FAILURE =
@@ -14,7 +14,7 @@ const FAILURE =
 type Phase =
   'idle' | 'acquiring' | 'connecting' | 'listening' | 'finalizing' | 'closed';
 
-/** Browser boundaries for deterministic transport, capture and cancellation tests. */
+/** Browser boundaries for deterministic capture and transport cancellation tests. */
 export interface XaiDependencies {
   available(): boolean;
   microphone(): Promise<MediaStream>;
@@ -26,277 +26,230 @@ const browser: XaiDependencies = {
   available: () =>
     typeof window !== 'undefined' &&
     window.isSecureContext &&
-    Boolean(
-      typeof navigator.mediaDevices?.getUserMedia === 'function' &&
-      typeof window.AudioContext === 'function' &&
-      typeof window.AudioWorkletNode === 'function' &&
-      typeof window.WebSocket === 'function'
-    ),
+    typeof navigator.mediaDevices?.getUserMedia === 'function' &&
+    typeof window.AudioContext === 'function' &&
+    typeof window.AudioWorkletNode === 'function' &&
+    typeof window.WebSocket === 'function',
   microphone: requestMicrophone,
   capture: createPcmCapture,
   socket: (url) => new WebSocket(url),
   fetch: (...args) => fetch(...args)
 };
 
-/** One live PCM stream through an authenticated external relay, with bounded Stop finalization. */
-export class XaiTranscriptionSession implements TranscriptionEngine {
-  private phase: Phase = 'idle';
-  private events?: TranscriptionEvents;
-  private stream?: MediaStream;
-  private capture?: PcmCapture;
-  private socket?: WebSocket;
-  private protocol?: ReturnType<typeof createXaiProtocol>;
-  private created = false;
-  private readonly abort = new AbortController();
-  private readonly timers = new Set<ReturnType<typeof setTimeout>>();
-  constructor(private readonly deps: XaiDependencies = browser) {}
+/** One capture session. The relay, rather than the browser, owns xAI event semantics. */
+export function createXaiSpeech(
+  deps: XaiDependencies = browser
+): TranscriptionEngine {
+  let phase: Phase = 'idle';
+  let events: TranscriptionEvents | undefined;
+  let stream: MediaStream | undefined;
+  let capture: PcmCapture | undefined;
+  let socket: WebSocket | undefined;
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  let readyReceived = false;
+  const abort = new AbortController();
+  const live = () => phase !== 'idle' && phase !== 'closed';
+  const visibility = () => {
+    if (document.visibilityState === 'hidden') interrupted();
+  };
 
-  available() {
-    return this.deps.available();
+  function deadline(callback: () => void, ms: number) {
+    clearTimeout(timer);
+    timer = setTimeout(() => {
+      if (live()) callback();
+    }, ms);
   }
-  private get live() {
-    return this.phase !== 'idle' && this.phase !== 'closed';
+  function stopTracks() {
+    stream?.getTracks().forEach((track) => {
+      track.onended = null;
+      track.stop();
+    });
+    stream = undefined;
   }
-
-  start(events: TranscriptionEvents) {
-    if (this.phase !== 'idle') return;
-    this.phase = 'acquiring';
-    this.events = events;
-    const startup = this.later(
-      () =>
-        this.finish(
-          'Microphone or transcription connection timed out. Please try again.'
-        ),
-      xaiConfig.startTimeoutMs
-    );
+  function dispose() {
+    if (phase === 'closed') return;
+    phase = 'closed';
+    events = undefined;
+    abort.abort();
+    clearTimeout(timer);
+    stopTracks();
+    capture?.dispose();
+    capture = undefined;
+    if (socket) {
+      socket.onopen = socket.onmessage = socket.onerror = socket.onclose = null;
+      socket.close();
+      socket = undefined;
+    }
     if (typeof window !== 'undefined')
-      window.addEventListener('pagehide', this.interrupted);
+      window.removeEventListener('pagehide', interrupted);
     if (typeof document !== 'undefined')
-      document.addEventListener('visibilitychange', this.visibility);
-    void this.connect(startup);
+      document.removeEventListener('visibilitychange', visibility);
   }
-
-  stop() {
-    if (!this.live || this.phase === 'finalizing') return;
-    const listening = this.phase === 'listening';
-    this.phase = 'finalizing';
-    this.stopTracks();
-    this.events?.activity?.(false);
-    if (!this.live) return;
+  function finish(error?: string) {
+    if (!live()) return;
+    const callbacks = events;
+    dispose();
+    if (error) callbacks?.error(error);
+    else callbacks?.ended();
+  }
+  function interrupted() {
+    finish(
+      'Recording was interrupted. Your finalized words are still here. Tap to record again.'
+    );
+  }
+  function send(value: string | ArrayBuffer) {
+    if (!live()) return;
+    try {
+      if (
+        socket?.readyState !== 1 ||
+        socket.bufferedAmount > xaiConfig.maxBufferedBytes
+      )
+        throw new Error('Transport stalled');
+      socket.send(value);
+    } catch {
+      finish(FAILURE);
+    }
+  }
+  function stop() {
+    if (!live() || phase === 'finalizing') return;
+    const listening = phase === 'listening';
+    phase = 'finalizing';
+    stopTracks();
+    events?.activity?.(false);
+    if (!live()) return;
     if (!listening) {
-      this.finish();
+      finish();
       return;
     }
-    this.later(
+    deadline(
       () =>
-        this.finish(
+        finish(
           'Finalization timed out. Your finalized words are still here; review before saving.'
         ),
       xaiConfig.finalTimeoutMs
     );
-    void this.capture!.stop()
+    void capture!
+      .stop()
       .then(() => {
-        if (!this.live) return;
-        this.capture?.dispose();
-        this.send(JSON.stringify({ type: 'audio.done' }));
+        if (live()) {
+          capture?.dispose();
+          send(JSON.stringify({ type: 'stop' }));
+        }
       })
-      .catch(() => {
-        if (this.live) this.finish(FAILURE);
-      });
+      .catch(() => finish(FAILURE));
   }
-
-  dispose() {
-    if (this.phase === 'closed') return;
-    this.phase = 'closed';
-    this.events = undefined;
-    this.abort.abort();
-    this.timers.forEach(clearTimeout);
-    this.timers.clear();
-    this.stopTracks();
-    this.capture?.dispose();
-    this.capture = undefined;
-    this.protocol = undefined;
-    if (this.socket) {
-      this.socket.onopen =
-        this.socket.onmessage =
-        this.socket.onerror =
-        this.socket.onclose =
-          null;
-      this.socket.close();
-      this.socket = undefined;
-    }
-    if (typeof window !== 'undefined')
-      window.removeEventListener('pagehide', this.interrupted);
-    if (typeof document !== 'undefined')
-      document.removeEventListener('visibilitychange', this.visibility);
-  }
-
-  private async connect(startup: ReturnType<typeof setTimeout>) {
-    try {
-      // Both activation-sensitive operations execute synchronously within start's recording gesture.
-      const microphone = this.deps.microphone();
-      void microphone.then(
-        (stream) => {
-          if (!this.live) stream.getTracks().forEach((track) => track.stop());
-        },
-        () => {}
-      );
-      this.capture = this.deps.capture();
-      const ticket = this.session();
-      void ticket.catch(() => {});
-      const stream = await microphone;
-      if (!this.live) return;
-      this.stream = stream;
-      stream.getTracks().forEach((track) => {
-        track.onended = this.interrupted;
-      });
-      this.phase = 'connecting';
-      this.events?.connecting?.();
-      if (!this.live) return;
-      const session = await ticket;
-      if (!this.live) return;
-      const socket = this.deps.socket(session.relay_url);
-      this.socket = socket;
-      const protocol = createXaiProtocol({
-        interim: (text) => {
-          if (this.live) this.events?.interim(text);
-        },
-        final: (text) => {
-          if (this.live) this.events?.final(text);
-        },
-        activity: (active) => {
-          if (this.phase === 'listening') this.events?.activity?.(active);
-        }
-      });
-      this.protocol = protocol;
-      socket.onopen = () => {
-        if (this.live)
-          this.send(
-            JSON.stringify({ type: 'authenticate', ticket: session.value })
-          );
-      };
-      socket.onerror = socket.onclose = () => {
-        if (this.live) this.finish(FAILURE);
-      };
-      socket.onmessage = (event: MessageEvent<unknown>) => {
-        if (!this.live) return;
-        try {
-          if (typeof event.data !== 'string' || event.data.length > 65_536)
-            throw new Error('Invalid frame');
-          const value = JSON.parse(event.data);
-          if (value.type === 'transcript.created') {
-            if (this.created) throw new Error('Duplicate readiness');
-            this.created = true;
-            void this.ready(stream, startup);
-          } else {
-            if (!this.created)
-              throw new Error('Transcription before readiness');
-            const done = protocol.accept(value);
-            if (!this.live) return;
-            if (done) {
-              if (this.phase !== 'finalizing')
-                throw new Error('Unexpected completion');
-              this.finish();
-            }
-          }
-        } catch {
-          this.finish(FAILURE);
-        }
-      };
-    } catch (cause) {
-      if (!this.live) return;
-      this.finish(
-        this.phase === 'acquiring'
-          ? microphoneErrorMessage(microphoneErrorCode(cause))
-          : 'Transcription is unavailable. You can still type and save your share.'
-      );
-    }
-  }
-
-  private async ready(
-    stream: MediaStream,
-    startup: ReturnType<typeof setTimeout>
-  ) {
-    try {
-      await this.capture!.start(
-        stream,
-        (frame) => {
-          if (this.phase === 'listening' || this.phase === 'finalizing')
-            this.send(frame);
-        },
-        this.interrupted
-      );
-      if (!this.live || this.phase !== 'connecting') return;
-      clearTimeout(startup);
-      this.timers.delete(startup);
-      this.phase = 'listening';
-      this.events?.listening();
-      if (this.live) this.later(() => this.stop(), xaiConfig.maxSessionMs);
-    } catch {
-      if (this.live) this.finish(FAILURE);
-    }
-  }
-
-  private async session() {
-    const response = await this.deps.fetch('/api/transcription/session', {
+  async function session() {
+    const response = await deps.fetch('/api/transcription/session', {
       method: 'POST',
       headers: { 'content-type': 'application/json', 'x-stt-provider': 'xai' },
       body: '{}',
       cache: 'no-store',
-      signal: this.abort.signal
+      signal: abort.signal
     });
-    this.abort.signal.throwIfAborted();
+    abort.signal.throwIfAborted();
     if (!response.ok) throw new Error('Session unavailable');
     const result = xaiSessionSchema.parse(await response.json());
-    this.abort.signal.throwIfAborted();
+    abort.signal.throwIfAborted();
     return result;
   }
-  private send(value: string | ArrayBuffer) {
-    if (!this.live) return;
+  async function ready() {
     try {
-      if (
-        this.socket?.readyState !== 1 ||
-        this.socket.bufferedAmount > xaiConfig.maxBufferedBytes
-      )
-        throw new Error('Transport stalled');
-      this.socket.send(value);
+      await capture!.start(
+        stream!,
+        (frame) => {
+          if (phase === 'listening' || phase === 'finalizing') send(frame);
+        },
+        interrupted
+      );
+      if (!live() || phase !== 'connecting') return;
+      phase = 'listening';
+      deadline(stop, xaiConfig.maxSessionMs);
+      events?.listening();
     } catch {
-      this.finish(FAILURE);
+      finish(FAILURE);
     }
   }
-  private stopTracks() {
-    this.stream?.getTracks().forEach((track) => {
-      track.onended = null;
-      track.stop();
-    });
-    this.stream = undefined;
+  async function connect() {
+    try {
+      // Both activation-sensitive operations run within the original recording gesture.
+      const microphone = deps.microphone();
+      void microphone.then(
+        (value) => {
+          if (!live()) value.getTracks().forEach((track) => track.stop());
+        },
+        () => {}
+      );
+      capture = deps.capture();
+      const ticket = session();
+      void ticket.catch(() => {});
+      const granted = await microphone;
+      if (!live()) return;
+      stream = granted;
+      stream.getTracks().forEach((track) => {
+        track.onended = interrupted;
+      });
+      phase = 'connecting';
+      events?.connecting?.();
+      if (!live()) return;
+      const authorization = await ticket;
+      if (!live()) return;
+      socket = deps.socket(authorization.relay_url);
+      socket.onopen = () =>
+        send(
+          JSON.stringify({ type: 'authenticate', ticket: authorization.value })
+        );
+      socket.onerror = socket.onclose = () => finish(FAILURE);
+      socket.onmessage = (event: MessageEvent<unknown>) => {
+        if (!live()) return;
+        try {
+          if (typeof event.data !== 'string' || event.data.length > 65_536)
+            throw new Error('Invalid frame');
+          const value = relayEventSchema.parse(JSON.parse(event.data));
+          if (value.type === 'ready') {
+            if (readyReceived) throw new Error('Duplicate readiness');
+            readyReceived = true;
+            void ready();
+          } else {
+            if (!readyReceived) throw new Error('Transcript before readiness');
+            if (value.type === 'interim') events?.interim(value.text);
+            else if (value.type === 'final') events?.final(value.text);
+            else if (value.type === 'error') finish(FAILURE);
+            else if (phase === 'finalizing') finish();
+            else throw new Error('Unexpected completion');
+          }
+        } catch {
+          finish(FAILURE);
+        }
+      };
+    } catch (cause) {
+      if (live())
+        finish(
+          phase === 'acquiring'
+            ? microphoneErrorMessage(microphoneErrorCode(cause))
+            : 'Transcription is unavailable. You can still type and save your share.'
+        );
+    }
   }
-  private finish(error?: string) {
-    if (!this.live) return;
-    if (error) this.protocol?.retainLocked();
-    // Emitting a locked fragment may reach the hook's draft limit and dispose this session.
-    if (!this.live) return;
-    const events = this.events;
-    this.dispose();
-    if (error) events?.error(error);
-    else events?.ended();
-  }
-  private readonly interrupted = () =>
-    this.finish(
-      'Recording was interrupted. Your finalized words are still here. Tap to record again.'
-    );
-  private readonly visibility = () => {
-    if (document.visibilityState === 'hidden') this.interrupted();
+  return {
+    available: deps.available,
+    dispose,
+    stop,
+    start(callbacks) {
+      if (phase !== 'idle') return;
+      phase = 'acquiring';
+      events = callbacks;
+      deadline(
+        () =>
+          finish(
+            'Microphone or transcription connection timed out. Please try again.'
+          ),
+        xaiConfig.startTimeoutMs
+      );
+      if (typeof window !== 'undefined')
+        window.addEventListener('pagehide', interrupted);
+      if (typeof document !== 'undefined')
+        document.addEventListener('visibilitychange', visibility);
+      void connect();
+    }
   };
-  private later(callback: () => void, ms: number) {
-    const timer = setTimeout(() => {
-      this.timers.delete(timer);
-      if (this.live) callback();
-    }, ms);
-    this.timers.add(timer);
-    return timer;
-  }
 }
-
-export const createXaiSpeech = (deps?: XaiDependencies): TranscriptionEngine =>
-  new XaiTranscriptionSession(deps);

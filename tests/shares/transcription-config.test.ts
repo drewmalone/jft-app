@@ -21,7 +21,11 @@ test('server selection remains fixed after initialization and stale clients cann
   process.env.STT_PROVIDER = 'xai';
   assert.equal(transcriptionProvider(), 'openai');
   await assert.rejects(
-    issueTranscriptionCredential(new AbortController().signal, 'xai'),
+    issueTranscriptionCredential(
+      new AbortController().signal,
+      'https://fictional.example',
+      'xai'
+    ),
     /provider mismatch/
   );
 });

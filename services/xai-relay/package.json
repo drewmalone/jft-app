@@ -9,6 +9,7 @@
     "start": "node server.mjs"
   },
   "dependencies": {
-    "ws": "8.21.0"
+    "ws": "8.21.0",
+    "zod": "4.6.7"
   }
 }
