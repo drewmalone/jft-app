@@ -1,6 +1,7 @@
-import { useEffect, useRef, useState } from 'react';
+import { useContext, useEffect, useRef, useState } from 'react';
 import { configureSpeechDiagnostics, speechDiagnostic } from './diagnostics';
-import { createTranscriptionEngine } from './provider';
+import { transcriptionEngineFactory } from './provider';
+import { TranscriptionProviderContext } from './provider-context';
 import { appendTranscript } from './append-transcript';
 import type {
   TranscriptionEngine,
@@ -22,12 +23,10 @@ interface TranscriptionOptions {
 export function useTranscription(
   text: string,
   onTextChange: (text: string) => void,
-  {
-    createEngine = createTranscriptionEngine,
-    onStopped
-  }: TranscriptionOptions = {}
+  { createEngine, onStopped }: TranscriptionOptions = {}
 ) {
-  const factory = useRef(createEngine);
+  const provider = useContext(TranscriptionProviderContext);
+  const factory = useRef(createEngine ?? transcriptionEngineFactory(provider));
   const [state, setState] = useState<TranscriptionState>('unsupported');
   const [speaking, setSpeaking] = useState(false);
   const activityTimer = useRef<ReturnType<typeof setTimeout> | undefined>(

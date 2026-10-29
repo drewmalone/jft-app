@@ -9,8 +9,11 @@ Use Node.js **24 LTS**, pinned in `.nvmrc`:
 ```bash
 nvm use
 npm ci
+export STT_PROVIDER=openai
 npm run dev
 ```
+
+`STT_PROVIDER` is required for development, production builds and startup, even with paid transcription disabled. Set it explicitly in the environment or ignored `.env.local`; there is no default.
 
 Open http://localhost:3000. Typing, saving, and tests need no provider credentials: a random session signing secret is generated for the running process. Optionally set `SESSION_SECRET` to a random value of at least 32 bytes in `.env.local`. Never commit secrets or personal recovery text.
 
@@ -20,7 +23,7 @@ For a production-mode local run, create `.env.local` first:
 node -e "console.log(require('node:crypto').randomBytes(32).toString('hex'))"
 ```
 
-Copy the generated value into `.env.local` as `SESSION_SECRET=<generated value>`, then run:
+Put `STT_PROVIDER=openai` and the generated `SESSION_SECRET=<generated value>` in `.env.local`, then run:
 
 ```bash
 npm run build
@@ -223,3 +226,7 @@ Use fictional text on a trusted HTTPS Amplify preview, with a configured provide
 `?speechDebug=1` enables console-only lifecycle diagnostics, remembered in this tab; `?speechDebug=0` disables them. URL enablement still works when sessionStorage is blocked. Filter for `[Doorknob speech]`. Events include availability, editor/start/end/disposal, results, and sanitized provider failure categories. No transcript, audio, credential, share URL, or raw provider error is logged. Never forward raw WebRTC/provider frames or HTTP credential responses to diagnostics.
 
 `npm run check` validates formatting, lint, OpenAPI, deterministic Node/hook tests, and the production build. After building, run `PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH=/usr/bin/chromium npm run test:e2e -- --workers=2`. The Playwright server forces paid credential issuance off even if local settings enable it. Browser tests mock microphone/WebRTC and provider HTTP boundaries while exercising the real engine, hook, teleprompter, editing, saving, history, and sharing. They do not prove live provider availability or physical-device support.
+
+### Startup transcription selection
+
+`STT_PROVIDER` is validated server-side at startup. Set it explicitly to `openai` to retain the existing provider. The server passes this nonsecret value through runtime page bootstrap, and session requests assert a matching provider. Restart/redeploy when changing configuration. This preparatory change recognizes the reserved `xai` name but rejects it until the separate xAI integration is installed; it never falls back silently. Existing OpenAI credentials and cleanup behavior are unchanged.

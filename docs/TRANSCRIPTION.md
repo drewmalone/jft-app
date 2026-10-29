@@ -20,7 +20,7 @@ For this cloud workspace, bind `STT_OPENAI_API_KEY` securely in environment sett
 1. Create a dedicated OpenAI project/key with access to `gpt-live-transcribe` and the Realtime API. Keep it separate from production projects. Configure project monitoring/alerts and available rate restrictions; an alert/budget is not necessarily a hard spending cap.
 2. Store the key as a **plain string** in AWS Secrets Manager. Do not put it into a committed file, a browser variable, or a build command. Configure an Amplify **SSR compute role** for the trusted preview branch with `secretsmanager:GetSecretValue` limited to that secret ARN. If using a customer-managed KMS key, grant `kms:Decrypt` for that key under the appropriate encryption-context conditions. Keep AWS credentials out of application configuration; the SDK uses the compute role.
 3. Attach that compute role only to the branch that needs it, rather than granting arbitrary PR previews access to the key. The build service role and SSR compute role are different. The latter is required by runtime secret reads.
-4. Supply the nonsecret `STT_OPENAI_SECRET_ARN` and `STT_ENABLED=true` to the **SSR runtime**. Amplify console build variables do not automatically become Next.js runtime variables. Extend the existing build configuration with a small Node command before `npm run build` that copies only those two validated nonsecret values to `.env.production`:
+4. Supply the nonsecret `STT_OPENAI_SECRET_ARN` and `STT_ENABLED=true` to the **SSR runtime**. Amplify console build variables do not automatically become Next.js runtime variables. Extend the existing build configuration with a small Node command before `npm run build` that copies only those nonsecret values and the explicit `STT_PROVIDER=openai` setting to `.env.production`:
 
    ```js
    // Run with node during the trusted preview build, before npm run build.
@@ -36,7 +36,7 @@ For this cloud workspace, bind `STT_OPENAI_API_KEY` securely in environment sett
    }
    fs.appendFileSync(
      '.env.production',
-     `\nSTT_OPENAI_SECRET_ARN=${arn}\nSTT_ENABLED=true\n`
+     `\nSTT_OPENAI_SECRET_ARN=${arn}\nSTT_ENABLED=true\nSTT_PROVIDER=openai\n`
    );
    ```
 
@@ -89,3 +89,7 @@ Waiting for microphone access now describes the native permission/device phase o
 With `?speechDebug=1`, compare `microphone-permission-granted.elapsedMs` and `data-channel-open.elapsedMs` (since the tap) against `credential-response.elapsedMs`, `webrtc-offer-created.elapsedMs` and `webrtc-answer-response.elapsedMs` (duration of their own phases). This separates slow native permission/device startup, BFF/provider credential latency, remote SDP/model setup and ICE/data-channel establishment. No fixed real-world speedup is claimed by mocked concurrency tests.
 
 Cleanup failures now distinguish `cleanup_not_completed` (with `max_output_tokens`/`content_filter` when supplied), `cleanup_refused`, `missing_cleanup_output`, and `invalid_cleanup_output`. Provider connection/timeouts have separate safe categories. Original draft preservation and retry behavior are unchanged; raw response text and parser errors are never logged.
+
+## Startup provider configuration
+
+`STT_PROVIDER` must be explicitly set to `openai` or `xai`. Missing, empty, unknown or whitespace-padded values fail startup without printing the value. The provider is fixed per server process and serialized by the runtime-rendered home page, avoiding a public build-time variable. New clients send `X-STT-Provider` on session issuance; mismatches fail with a safe 503, while missing headers retain legacy OpenAI behavior. Restart/redeploy to change the setting. This foundational change reserves `xai` but rejects it until the subsequent adapter/relay integration is installed. It adds no service or credential source. Existing `STT_ENABLED`, OpenAI key/secret ARN and cleanup settings remain unchanged.
