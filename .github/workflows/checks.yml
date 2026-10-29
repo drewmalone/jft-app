@@ -75,6 +75,12 @@ jobs:
         run: npm run build
       - name: Browser and accessibility tests
         run: npm run test:e2e -- --project=mobile-${{ matrix.browser }} --project=desktop-${{ matrix.browser }}
+      - name: xAI normalized recording contract (synthetic audio and relay)
+        env:
+          STT_PROVIDER: xai
+          STT_XAI_RELAY_URL: wss://relay.example/stt
+          STT_XAI_RELAY_SECRET: fictional-e2e-signing-secret-at-least-32-bytes
+        run: npm run test:e2e -- tests/e2e/xai-transcription.spec.ts --project=mobile-${{ matrix.browser }} --project=desktop-${{ matrix.browser }}
       - name: Upload synthetic-test failure report
         uses: actions/upload-artifact@v7
         if: failure()

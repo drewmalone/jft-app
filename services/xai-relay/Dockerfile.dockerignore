@@ -1,0 +1,8 @@
+**
+!services/
+!services/xai-relay/
+!services/xai-relay/*.mjs
+!services/xai-relay/package*.json
+!shared/
+!shared/xai-relay/
+!shared/xai-relay/*.mjs

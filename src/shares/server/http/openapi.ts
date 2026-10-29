@@ -6,6 +6,7 @@ import { shareSchema } from '../../model';
 import { apiErrorSchema } from '../../errors';
 import { cleanupTextSchema } from '../../cleanup/model';
 import { transcriptionCredentialSchema } from '../../transcription/model';
+import { xaiSessionSchema } from '../../transcription/providers/xai/session';
 import { apiFailures } from './errors';
 
 export const share = shareSchema.openapi('Share', {
@@ -21,9 +22,14 @@ export const browserOriginHeaders = z.object({
 });
 
 export const draftText = cleanupTextSchema.openapi('DraftText');
-export const transcriptionCredential = transcriptionCredentialSchema.openapi(
-  'TranscriptionCredential'
-);
+export const transcriptionSession = z
+  .union([
+    xaiSessionSchema.openapi('XaiTranscriptionSession'),
+    transcriptionCredentialSchema
+      .extend({ provider: z.literal('openai').optional() })
+      .openapi('TranscriptionCredential')
+  ])
+  .openapi('TranscriptionSession');
 const apiError = apiErrorSchema.openapi('ApiError');
 
 export const retryAfterHeaders = {

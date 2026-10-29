@@ -1,6 +1,6 @@
 # Live transcription deployment
 
-The browser implements OpenAI transcription behind `TranscriptionEngine`, with direct WebRTC audio transport. The Next.js Node BFF only issues short-lived credentials using the official OpenAI SDK. No WebSocket proxy, persistent Amplify connection, audio upload/storage, or separate audio service is required. The existing in-memory share repository still makes this a disposable prototype, including on Amplify.
+The deployment selects OpenAI (direct WebRTC) or xAI (PCM over an authenticated external WebSocket relay) behind the unchanged `TranscriptionEngine`. The Next.js Node BFF issues temporary connection credentials and never transports live audio. OpenAI needs no additional service; xAI requires the standalone relay described below. The existing in-memory share repository still makes this a disposable prototype, including on Amplify.
 
 ## Configuration
 
@@ -78,7 +78,7 @@ Visit `?speechDebug=0` afterward to disable diagnostics. Outbound packet samplin
 
 ## Automatic draft cleanup after Stop
 
-The same server-only key now also calls `/v1/responses` for `gpt-5.4-mini` paragraph/filler cleanup after successful explicit Stop. An unrestricted key covers endpoint permissions; restricted keys need Responses Request as well as Realtime Request. No additional AWS secret or deployment service is required. `STT_ENABLED=true` enables both operations. Cleanup has its own bounded process-local burst guard and uses `store:false`, structured output, reasoning off, and no tools. A model-access/provider failure leaves the original editable and saveable. Safe failures appear as `[Doorknob cleanup]` with the same redaction policy.
+The OpenAI server-only key independently calls `/v1/responses` for `gpt-5.4-mini` paragraph/filler cleanup after successful explicit Stop. An unrestricted key covers endpoint permissions; restricted keys need Responses Request as well as Realtime Request. Cleanup itself requires no additional service. Keep the OpenAI key/secret configured even when speech uses xAI; a missing cleanup key preserves the draft with the existing retry behavior. `STT_ENABLED=true` enables both operations. Cleanup has its own bounded process-local burst guard and uses `store:false`, structured output, reasoning off, and no tools. A model-access/provider failure leaves the original editable and saveable. Safe failures appear as `[Doorknob cleanup]` with the same redaction policy.
 
 The full unsaved finalized draft is sent through the BFF before explicit saving, including typed text already in that draft. Review remains important because AI may alter meaning despite instructions. See README for expected additional text-model cost and review behavior. Test with fictional spoken filler text, multiple topics, intentional repetition and negations; verify names/numbers and meaning against the original, exercise editing and failure, then save and inspect paragraph layout in owner and recipient views. Automated tests mock all provider calls and do not validate live editing quality.
 
@@ -90,6 +90,117 @@ With `?speechDebug=1`, compare `microphone-permission-granted.elapsedMs` and `da
 
 Cleanup failures now distinguish `cleanup_not_completed` (with `max_output_tokens`/`content_filter` when supplied), `cleanup_refused`, `missing_cleanup_output`, and `invalid_cleanup_output`. Provider connection/timeouts have separate safe categories. Original draft preservation and retry behavior are unchanged; raw response text and parser errors are never logged.
 
-## Startup provider configuration
+## Provider selection and xAI relay
 
-`STT_PROVIDER` must be explicitly set to `openai` or `xai`. Missing, empty, unknown or whitespace-padded values fail startup without printing the value. The provider is fixed per server process and serialized by the runtime-rendered home page, avoiding a public build-time variable. New clients send `X-STT-Provider` on session issuance; mismatches fail with a safe 503, while missing headers retain legacy OpenAI behavior. Restart/redeploy to change the setting. This foundational change reserves `xai` but rejects it until the subsequent adapter/relay integration is installed. It adds no service or credential source. Existing `STT_ENABLED`, OpenAI key/secret ARN and cleanup settings remain unchanged.
+`STT_PROVIDER` must be explicitly set to `openai` or `xai`. Missing, empty, misspelled or whitespace-padded values fail with an authored error. `next.config.ts` validates the setting during CLI configuration loading so startup exits on failure; `src/instrumentation.ts` also validates the server initialization. `server/transcription-config.ts` fixes it for the process lifetime. The home page uses `connection()` to serialize this nonsecret value at request time, rather than baking it into a static page or `NEXT_PUBLIC_` variable. Restart/redeploy to change providers. New recording requests include `X-STT-Provider`; stale pages from a different deployment fail with 503 and must reload. Requests never select a different provider, and there is no fallback.
+
+| Variable                                       | Runs on       | Purpose                                                                                                                                                                                                          |
+| ---------------------------------------------- | ------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `STT_PROVIDER`                                 | App           | Required: `openai` or `xai`.                                                                                                                                                                                     |
+| `STT_ENABLED`                                  | App           | Existing exact `true` gate for paid speech and cleanup.                                                                                                                                                          |
+| `STT_OPENAI_API_KEY` / `STT_OPENAI_SECRET_ARN` | App           | Existing OpenAI credential sources; still required for cleanup with xAI.                                                                                                                                         |
+| `STT_XAI_RELAY_URL`                            | App and relay | Exact public `wss://relay.example/stt`, without credentials, query or fragment. Local development permits loopback `ws://localhost:8080/stt`.                                                                    |
+| `STT_XAI_RELAY_SECRET`                         | App and relay | Matching random signing key of at least 32 bytes. A separate secret from the provider key and `SESSION_SECRET`. Direct source takes precedence.                                                                  |
+| `STT_XAI_RELAY_SECRET_ARN`                     | App only      | Alternative plain-string Secrets Manager source for that signing key. Runtime reads use the SSR compute role, five-minute successful-read cache and bounded AWS timeout; failures can recover on later requests. |
+| `STT_XAI_API_KEY`                              | Relay only    | Permanent xAI API key. Never supplied to the browser or required by Amplify. No `STT_XAI_SECRET_ARN` resolver is implemented; inject this environment value from ECS Secrets Manager integration.                |
+| `STT_XAI_ALLOWED_ORIGINS`                      | Relay only    | Comma-separated exact app origins, e.g. `https://preview.example`; no paths, trailing slash or wildcard.                                                                                                         |
+| `PORT`                                         | Relay only    | HTTP/WebSocket listener, default `8080`; TLS terminates at the load balancer.                                                                                                                                    |
+| `SESSION_SECRET`                               | App           | Existing production cookie signing key, at least 32 bytes.                                                                                                                                                       |
+
+OpenAI local `.env.local` example (values below are placeholders):
+
+```dotenv
+STT_ENABLED=true
+STT_PROVIDER=openai
+STT_OPENAI_API_KEY=<OpenAI key>
+```
+
+xAI local `.env.local` example:
+
+```dotenv
+STT_ENABLED=true
+STT_PROVIDER=xai
+STT_OPENAI_API_KEY=<OpenAI cleanup key>
+STT_XAI_RELAY_URL=ws://localhost:8080/stt
+STT_XAI_RELAY_SECRET=<random shared signing key of at least 32 bytes>
+```
+
+Run the relay separately using Node 24:
+
+```bash
+cd services/xai-relay
+npm ci
+# Securely inject these into this process; do not commit an env file:
+# STT_XAI_API_KEY, STT_XAI_RELAY_SECRET, STT_XAI_RELAY_URL
+# STT_XAI_ALLOWED_ORIGINS=http://localhost:3000
+npm start
+```
+
+The standalone service does not load Next's `.env.local`. Configure its environment separately, then run the app with `npm run dev` from the repository root. Use an HTTPS app and WSS relay reachable by the device for physical iPhone tests; a phone's localhost is not the developer machine. Automated tests use synthetic credentials, mock sockets and synthetic PCM; they never call a paid provider. `npm run check` and `npm run typecheck` cover the app and relay core. The relay's pinned `ws` dependency has its own lockfile and is installed separately.
+
+### Why a separate service
+
+The reviewed [xAI STT guide](https://docs.x.ai/developers/model-capabilities/audio/speech-to-text) and [streaming reference](https://docs.x.ai/developers/rest-api-reference/inference/speech-to-text) require bearer-authenticated streaming and recommend a backend proxy. The [ephemeral token guide](https://docs.x.ai/developers/model-capabilities/audio/ephemeral-tokens) documents speech-to-speech Realtime tokens, without confirming their use for `/v1/stt`. This implementation therefore does not assume they authorize STT. It uses `grok-voice-transcribe-2.0`, interim results, mono PCM16 at 48 kHz, and the documented STT WebSocket. No batch transcription is substituted.
+
+The relay in `services/xai-relay/` is a long-running Node HTTP/WebSocket service. Amplify SSR handles only the short ticket-issuance request. Do not route `/stt` through a Next Route Handler, Amplify rewrite or Lambda response stream. The repository includes relay source and a container definition, not provisioned AWS infrastructure.
+
+### AWS prerequisites for xAI
+
+1. Provision an ECS/Fargate service (one Node process/task) behind an HTTPS Application Load Balancer with a valid certificate and a dedicated relay DNS name. Allow WebSocket upgrades on `/stt`, health checks on `/health`, and outbound TLS to `api.x.ai`. Keep tasks private, with their listener reachable only from the load balancer. Set load-balancer idle timeout to at least 75 seconds. The service actively forwards streaming frames, but unexpected disconnects still fail safely.
+2. Use **one replica** for this implementation. Ticket replay protection is process-local. Multiple replicas require an atomic shared nonce store before scaling; load-balancer stickiness alone is insufficient. One process accepts at most 32 connections, allows five seconds for initial authentication and bounds startup, audio rate, message sizes, queued bytes, recording lifetime and finalization. These are operational safeguards, not a distributed user quota.
+3. Inject `STT_XAI_API_KEY` and `STT_XAI_RELAY_SECRET` using ECS secret bindings. Give the task execution role only the required Secrets Manager/KMS access. Configure `STT_XAI_RELAY_URL` and exact `STT_XAI_ALLOWED_ORIGINS`; set `NODE_ENV=production`. Keep trusted-preview protection and the existing anonymous-session limitations in mind. A valid anonymous cookie is not a user entitlement.
+4. On Amplify, supply `STT_PROVIDER=xai`, `STT_ENABLED=true`, `STT_XAI_RELAY_URL`, `STT_XAI_RELAY_SECRET_ARN` and the existing `STT_OPENAI_SECRET_ARN` to the **SSR runtime**. Adapt the earlier build snippet to persist only these validated nonsecret values into `.env.production`; validate provider against the two literals, relay URL against the rules above, and both ARNs with AWS's `@aws-sdk/core/util` ARN parser, constraining the service to Secrets Manager. Do not copy either API key or the signing secret into build artifacts. The SSR compute role needs `GetSecretValue` and, where applicable, `kms:Decrypt` for the signing-key secret and OpenAI cleanup secret. The xAI API key belongs only to the relay.
+5. Configure browser/connect CSP policies, if supplied externally, to allow the relay WSS origin and the same-origin AudioWorklet module. Disable request-body/frame logging in proxies, APM and load-balancer middleware. Authentication tickets are sent in the first frame rather than a URL or subprotocol, so ordinary URL access logs cannot contain them.
+6. Deploy only with explicit operator approval. Coordinate signing-key rotations with the app's five-minute cache and relay restart; temporarily rejected sessions require a fresh Record attempt. This change creates or modifies no AWS resources.
+
+The app can build without provider keys, but an explicit `STT_PROVIDER` is required. xAI startup requires its relay URL and signing-key configuration; relay startup requires its permanent xAI key. An absent OpenAI cleanup key under xAI leaves the original finalized draft intact with the normal cleanup failure/retry behavior.
+
+### Relay and transcript lifecycle
+
+The BFF checks the existing cookie, exact Origin, enablement and burst guard before signing a 60-second HMAC ticket bound to the relay URL and browser origin. The relay checks the origin allowlist and ticket signature/expiry, consumes its nonce once, then opens the fixed xAI endpoint with a server-only Authorization header. Clients cannot change upstream model, destination or credentials. Neither service stores audio or transcripts; both network legs still process them in memory.
+
+The adapter creates/resumes an AudioContext in the recording gesture, acquires the microphone once, and attaches an AudioWorklet only after `transcript.created`. It downmixes to mono PCM16, sending 100 ms frames; it does not use Safari's MediaRecorder containers as raw PCM. Listening starts only when capture is ready. Local activity comes from transcript results; this remains a speech cue rather than a sound meter.
+
+The relay owns all xAI event validation, timestamp deduplication and cumulative-transcript handling. Provider-locked chunks are committed immediately, so a disconnect cannot discard them while waiting for an utterance summary. Later stitched utterances and `transcript.done` contribute only unseen audio; word timestamps handle repeated words without text-based guessing. Unknown out-of-order chunks and ambiguous overlaps fail visibly. There is no pending-chunk buffer or browser-side xAI protocol parser.
+
+The browser receives only `ready`, replacement `interim`, append-once `final`, `ended` and sanitized `error` messages. Stop immediately releases microphone tracks, flushes the worklet's short trailing frame, and sends `stop`; the relay translates that to xAI's `audio.done`, normalizes any remaining finals and sends `ended` only after `transcript.done`. Both sides have bounded finalization deadlines. Browser disposal cancels startup, closes resources and silences stale callbacks. Roll out app and relay protocol updates together.
+
+### Manual comparison and limitations
+
+On physical iPhone Safari, run the README device checklist once per deployment configuration using the same fictional speech. Include a permission prompt, continuous speech longer than three seconds, a pause, a repeated phrase, a final word immediately before Stop, Stop during silence and connection startup, resume, and background/network interruption. Verify the OS microphone indicator stops promptly, no final words repeat, the teleprompter updates, cleanup still appears, edits survive failures, and only explicit Save creates history/sharing. Compare time to first provisional words and finalization time without recording sensitive payloads.
+
+Physical iOS capture, provider quality, account model availability, hosted latency and AWS deployment have not been validated by deterministic tests. Modern Safari AudioWorklet and a 48 kHz AudioContext are required; unsupported capture fails safely. PCM costs about 96 kB/s per audio leg before overhead, so relay bandwidth/hosting adds cost. xAI retention/account terms and usage charges must be checked independently; OpenAI cleanup still transmits the finalized text to OpenAI. There is no automatic fallback or reconnect/replay, audio storage, shared relay nonce store, public-user entitlement system, or durable share storage in this change.
+
+### Recorder library evaluation
+
+The published `@speechmatics/browser-audio-input` 2.0.4 package was inspected as a possible replacement for `audio.ts` and the small PCM worklet. Its recorder acquires its own microphone after asynchronous module loading, accepts no existing MediaStream, exposes no startup cancellation and provides no worklet-flush acknowledgement. Those differences would require additional lifecycle wrappers to meet this app's late-permission cancellation and trailing-audio guarantees. No dependency was added: the existing small capture module is retained. Provider parsing and cumulative transcript reconciliation now live exclusively in the relay, behind the normalized event contract.
+
+### Isolated xAI browser contract test
+
+After `npm run build`, run the xAI-only browser case with synthetic relay configuration:
+
+```bash
+STT_PROVIDER=xai \
+STT_XAI_RELAY_URL=wss://relay.example/stt \
+STT_XAI_RELAY_SECRET=fictional-e2e-signing-secret-at-least-32-bytes \
+npm run test:e2e -- tests/e2e/xai-transcription.spec.ts \
+  --project=mobile-chromium --project=desktop-chromium
+```
+
+Use the existing `PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH` override if required. This builds no extra service and makes no paid requests: the harness keeps `STT_ENABLED=false`, and the test mocks microphone capture, the relay and cleanup. It verifies runtime xAI selection, provider assertions, provisional/final text, trailing Stop results, cleanup, resume/error preservation and explicit saving. The case skips outside an explicit xAI test configuration, so the ordinary OpenAI regression suite is unchanged. It does not establish physical Safari support.
+
+### Schema and composition ownership
+
+The shared transcription model contains only the common temporary-credential shape. xAI relay URLs and ticket schemas belong to `transcription/providers/xai/session.ts`; the browser adapter and server issuer reuse that definition. The HTTP/OpenAPI composition combines the provider schemas. The server credential composition receives the already validated provider explicitly, so tests exercise it directly without subprocesses, evaluated source strings or configuration-reset hooks. Relay secret ARNs use AWS's parser for structure plus the regional Secrets Manager resource constraint, including AWS commercial, China and GovCloud partitions.
+
+### Shared modules and local relay packaging
+
+`shared/xai-relay/contract.mjs` owns the browser-safe relay schemas, URL validation and audio/transport limits. Its separate `ticket.node.mjs` entry owns Node-only signing and verification. Both the app and relay import these modules directly; neither application imports the other's implementation. `npm run typecheck:relay` checks the shared modules and relay with strict JavaScript checking.
+
+Run `npm ci` at the repository root before local relay development, then install its dependencies with `npm ci --prefix services/xai-relay`. Build its container from the repository root so the shared modules are included:
+
+```bash
+docker build -f services/xai-relay/Dockerfile -t doorknob-xai-relay .
+```
+
+The Dockerfile-specific ignore file limits the build context to the relay and shared modules. The app's `createSecretReader` utility shares only Secrets Manager fetching, coalescing, five-minute caching and retry behavior; provider modules retain environment selection, credential validation and safe error mapping.

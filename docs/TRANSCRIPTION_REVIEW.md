@@ -17,11 +17,11 @@ The useful boundary is the existing `TranscriptionEngine`, not a provider regist
 1. Implement `TranscriptionEngine` in `transcription/providers/<provider>/`. Keep transport and provider SDK calls there. Reuse microphone helpers when useful; a provider SDK can own capture instead if its cleanup guarantees are tested.
 2. Emit interim as the complete current provisional string, not a delta. Emit each finalized segment exactly once, in audio order, without replaying earlier finals. The hook appends finals and enforces the draft limit. Provider adapters must deduplicate/reorder their own events.
 3. `start` must begin acquisition only after the user's explicit action. `stop` stops microphone tracks immediately but allows trailing finals before `ended`. `dispose` cancels pending work, releases all resources and silences callbacks permanently. Errors must use authored, safe messages and preserve already emitted finals. One instance represents one session.
-4. Select the adapter in `transcription/provider.ts`. Select its matching server issuer and redacted diagnostics in `server/transcription-provider.ts`. The current credential endpoint returns `{ value, expires_at }`; adapt that endpoint's schema and client parser together if the next provider needs different connection data. Do not force every provider into OpenAI's credential format.
+4. Select the adapter through server-authoritative `STT_PROVIDER` and `transcription/provider.ts`. Select its matching server issuer and redacted diagnostics in `server/transcription-provider.ts`. The current credential endpoint returns `{ value, expires_at }`; adapt that endpoint's schema and client parser together if the next provider needs different connection data. Do not force every provider into OpenAI's credential format.
 5. Keep permanent keys in server-only configuration. Prefer short-lived browser credentials when supported. A provider that requires a proxy will need a transport compatible with Amplify; changing the factory alone cannot supply that infrastructure.
 6. Leave `server/cleanup-provider.ts` alone to retain OpenAI text cleanup. Update deployment/retention/cost docs for the new speech provider and run the contract scenarios and browser suite before comparing costs on devices.
 
-No runtime provider setting, registry, fallback transcript, or multi-provider reconciliation was added. A code-level switch is sufficient for the next experiment.
+The subsequent configurable-provider change adds a validated, immutable server `STT_PROVIDER`, serialized by runtime page bootstrap, with matching session-request checks. An explicit provider setting is required; xAI has a separate browser adapter and standalone authenticated relay. No registry, fallback or runtime picker is used. See [deployment prerequisites](TRANSCRIPTION.md#provider-selection-and-xai-relay).
 
 ## Improvements to prioritize next
 
@@ -44,3 +44,7 @@ A query cache, state-machine package, agent framework or generic provider plugin
 ## Follow-up organization refactor
 
 All six follow-up areas are implemented: explicit session ownership with one lifecycle phase, protocol/transport separation, adoption of the SDK WebRTC helper, a composer coordination hook, server folders by responsibility, and immutable provider settings separate from secrets. Classes are reserved for the resource-owning recording session and existing repository; stateless HTTP operations/configuration remain functions/data. See [architecture](ARCHITECTURE.md#recording-ownership-and-lifecycle) for lifecycle transitions and the server map.
+
+## Simplified xAI boundary
+
+Provider configuration is reviewed independently from xAI transport. In the xAI integration, the browser owns capture and a single session deadline; the relay owns xAI validation and cumulative transcript normalization. Locked chunks are committed immediately and later summaries skip already committed audio. The application event contract is ready/interim/final/ended/error, so raw provider frames never reach browser code. OpenAI's existing transport and protocol are unchanged. The Speechmatics PCM recorder was evaluated but not added because its startup cancellation and flush semantics would require extra wrappers; details are in the deployment guide.

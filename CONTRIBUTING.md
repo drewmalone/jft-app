@@ -17,19 +17,19 @@ Development generates an ephemeral session signing secret. Optional live transcr
 
 ## Commands
 
-| Command                    | Purpose                                                                   |
-| -------------------------- | ------------------------------------------------------------------------- |
-| `npm run dev`              | Start the local application                                               |
-| `npm run format`           | Apply repository formatting                                               |
-| `npm run format:check`     | Check formatting without changing files                                   |
-| `npm run lint`             | Check React, Next.js, TypeScript, and accessibility rules                 |
-| `npm run test:e2e`         | Run mobile and desktop Chromium user-flow tests after building            |
-| `npm test`                 | Run automated tests                                                       |
-| `npm run build`            | Produce and validate the production application                           |
-| `npm run typecheck`        | Check TypeScript; build first on a fresh checkout to generate route types |
-| `npm run openapi:generate` | Generate temporary `.tmp/openapi.yaml` from TypeScript                    |
-| `npm run openapi:lint`     | Generate and lint temporary YAML with Spectral; warnings fail             |
-| `npm run check`            | Run the complete local verification used by CI                            |
+| Command                    | Purpose                                                                                                   |
+| -------------------------- | --------------------------------------------------------------------------------------------------------- |
+| `npm run dev`              | Start the local application                                                                               |
+| `npm run format`           | Apply repository formatting                                                                               |
+| `npm run format:check`     | Check formatting without changing files                                                                   |
+| `npm run lint`             | Check React, Next.js, TypeScript, and accessibility rules                                                 |
+| `npm run test:e2e`         | Run mobile and desktop Chromium user-flow tests after building                                            |
+| `npm test`                 | Run automated tests                                                                                       |
+| `npm run build`            | Produce and validate the production application                                                           |
+| `npm run typecheck`        | Check app TypeScript and strict relay JavaScript; build first on a fresh checkout to generate route types |
+| `npm run openapi:generate` | Generate temporary `.tmp/openapi.yaml` from TypeScript                                                    |
+| `npm run openapi:lint`     | Generate and lint temporary YAML with Spectral; warnings fail                                             |
+| `npm run check`            | Run the complete local verification used by CI                                                            |
 
 Before opening or updating a PR:
 
@@ -38,7 +38,7 @@ npm run format
 npm run check
 ```
 
-`check` runs formatting, linting, OpenAPI generation/Spectral checks, unit tests, and the production build. Next.js 16 checks TypeScript during the build, so the sequence does not run the same type check again. `typecheck` remains available for focused development. It needs no credentials or external services once dependencies are installed. Separate scripts remain available for focused work.
+`check` runs formatting, linting, OpenAPI generation/Spectral checks, unit tests, and the production build. Next.js 16 checks TypeScript during the build, so the sequence does not run the same type check again. `typecheck` remains available for focused development; `typecheck:relay` checks the standalone relay and shared modules directly. It needs no credentials or external services once dependencies are installed. Separate scripts remain available for focused work.
 
 ## Organization and documentation
 

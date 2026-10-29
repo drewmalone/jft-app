@@ -34,6 +34,7 @@ test('server selection remains fixed after initialization and stale clients cann
     issueTranscriptionCredential(
       transcriptionProvider(),
       new AbortController().signal,
+      'https://fictional.example',
       'xai'
     ),
     /provider mismatch/

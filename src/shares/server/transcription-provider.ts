@@ -1,19 +1,22 @@
 import 'server-only';
 
+// Server composition uses the same fixed selection as the page bootstrap.
+// Provider error classification stays here so HTTP handlers never inspect SDK errors.
 import { issueTranscriptionCredential as issueOpenAI } from './providers/openai/session';
+import { issueXaiSession } from './providers/xai/session';
 import type { TranscriptionProvider } from '../transcription/config';
 
-/** Assert the browser bootstrap before issuing credentials. Missing headers support legacy OpenAI clients. */
+/** Session authorization and browser bootstrap share one immutable server selection. */
 export async function issueTranscriptionCredential(
   provider: TranscriptionProvider,
   signal: AbortSignal,
+  origin: string,
   requested: string | undefined
 ) {
-  if (provider !== 'openai')
-    throw new Error('The xAI integration is not installed');
+  // Missing header remains compatible with pre-configuration OpenAI clients only.
   if ((requested ?? 'openai') !== provider)
     throw new Error('Transcription provider mismatch; reload the application');
-  return issueOpenAI(signal);
+  return provider === 'openai' ? issueOpenAI(signal) : issueXaiSession(origin);
 }
 export {
   reportTranscriptionFailure,
