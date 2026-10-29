@@ -21,7 +21,7 @@ The useful boundary is the existing `TranscriptionEngine`, not a provider regist
 5. Keep permanent keys in server-only configuration. Prefer short-lived browser credentials when supported. A provider that requires a proxy will need a transport compatible with Amplify; changing the factory alone cannot supply that infrastructure.
 6. Leave `server/cleanup-provider.ts` alone to retain OpenAI text cleanup. Update deployment/retention/cost docs for the new speech provider and run the contract scenarios and browser suite before comparing costs on devices.
 
-The subsequent configurable-provider change adds a validated, immutable server `STT_PROVIDER`, serialized by runtime page bootstrap, with matching session-request checks. OpenAI remains the default; xAI has a separate browser adapter and standalone authenticated relay. No registry, fallback or runtime picker is used. See [deployment prerequisites](TRANSCRIPTION.md#provider-selection-and-xai-relay).
+The subsequent configurable-provider change adds a validated, immutable server `STT_PROVIDER`, serialized by runtime page bootstrap, with matching session-request checks. An explicit provider setting is required; xAI has a separate browser adapter and standalone authenticated relay. No registry, fallback or runtime picker is used. See [deployment prerequisites](TRANSCRIPTION.md#provider-selection-and-xai-relay).
 
 ## Improvements to prioritize next
 

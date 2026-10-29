@@ -10,11 +10,7 @@ export const xaiRelayUrlSchema = z
       (url.protocol === 'wss:' ||
         (url.protocol === 'ws:' &&
           ['localhost', '127.0.0.1', '[::1]'].includes(url.hostname))) &&
-      !url.username &&
-      !url.password &&
-      !url.search &&
-      !url.hash &&
-      url.pathname === '/stt'
+      url.href === `${url.origin}/stt`
   )
   .transform((url) => url.href);
 

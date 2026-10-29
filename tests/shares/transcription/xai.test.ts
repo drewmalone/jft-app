@@ -53,6 +53,33 @@ test('relay issuance exposes only an expiring ticket and requires secure configu
   await assert.rejects(issueXaiSession(origin), /RELAY_SECRET/);
 });
 
+test('xAI owns the relay session schema and rejects malformed or credential-bearing destinations', () => {
+  const ticket = {
+    provider: 'xai',
+    value: 'fictional-ticket',
+    expires_at: 123
+  };
+  for (const relay_url of [
+    'wss://relay.example/stt',
+    'ws://localhost:8080/stt'
+  ])
+    assert.ok(xaiSessionSchema.safeParse({ ...ticket, relay_url }).success);
+  for (const relay_url of [
+    'not-a-url',
+    'https://relay.example/stt',
+    'ws://relay.example/stt',
+    'wss://private-key@relay.example/stt',
+    'wss://relay.example/stt?token=private',
+    'wss://relay.example/stt?',
+    'wss://relay.example/stt#',
+    'wss://relay.example/other'
+  ])
+    assert.equal(
+      xaiSessionSchema.safeParse({ ...ticket, relay_url }).success,
+      false
+    );
+});
+
 test('relay tickets reject tampering, expiry, wrong origin and wrong audience', () => {
   const now = 100_000;
   const ticket = signRelayTicket(secret, url, origin, now);

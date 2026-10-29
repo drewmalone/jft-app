@@ -192,7 +192,7 @@ Published cleanup pricing is $0.75 per million input tokens and $4.50 per millio
 
 Dependencies are installed with `npm ci` under Node 24. Tests need no credentials. For real recording, securely set these server-only variables in environment settings or an ignored `.env.local`:
 
-- `STT_PROVIDER=openai` (default when absent) or `STT_PROVIDER=xai` selects speech recognition at server startup. Unsupported values fail startup. Restart/redeploy to change it; no public build-time variable, picker or fallback is used.
+- `STT_PROVIDER=openai` or `STT_PROVIDER=xai` (required) selects speech recognition at server startup. Missing or unsupported values fail startup. Restart/redeploy to change it; no public build-time variable, picker or fallback is used.
 - `STT_ENABLED=true` explicitly enables paid transcription and text cleanup; unset/false keeps it disabled.
 - `STT_OPENAI_API_KEY` is an OpenAI project API key with Realtime/transcription access. Never use a `NEXT_PUBLIC_` prefix, commit the key, print it, or paste it into chat.
 - Production still requires the existing `SESSION_SECRET` (at least 32 random bytes).
@@ -209,7 +209,7 @@ The app captures microphone audio in memory while explicitly recording. With Ope
 
 OpenAI's API data is not used to train models by default unless the organization opts in. Standard abuse-monitoring logs may contain customer content and are retained for up to 30 days, subject to documented exceptions. The Realtime endpoint documents no application-state retention. Zero Data Retention/Modified Abuse Monitoring require eligibility and approval; this app does not establish those controls or promise zero provider retention.
 
-The default OpenAI `gpt-live-transcribe` model is listed at **$0.017 per streamed minute**, about **$1.02/hour** or **$0.17 for ten minutes** (official pricing checked October 25, 2026). Check current pricing and your project access before enabling it. Network, AWS hosting, and Secrets Manager charges are additional. No paid live request is part of automated tests.
+The OpenAI `gpt-live-transcribe` model is listed at **$0.017 per streamed minute**, about **$1.02/hour** or **$0.17 for ten minutes** (official pricing checked October 25, 2026). Check current pricing and your project access before enabling it. Network, AWS hosting, and Secrets Manager charges are additional. No paid live request is part of automated tests.
 
 Sources: [live transcription](https://developers.openai.com/api/docs/guides/realtime-transcription), [pricing](https://developers.openai.com/api/docs/pricing), [API data controls](https://developers.openai.com/api/docs/guides/your-data).
 
