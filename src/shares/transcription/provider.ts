@@ -1,7 +1,14 @@
 import { createOpenAISpeech } from './providers/openai/engine';
 import type { TranscriptionEngineFactory } from './types';
+import type { TranscriptionProvider } from './config';
+import { createXaiSpeech } from './providers/xai/engine';
 
-// Browser composition: only the selected adapter knows its provider's wire protocol.
-// Update server/transcription-provider.ts with the matching credential issuer.
+/** Browser selection comes exclusively from the runtime server bootstrap. */
+export function transcriptionEngineFactory(
+  provider: TranscriptionProvider
+): TranscriptionEngineFactory {
+  return provider === 'openai' ? createOpenAISpeech : createXaiSpeech;
+}
+
 export const createTranscriptionEngine: TranscriptionEngineFactory =
   createOpenAISpeech;

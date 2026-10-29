@@ -66,7 +66,7 @@ A signed, HttpOnly, SameSite=Lax cookie identifies the anonymous session. It exp
 
 **This storage is for local development. Restarting the server clears all shares. Multiple processes, replicas, and serverless instances such as Vercel do not share the Map and cannot provide reliable persistence.** No disk storage, database, encryption at rest, backup, account recovery, or durable deployment is provided. Unsaved drafts live only in React memory. Refreshing, closing the tab, or leaving the mounted app starts a fresh share. In-app Today/Past shares navigation and failed saves retain the current draft until refresh or a successful save. Older stored drafts are discarded on page load. The development signing secret also resets on process restart unless configured. There is no per-share deletion or expiry job; cookie loss does not remove records from the running Map. See [the data lifecycle](docs/DATA_GLOSSARY.md#app-data-lifecycle).
 
-Signed sharing links are optional: saving prepares a URL but never sends it automatically. No raw audio storage, registration, real reading feeds, or harness integration are included. Optional live transcription sends microphone audio to OpenAI only during explicitly started sessions.
+Signed sharing links are optional: saving prepares a URL but never sends it automatically. No raw audio storage, registration, real reading feeds, or harness integration are included. Optional live transcription sends microphone audio to the deployment-selected provider only during explicitly started sessions.
 
 ## Validation
 
@@ -113,7 +113,7 @@ src/
     history/                 history hook, list, and list items
     detail/                  saved-share detail, sharing action, thoughts text
     reflection/              reading presentation and fictional fixture
-    transcription/           engine contract, OpenAI adapter, audio activity, lifecycle hook
+    transcription/           engine contract, OpenAI/xAI adapters, audio activity, lifecycle hook
     server/
       operations/            private/public operation contracts and handlers
       app.ts                 operation registration and dispatch
@@ -167,13 +167,13 @@ a compatible fix for this project. Revisit when the upstream tooling is patched.
 
 ## Speak your share
 
-Tap **Record your share**, allow microphone access, and speak. Audio streams to OpenAI; provisional words appear in the existing teleprompter, then corrected, punctuated final segments enter the editable draft. Tap **Stop listening**, wait for finalization and automatic cleanup, review/edit inline, and explicitly **Save privately**. Cleanup adds natural paragraphs and removes obvious hesitation fillers. Recording again appends a paragraph. Refresh starts a fresh draft. There is no browser SpeechRecognition fallback or second transcription source.
+Tap **Record your share**, allow microphone access, and speak. Audio streams to the configured speech provider; provisional words appear in the existing teleprompter, then corrected, punctuated final segments enter the editable draft. Tap **Stop listening**, wait for finalization and automatic cleanup, review/edit inline, and explicitly **Save privately**. Cleanup adds natural paragraphs and removes obvious hesitation fillers. Recording again appends a paragraph. Refresh starts a fresh draft. There is no browser SpeechRecognition fallback or second transcription source.
 
-Transcription needs HTTPS (localhost works for development), microphone permission, WebRTC, and Web Audio. Permission denial, connection loss, provider failure, leaving the recording screen, hiding the page, and unmount stop capture and release tracks/connections. Finalized words remain; provisional words are discarded on failure. Stop releases the microphone immediately and allows up to five seconds for final results. A timeout shows a notice rather than silently claiming complete transcription. Sessions stop after ten minutes; tap again to append more. At 10,000 Unicode code points, the draft is clipped to the limit and recording is canceled. Typing and saving work without provider access.
+Transcription needs HTTPS (localhost works for development), microphone permission and Web Audio; OpenAI uses WebRTC, while xAI uses AudioWorklet PCM and an authenticated external WebSocket relay. Permission denial, connection loss, provider failure, leaving the recording screen, hiding the page, and unmount stop capture and release tracks/connections. Finalized words remain; provisional words are discarded on failure. Stop releases the microphone immediately and allows up to five seconds for final results. A timeout shows a notice rather than silently claiming complete transcription. Sessions stop after ten minutes; tap again to append more. At 10,000 Unicode code points, the draft is clipped to the limit and recording is canceled. Typing and saving work without provider access.
 
-Startup requests microphone permission and temporary credentials in parallel. After permission is granted, **Connecting transcription…** replaces the permission message until the data channel opens; only then does **Listening...** appear. **Cancel connection** stops a pending connection. The remaining network/permission time is real; no early audio buffering is introduced.
+Startup requests microphone permission and temporary credentials in parallel. After permission is granted, **Connecting transcription…** replaces the permission message until the selected transport and audio capture are ready; only then does **Listening...** appear. **Cancel connection** stops a pending connection. The remaining network/permission time is real; no early audio buffering is introduced.
 
-The microphone accents reflect local sound activity and incoming transcript results, not a clinical or reliable speech detector. Silence detection commits turns after approximately 800 ms; punctuation/finalization can lag provisional text and can change it. Noise can delay boundaries. Real-world accuracy and latency need device testing.
+The microphone accents reflect local sound activity and incoming transcript results, not a clinical or reliable speech detector. OpenAI local silence detection commits turns after approximately 800 ms; xAI uses provider utterance boundaries; punctuation/finalization can lag provisional text and can change it. Noise can delay boundaries. Real-world accuracy and latency need device testing.
 
 ### Automatic paragraphs and filler cleanup
 
@@ -181,7 +181,7 @@ After Stop receives the final words, a loading wheel labeled **Tidying!** above 
 
 The cleaned draft remains editable and survives in-app navigation; refresh discards it. While cleanup runs, recording/saving wait, but typing cancels the pending result and keeps your edits. Navigation cancels pending cleanup. Failure, timeout, refusal or invalid output keeps the original and offers **Retry cleanup**. Cleanup never runs on provisional text, microphone cancellation, recording errors, automatic session endings or ordinary typing. It never saves automatically. Owner and recipient detail pages render blank-line-separated text as separate paragraphs, with extra spacing on small screens.
 
-Cleanup uses the same server key and `STT_ENABLED` setting. Restricted keys additionally need **Responses → Request** and access to `gpt-5.4-mini`; an unrestricted key already supplies endpoint permission. The Responses request uses `store:false` and no tools. This does not disable OpenAI's standard abuse-monitoring retention. Builds and tests need no key and make no live cleanup requests.
+Cleanup always uses the OpenAI server key and `STT_ENABLED` setting, including with `STT_PROVIDER=xai`. Restricted keys additionally need **Responses → Request** and access to `gpt-5.4-mini`; an unrestricted key already supplies endpoint permission. The Responses request uses `store:false` and no tools. This does not disable OpenAI's standard abuse-monitoring retention. Builds and tests need no key and make no live cleanup requests.
 
 Published cleanup pricing is $0.75 per million input tokens and $4.50 per million output tokens: approximately **$0.013 for 2,500 input plus 2,500 output tokens**, plus the short instruction text. Shorter drafts cost less. This is additional to audio transcription; each successful explicit Stop with new finalized words requests cleanup of the whole current draft. Source: [GPT-5.4 Mini](https://developers.openai.com/api/docs/models/gpt-5.4-mini), checked October 25, 2026.
 
@@ -189,27 +189,30 @@ Published cleanup pricing is $0.75 per million input tokens and $4.50 per millio
 
 Dependencies are installed with `npm ci` under Node 24. Tests need no credentials. For real recording, securely set these server-only variables in environment settings or an ignored `.env.local`:
 
+- `STT_PROVIDER=openai` (default when absent) or `STT_PROVIDER=xai` selects speech recognition at server startup. Unsupported values fail startup. Restart/redeploy to change it; no public build-time variable, picker or fallback is used.
 - `STT_ENABLED=true` explicitly enables paid transcription and text cleanup; unset/false keeps it disabled.
 - `STT_OPENAI_API_KEY` is an OpenAI project API key with Realtime/transcription access. Never use a `NEXT_PUBLIC_` prefix, commit the key, print it, or paste it into chat.
 - Production still requires the existing `SESSION_SECRET` (at least 32 random bytes).
 
-Only the short-lived credential reaches the browser. It expires after 60 seconds for establishing sessions; expiry does not terminate an already connected session and the credential can establish multiple sessions before expiry. Initial transcription configuration is not an enforceable spending boundary against a modified client. The app does not store credentials in browser storage. Do not record credential endpoint response bodies in proxy/APM logs.
+For xAI, also configure `STT_XAI_RELAY_URL` and `STT_XAI_RELAY_SECRET` (or `STT_XAI_RELAY_SECRET_ARN`) on the app. Run the separate relay with `STT_XAI_API_KEY`, the matching signing secret and relay URL, and `STT_XAI_ALLOWED_ORIGINS`. xAI STT cannot stream through an Amplify Route Handler. See [both configuration examples and relay deployment](docs/TRANSCRIPTION.md#provider-selection-and-xai-relay). Keep the OpenAI key configured for cleanup.
+
+Only a short-lived credential reaches the browser. For OpenAI: It expires after 60 seconds for establishing sessions; expiry does not terminate an already connected session and the credential can establish multiple sessions before expiry. Initial transcription configuration is not an enforceable spending boundary against a modified client. The app does not store credentials in browser storage. Do not record credential endpoint response bodies in proxy/APM logs.
 
 See [Amplify setup](docs/TRANSCRIPTION.md#aws-amplify-hosted-preview) for server key storage, branch permissions, and preview access protection. See the [code review and provider replacement guide](docs/TRANSCRIPTION_REVIEW.md) for adapter boundaries and remaining simplifications.
 
 ### Processing, retention, and cost
 
-The app captures microphone audio in memory and transmits it directly to OpenAI while explicitly recording. It does not write audio files, retain raw audio, play audio, or send audio through the share-save endpoint. OpenAI processes audio remotely; this is not local or offline recognition. Unsaved transcription text is held in React memory. After an explicit Stop successfully finalizes new words, the full finalized draft is sent through the BFF to OpenAI for cleanup; it is not written to the share repository. Only an explicit save creates a share. The existing in-memory share storage limitations still apply.
+The app captures microphone audio in memory while explicitly recording. With OpenAI it streams directly over WebRTC; with xAI it streams through the separate relay to xAI. The relay holds small bounded transport buffers and stores no audio or transcripts. xAI processing and retention are separate from OpenAI; check its current account terms before enabling it. It does not write audio files, retain raw audio, play audio, or send audio through the share-save endpoint. OpenAI processes audio remotely; this is not local or offline recognition. Unsaved transcription text is held in React memory. After an explicit Stop successfully finalizes new words, the full finalized draft is sent through the BFF to OpenAI for cleanup; it is not written to the share repository. Only an explicit save creates a share. The existing in-memory share storage limitations still apply.
 
 OpenAI's API data is not used to train models by default unless the organization opts in. Standard abuse-monitoring logs may contain customer content and are retained for up to 30 days, subject to documented exceptions. The Realtime endpoint documents no application-state retention. Zero Data Retention/Modified Abuse Monitoring require eligibility and approval; this app does not establish those controls or promise zero provider retention.
 
-The selected `gpt-live-transcribe` model is listed at **$0.017 per streamed minute**, about **$1.02/hour** or **$0.17 for ten minutes** (official pricing checked October 25, 2026). Check current pricing and your project access before enabling it. Network, AWS hosting, and Secrets Manager charges are additional. No paid live request is part of automated tests.
+The default OpenAI `gpt-live-transcribe` model is listed at **$0.017 per streamed minute**, about **$1.02/hour** or **$0.17 for ten minutes** (official pricing checked October 25, 2026). Check current pricing and your project access before enabling it. Network, AWS hosting, and Secrets Manager charges are additional. No paid live request is part of automated tests.
 
 Sources: [live transcription](https://developers.openai.com/api/docs/guides/realtime-transcription), [pricing](https://developers.openai.com/api/docs/pricing), [API data controls](https://developers.openai.com/api/docs/guides/your-data).
 
 ### Physical iPhone Safari and Android Chrome checks
 
-Use fictional text on a trusted HTTPS Amplify preview, with a configured provider project. Desktop mobile emulation does not validate microphone hardware, iOS permissions, WebRTC networking, or real model accuracy. Record OS/browser versions and approximate time to first words and finalization; do not capture transcript/audio/credentials in test logs.
+Run this checklist twice on physical iPhone Safari: deploy `STT_PROVIDER=openai`, then `STT_PROVIDER=xai` with a healthy relay, restarting each time. Use the same fictional script on a trusted HTTPS Amplify preview. Compare time to first interim, Stop-to-final latency, punctuation, trailing words, duplicate words and provider usage; do not log the script or audio. xAI uses `grok-voice-transcribe-2.0`; OpenAI uses `gpt-live-transcribe`. Desktop mobile emulation does not validate microphone hardware, iOS permissions, WebRTC networking, or real model accuracy. Record OS/browser versions and approximate time to first words and finalization; do not capture transcript/audio/credentials in test logs.
 
 1. Confirm no microphone prompt or provider session request occurs before tapping Record. Type a sentence, tap Record, allow access, and dictate. Confirm provisional words change and final punctuation appears without duplicate text. Confirm the accents respond and the timer advances.
 2. Stop mid-sentence. Check the OS microphone indicator turns off immediately, final words arrive or a clear timeout notice appears, and saving stays blocked until finalization ends. Edit inline, resume recording, and verify a new paragraph. Repeat three times.
