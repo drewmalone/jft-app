@@ -226,4 +226,4 @@ Use fictional text on a trusted HTTPS Amplify preview, with a configured provide
 
 ### Startup transcription selection
 
-`STT_PROVIDER` is validated server-side at startup. Omit it or use `openai` to retain the existing provider. The server passes this nonsecret value through runtime page bootstrap, and session requests assert a matching provider. Restart/redeploy when changing configuration. This preparatory change recognizes the reserved `xai` name but rejects it until the separate xAI integration is installed; it never falls back silently. Existing OpenAI credentials and cleanup behavior are unchanged.
+`STT_PROVIDER` is validated server-side at startup. Set it explicitly to `openai` to retain the existing provider. The server passes this nonsecret value through runtime page bootstrap, and session requests assert a matching provider. Restart/redeploy when changing configuration. This preparatory change recognizes the reserved `xai` name but rejects it until the separate xAI integration is installed; it never falls back silently. Existing OpenAI credentials and cleanup behavior are unchanged.
