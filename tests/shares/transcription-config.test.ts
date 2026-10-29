@@ -4,14 +4,19 @@ import { parseTranscriptionProvider } from '../../src/shares/transcription/confi
 import { transcriptionProvider } from '../../src/shares/server/transcription-config';
 import { issueTranscriptionCredential } from '../../src/shares/server/transcription-provider';
 
-test('startup provider names default only when absent and reject invalid values safely', () => {
-  assert.equal(parseTranscriptionProvider(undefined), 'openai');
+test('startup provider names require an explicit value and reject invalid values safely', () => {
   assert.equal(parseTranscriptionProvider('openai'), 'openai');
   assert.equal(parseTranscriptionProvider('xai'), 'xai');
-  for (const value of ['', 'OPENAI', ' xai', 'private-unknown-value'])
+  for (const value of [
+    undefined,
+    '',
+    'OPENAI',
+    ' xai',
+    'private-unknown-value'
+  ])
     assert.throws(
       () => parseTranscriptionProvider(value),
-      /^Error: STT_PROVIDER must be openai or xai$/
+      /^Error: STT_PROVIDER must be explicitly set to openai or xai$/
     );
 });
 
@@ -22,8 +27,8 @@ test('server selection remains fixed after initialization and stale clients cann
   assert.equal(transcriptionProvider(), 'openai');
   await assert.rejects(
     issueTranscriptionCredential(
+      transcriptionProvider(),
       new AbortController().signal,
-      'https://fictional.example',
       'xai'
     ),
     /provider mismatch/

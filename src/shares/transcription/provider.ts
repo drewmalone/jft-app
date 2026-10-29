@@ -5,10 +5,9 @@ import { createXaiSpeech } from './providers/xai/engine';
 
 /** Browser selection comes exclusively from the runtime server bootstrap. */
 export function transcriptionEngineFactory(
-  provider: TranscriptionProvider
+  provider: TranscriptionProvider | null
 ): TranscriptionEngineFactory {
+  if (provider === null) throw new Error('Missing transcription provider bootstrap');
   return provider === 'openai' ? createOpenAISpeech : createXaiSpeech;
 }
 
-export const createTranscriptionEngine: TranscriptionEngineFactory =
-  createOpenAISpeech;

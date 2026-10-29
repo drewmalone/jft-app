@@ -5,7 +5,6 @@ export type TranscriptionProvider = 'openai' | 'xai';
 export function parseTranscriptionProvider(
   value: string | undefined
 ): TranscriptionProvider {
-  if (value === undefined) return 'openai';
   if (value === 'openai' || value === 'xai') return value;
-  throw new Error('STT_PROVIDER must be openai or xai');
+  throw new Error('STT_PROVIDER must be explicitly set to openai or xai');
 }

@@ -1,4 +1,5 @@
 import 'server-only';
+import { transcriptionProvider } from '../../transcription-config';
 import { burstLimited } from '../../auth/burst-limit';
 import { createRoute, z, type RouteHandler } from '@hono/zod-openapi';
 import {
@@ -70,6 +71,7 @@ export const createTranscriptionSession: RouteHandler<
       return c.json(errorBody('RATE_LIMITED'), 429);
     }
     const token = await issueTranscriptionCredential(
+      transcriptionProvider(),
       c.req.raw.signal,
       c.req.header('origin')!,
       c.req.header('x-stt-provider')
