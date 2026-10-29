@@ -1,7 +1,15 @@
 import { createOpenAISpeech } from './providers/openai/engine';
 import type { TranscriptionEngineFactory } from './types';
+import type { TranscriptionProvider } from './config';
 
-// Browser composition: only the selected adapter knows its provider's wire protocol.
-// Update server/transcription-provider.ts with the matching credential issuer.
+/** Select only a provider installed in this release; never silently fall back. */
+export function transcriptionEngineFactory(
+  provider: TranscriptionProvider
+): TranscriptionEngineFactory {
+  if (provider !== 'openai')
+    throw new Error('The xAI adapter is not installed');
+  return createOpenAISpeech;
+}
+
 export const createTranscriptionEngine: TranscriptionEngineFactory =
   createOpenAISpeech;

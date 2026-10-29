@@ -1,8 +1,17 @@
 import 'server-only';
 
-// Server composition: change this alongside transcription/provider.ts when switching STT.
-// Provider error classification stays here so HTTP handlers never inspect SDK errors.
-export { issueTranscriptionCredential } from './providers/openai/session';
+import { issueTranscriptionCredential as issueOpenAI } from './providers/openai/session';
+import { transcriptionProvider } from './transcription-config';
+
+/** Assert the browser bootstrap before issuing credentials. Missing headers support legacy OpenAI clients. */
+export async function issueTranscriptionCredential(
+  signal: AbortSignal,
+  requested: string | undefined
+) {
+  if ((requested ?? 'openai') !== transcriptionProvider())
+    throw new Error('Transcription provider mismatch; reload the application');
+  return issueOpenAI(signal);
+}
 export {
   reportTranscriptionFailure,
   reportTranscriptionConfiguration
