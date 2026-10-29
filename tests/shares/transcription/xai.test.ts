@@ -8,7 +8,7 @@ import { issueXaiSession } from '../../../src/shares/server/providers/xai/sessio
 import {
   signRelayTicket,
   verifyRelayTicket
-} from '../../../services/xai-relay/ticket.mjs';
+} from '../../../shared/xai-relay/ticket.node.mjs';
 import { xaiSessionSchema } from '../../../src/shares/transcription/providers/xai/session';
 import { SecretsManagerClient } from '@aws-sdk/client-secrets-manager';
 import {

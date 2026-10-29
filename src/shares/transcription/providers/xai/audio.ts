@@ -1,8 +1,8 @@
-import { xaiConfig } from './config';
+import { relayAudio } from '../../../../../shared/xai-relay/contract.mjs';
 
 /** Created synchronously in the recording gesture so Safari can resume its AudioContext. */
 export function createPcmCapture() {
-  const context = new AudioContext({ sampleRate: xaiConfig.sampleRate });
+  const context = new AudioContext({ sampleRate: relayAudio.sampleRate });
   const resumed = context.resume();
   void resumed.catch(() => {});
   let node: AudioWorkletNode | undefined;
@@ -39,12 +39,14 @@ export function createPcmCapture() {
       if (closed) return;
       if (
         context.state !== 'running' ||
-        context.sampleRate !== xaiConfig.sampleRate
+        context.sampleRate !== relayAudio.sampleRate
       )
         throw new Error('Audio unavailable');
       await context.audioWorklet.addModule('/xai-pcm-worklet.js');
       if (closed) return;
-      node = new AudioWorkletNode(context, 'doorknob-pcm');
+      node = new AudioWorkletNode(context, 'doorknob-pcm', {
+        processorOptions: { samplesPerFrame: relayAudio.samplesPerFrame }
+      });
       node.onprocessorerror = failed;
       context.onstatechange = () => {
         if (!closed && context.state !== 'running') failed();

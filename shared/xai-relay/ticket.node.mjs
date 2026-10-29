@@ -1,3 +1,6 @@
+// Node-only entry point. Browser modules import contract.mjs directly.
+import { z } from 'zod';
+import { relayLimits } from './contract.mjs';
 import { createHmac, randomUUID, timingSafeEqual } from 'node:crypto';
 
 /** @param {string | undefined} secret */
@@ -14,7 +17,7 @@ export function signRelayTicket(secret, audience, origin, now = Date.now()) {
     aud: audience,
     origin,
     nonce: randomUUID(),
-    exp: Math.floor(now / 1000) + 60
+    exp: Math.floor(now / 1000) + relayLimits.ticketLifetimeSeconds
   };
   const payload = Buffer.from(JSON.stringify(claims)).toString('base64url');
   const mac = createHmac('sha256', secret).update(payload).digest('base64url');
@@ -33,7 +36,10 @@ export function verifyRelayTicket(
   now = Date.now()
 ) {
   validateRelaySecret(secret);
-  if (typeof ticket !== 'string' || ticket.length > 2048)
+  if (
+    typeof ticket !== 'string' ||
+    ticket.length > relayLimits.maxTicketCharacters
+  )
     throw new Error('Invalid relay ticket');
   const [payload, signature, extra] = ticket.split('.');
   if (!payload || !signature || extra !== undefined)
@@ -42,16 +48,20 @@ export function verifyRelayTicket(
   const expected = createHmac('sha256', secret).update(payload).digest();
   if (actual.length !== expected.length || !timingSafeEqual(actual, expected))
     throw new Error('Invalid relay ticket');
-  const claims = JSON.parse(Buffer.from(payload, 'base64url').toString('utf8'));
+  const claims = z
+    .object({
+      aud: z.string(),
+      origin: z.string(),
+      nonce: z.string().min(1).max(64),
+      exp: z.number().int().positive()
+    })
+    .parse(JSON.parse(Buffer.from(payload, 'base64url').toString('utf8')));
   const seconds = Math.floor(now / 1000);
   if (
     claims.aud !== audience ||
     claims.origin !== origin ||
-    typeof claims.nonce !== 'string' ||
-    claims.nonce.length > 64 ||
-    !Number.isSafeInteger(claims.exp) ||
     claims.exp <= seconds ||
-    claims.exp > seconds + 60
+    claims.exp > seconds + relayLimits.ticketLifetimeSeconds
   )
     throw new Error('Invalid relay ticket');
   return claims;

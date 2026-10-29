@@ -192,3 +192,15 @@ Use the existing `PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH` override if required. Thi
 ### Schema and composition ownership
 
 The shared transcription model contains only the common temporary-credential shape. xAI relay URLs and ticket schemas belong to `transcription/providers/xai/session.ts`; the browser adapter and server issuer reuse that definition. The HTTP/OpenAPI composition combines the provider schemas. The server credential composition receives the already validated provider explicitly, so tests exercise it directly without subprocesses, evaluated source strings or configuration-reset hooks. Relay secret ARNs use AWS's parser for structure plus the regional Secrets Manager resource constraint, including AWS commercial, China and GovCloud partitions.
+
+### Shared modules and local relay packaging
+
+`shared/xai-relay/contract.mjs` owns the browser-safe relay schemas, URL validation and audio/transport limits. Its separate `ticket.node.mjs` entry owns Node-only signing and verification. Both the app and relay import these modules directly; neither application imports the other's implementation. `npm run typecheck:relay` checks the shared modules and relay with strict JavaScript checking.
+
+Run `npm ci` at the repository root before local relay development, then install its dependencies with `npm ci --prefix services/xai-relay`. Build its container from the repository root so the shared modules are included:
+
+```bash
+docker build -f services/xai-relay/Dockerfile -t doorknob-xai-relay .
+```
+
+The Dockerfile-specific ignore file limits the build context to the relay and shared modules. The app's `createSecretReader` utility shares only Secrets Manager fetching, coalescing, five-minute caching and retry behavior; provider modules retain environment selection, credential validation and safe error mapping.

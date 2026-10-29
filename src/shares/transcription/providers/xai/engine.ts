@@ -6,8 +6,11 @@ import {
 } from '../../microphone-permission';
 import { xaiSessionSchema } from './session';
 import { createPcmCapture, type PcmCapture } from './audio';
-import { relayEventSchema } from './relay';
-import { xaiConfig } from './config';
+import {
+  relayEventSchema,
+  relayAudio,
+  relayLimits
+} from '../../../../../shared/xai-relay/contract.mjs';
 
 const FAILURE =
   'Speech recognition could not continue. Your finalized words are still here. Please try again.';
@@ -102,7 +105,7 @@ export function createXaiSpeech(
     try {
       if (
         socket?.readyState !== 1 ||
-        socket.bufferedAmount > xaiConfig.maxBufferedBytes
+        socket.bufferedAmount > relayAudio.maxBufferedBytes
       )
         throw new Error('Transport stalled');
       socket.send(value);
@@ -126,7 +129,7 @@ export function createXaiSpeech(
         finish(
           'Finalization timed out. Your finalized words are still here; review before saving.'
         ),
-      xaiConfig.finalTimeoutMs
+      relayLimits.finalTimeoutMs
     );
     void capture!
       .stop()
@@ -163,7 +166,7 @@ export function createXaiSpeech(
       );
       if (!live() || phase !== 'connecting') return;
       phase = 'listening';
-      deadline(stop, xaiConfig.maxSessionMs);
+      deadline(stop, relayLimits.maxSessionMs);
       events?.listening();
     } catch {
       finish(FAILURE);
@@ -202,7 +205,10 @@ export function createXaiSpeech(
       socket.onmessage = (event: MessageEvent<unknown>) => {
         if (!live()) return;
         try {
-          if (typeof event.data !== 'string' || event.data.length > 65_536)
+          if (
+            typeof event.data !== 'string' ||
+            event.data.length > relayLimits.maxEventBytes
+          )
             throw new Error('Invalid frame');
           const value = relayEventSchema.parse(JSON.parse(event.data));
           if (value.type === 'ready') {
@@ -243,7 +249,7 @@ export function createXaiSpeech(
           finish(
             'Microphone or transcription connection timed out. Please try again.'
           ),
-        xaiConfig.startTimeoutMs
+        relayLimits.startTimeoutMs
       );
       if (typeof window !== 'undefined')
         window.addEventListener('pagehide', interrupted);

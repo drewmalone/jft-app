@@ -1,9 +1,6 @@
 import 'server-only';
-import {
-  SecretsManagerClient,
-  GetSecretValueCommand
-} from '@aws-sdk/client-secrets-manager';
-import { validateRelaySecret } from '../../../../../services/xai-relay/ticket.mjs';
+import { createSecretReader } from '../../secrets-manager';
+import { validateRelaySecret } from '../../../../../shared/xai-relay/ticket.node.mjs';
 import { parse as parseArn, validate as isArn } from '@aws-sdk/core/util';
 
 /** Use AWS's ARN parser for structure, then constrain this binding to a regional secret. */
@@ -26,8 +23,7 @@ export function parseRelaySecretArn(value: string | undefined) {
   return { arn: value, region: parsed.region };
 }
 
-let cached:
-  { arn: string; expires: number; value: Promise<string> } | undefined;
+const readSecret = createSecretReader(validateRelaySecret);
 
 /** Resolve only the relay signing key; the xAI API key stays on the relay service. */
 export async function relaySigningSecret(): Promise<string> {
@@ -36,23 +32,9 @@ export async function relaySigningSecret(): Promise<string> {
   const { arn, region } = parseRelaySecretArn(
     process.env.STT_XAI_RELAY_SECRET_ARN
   );
-  if (cached?.arn === arn && cached.expires > Date.now()) return cached.value;
-  const client = new SecretsManagerClient({
-    region,
-    maxAttempts: 2
-  });
-  const value = client
-    .send(new GetSecretValueCommand({ SecretId: arn }), {
-      abortSignal: AbortSignal.timeout(5_000)
-    })
-    .then((result) => validateRelaySecret(result.SecretString))
-    .finally(() => client.destroy());
-  const entry = { arn, expires: Date.now() + 5 * 60_000, value };
-  cached = entry;
   try {
-    return await value;
+    return await readSecret({ arn, region });
   } catch {
-    if (cached === entry) cached = undefined;
     throw new Error('Relay signing secret unavailable');
   }
 }

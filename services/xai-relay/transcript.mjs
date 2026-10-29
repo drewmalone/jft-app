@@ -1,7 +1,8 @@
+import { relayLimits } from '../../shared/xai-relay/contract.mjs';
 import { z } from 'zod';
 
 const time = z.number().finite().nonnegative();
-const text = z.string().max(20_000);
+const text = z.string().max(relayLimits.maxTextCharacters);
 const words = z
   .array(z.object({ text, start: time, end: time }))
   .max(10_000)
@@ -25,7 +26,9 @@ const EPSILON = 0.001;
  */
 export function createXaiTranscript(events) {
   let position = 0;
+  /** @type {{start: number, end: number, text: string}[]} */
   const chunks = [];
+  /** @param {{text: string, start?: number, words?: {text: string, start: number, end: number}[]}} result */
   function remaining(result, start = result.start ?? 0) {
     if (start >= position - EPSILON || !chunks.length)
       return result.text.trim();
@@ -59,6 +62,7 @@ export function createXaiTranscript(events) {
       return result.text.slice(prefix.length).trim();
     throw new Error('Cannot safely reconcile cumulative transcript');
   }
+  /** @param {{text: string, duration: number, start?: number, words?: {text: string, start: number, end: number}[]}} result */
   function commit(result, start = result.start ?? 0) {
     const end = start + result.duration;
     if (end <= position + EPSILON) return;
@@ -70,8 +74,10 @@ export function createXaiTranscript(events) {
     events.interim('');
   }
   return {
-    /** Throws on malformed/conflicting provider data; returns true only for transcript.done. */
+    /** Throws on malformed/conflicting provider data; returns true only for transcript.done. @param {unknown} event */
     accept(event) {
+      if (!event || typeof event !== 'object' || !('type' in event))
+        throw new Error('Invalid transcript event');
       if (event.type === 'transcript.partial') {
         const result = partial.parse(event);
         const end = result.start + result.duration;

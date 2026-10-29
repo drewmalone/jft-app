@@ -8,8 +8,11 @@ import {
   createTicketConsumer
 } from '../../../services/xai-relay/bridge.mjs';
 import { relayConfiguration } from '../../../services/xai-relay/config.mjs';
-import { signRelayTicket } from '../../../services/xai-relay/ticket.mjs';
-import { relayEventSchema } from '../../../src/shares/transcription/providers/xai/relay';
+import { signRelayTicket } from '../../../shared/xai-relay/ticket.node.mjs';
+import {
+  relayAudio,
+  relayEventSchema
+} from '../../../shared/xai-relay/contract.mjs';
 
 const secret = 'fictional-shared-signing-key-at-least-32-bytes';
 const audience = 'wss://relay.example/stt';
@@ -222,7 +225,9 @@ test('audio before readiness, invalid messages, backpressure and provider errors
 });
 
 test('PCM worklet downmixes, clamps and writes little-endian frames; Stop flushes trailing samples exactly once', () => {
-  let Processor!: new () => {
+  let Processor!: new (options: {
+    processorOptions: { samplesPerFrame: number };
+  }) => {
     process(inputs: Float32Array[][]): boolean;
     port: { onmessage: (event: { data: string }) => void };
   };
@@ -246,7 +251,9 @@ test('PCM worklet downmixes, clamps and writes little-endian frames; Stop flushe
       }
     }
   );
-  const processor = new Processor();
+  const processor = new Processor({
+    processorOptions: { samplesPerFrame: relayAudio.samplesPerFrame }
+  });
   processor.process([
     [new Float32Array([1, -1, 2, 0]), new Float32Array([1, -1, 0, 0])]
   ]);
@@ -260,3 +267,29 @@ test('PCM worklet downmixes, clamps and writes little-endian frames; Stop flushe
   );
   assert.equal(processor.process([[new Float32Array([1])]]), false);
 });
+
+for (const boundary of [
+  'stop before ready',
+  'duplicate ready',
+  'audio after stop'
+] as const) {
+  test(`relay rejects ${boundary} and releases both sockets`, () => {
+    const { client, upstream, authenticate, close } = setup();
+    try {
+      authenticate();
+      if (boundary !== 'stop before ready')
+        upstream.message({ type: 'transcript.created' });
+      if (boundary === 'duplicate ready')
+        upstream.message({ type: 'transcript.created' });
+      else {
+        client.message({ type: 'stop' });
+        if (boundary === 'audio after stop')
+          client.emit('message', Buffer.alloc(relayAudio.frameBytes), true);
+      }
+      assert.equal(client.readyState, 3);
+      assert.equal(upstream.readyState, 3);
+    } finally {
+      close();
+    }
+  });
+}

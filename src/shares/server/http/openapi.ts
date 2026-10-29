@@ -22,7 +22,7 @@ export const browserOriginHeaders = z.object({
 });
 
 export const draftText = cleanupTextSchema.openapi('DraftText');
-export const transcriptionCredential = z
+export const transcriptionSession = z
   .union([
     xaiSessionSchema.openapi('XaiTranscriptionSession'),
     transcriptionCredentialSchema

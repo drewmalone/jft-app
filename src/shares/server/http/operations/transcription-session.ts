@@ -11,7 +11,7 @@ import {
   privateHeaders,
   commonFailures,
   failed,
-  transcriptionCredential,
+  transcriptionSession,
   retryAfterHeaders,
   browserOriginHeaders
 } from '../openapi';
@@ -47,7 +47,7 @@ export const transcriptionSessionRoute = createRoute({
       description:
         'OpenAI ephemeral credential or xAI single-use relay ticket and URL. Expires after 60 seconds for connection establishment.',
       headers: privateHeaders,
-      content: { 'application/json': { schema: transcriptionCredential } }
+      content: { 'application/json': { schema: transcriptionSession } }
     },
     403: failed(['CROSS_ORIGIN_REQUEST', 'SESSION_REQUIRED']),
     429: failed(['RATE_LIMITED'], retryAfterHeaders),
@@ -76,7 +76,7 @@ export const createTranscriptionSession: RouteHandler<
       c.req.header('origin')!,
       c.req.header('x-stt-provider')
     );
-    const result = transcriptionCredential.safeParse(token);
+    const result = transcriptionSession.safeParse(token);
     if (!result.success) {
       reportTranscriptionConfiguration('invalid_provider_response');
       return c.json(errorBody('TRANSCRIPTION_UNAVAILABLE'), 503);

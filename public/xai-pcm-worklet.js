@@ -1,8 +1,8 @@
 /* Mono PCM16 little-endian, 100 ms frames. No recordings or audio playback. */
 class DoorknobPcm extends AudioWorkletProcessor {
-  constructor() {
+  constructor({ processorOptions }) {
     super();
-    this.samples = new Float32Array(Math.round(sampleRate / 10));
+    this.samples = new Float32Array(processorOptions.samplesPerFrame);
     this.used = 0;
     this.live = true;
     this.port.onmessage = (event) => {

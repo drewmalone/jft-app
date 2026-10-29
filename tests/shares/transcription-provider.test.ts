@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { issueTranscriptionCredential } from '../../src/shares/server/transcription-provider';
 import { cleanShareText } from '../../src/shares/server/cleanup-provider';
-import { verifyRelayTicket } from '../../services/xai-relay/ticket.mjs';
+import { verifyRelayTicket } from '../../shared/xai-relay/ticket.node.mjs';
 
 const origin = 'https://fictional.example';
 const relay = 'wss://relay.example/stt';
