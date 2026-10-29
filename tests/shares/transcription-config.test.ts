@@ -1,10 +1,15 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
+import { transcriptionEngineFactory } from '../../src/shares/transcription/provider';
 import { parseTranscriptionProvider } from '../../src/shares/transcription/config';
 import { transcriptionProvider } from '../../src/shares/server/transcription-config';
 import { issueTranscriptionCredential } from '../../src/shares/server/transcription-provider';
 
 test('startup provider names require an explicit value and reject invalid values safely', () => {
+  assert.throws(
+    () => transcriptionEngineFactory(null),
+    /Missing transcription provider bootstrap/
+  );
   assert.equal(parseTranscriptionProvider('openai'), 'openai');
   assert.equal(parseTranscriptionProvider('xai'), 'xai');
   for (const value of [
