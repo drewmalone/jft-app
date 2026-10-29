@@ -9,8 +9,11 @@ Use Node.js **24 LTS**, pinned in `.nvmrc`:
 ```bash
 nvm use
 npm ci
+export STT_PROVIDER=openai
 npm run dev
 ```
+
+`STT_PROVIDER` is required for development, production builds and startup, even with paid transcription disabled. Set it explicitly in the environment or ignored `.env.local`; there is no default.
 
 Open http://localhost:3000. Typing, saving, and tests need no provider credentials: a random session signing secret is generated for the running process. Optionally set `SESSION_SECRET` to a random value of at least 32 bytes in `.env.local`. Never commit secrets or personal recovery text.
 
