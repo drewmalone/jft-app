@@ -1,96 +1,92 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { execFileSync } from 'node:child_process';
+import { issueTranscriptionCredential } from '../../src/shares/server/transcription-provider';
+import { cleanShareText } from '../../src/shares/server/cleanup-provider';
+import { verifyRelayTicket } from '../../services/xai-relay/ticket.mjs';
 
-test('a fresh xAI server agrees with its bootstrap, rejects stale OpenAI clients, and retains OpenAI cleanup', () => {
-  // A fresh process exercises immutable startup configuration without a test-only reset hook.
-  const script = `
-    import assert from 'node:assert/strict';
-    import { dispatch } from './src/shares/server/app.ts';
-    import { transcriptionProvider } from './src/shares/server/transcription-config.ts';
-    console.warn = () => {};
-    assert.equal(transcriptionProvider(), 'xai');
-    process.env.STT_PROVIDER = 'openai';
-    assert.equal(transcriptionProvider(), 'xai');
-    const session = await dispatch(new Request('http://localhost/api/shares'));
-    const cookie = session.headers.get('set-cookie').split(';')[0];
-    const headers = { origin: 'http://localhost', cookie, 'x-stt-provider': 'xai', 'content-type': 'application/json' };
-    const token = await dispatch(new Request('http://localhost/api/transcription/session', { method: 'POST', headers }));
-    assert.equal(token.status, 200);
-    const body = await token.json();
-    assert.equal(body.provider, 'xai');
-    assert.equal(body.relay_url, 'wss://relay.example/stt');
-    assert.ok(!JSON.stringify(body).includes(process.env.STT_XAI_RELAY_SECRET));
-    const stale = await dispatch(new Request('http://localhost/api/transcription/session', { method: 'POST', headers: { ...headers, 'x-stt-provider': 'openai' } }));
-    assert.equal(stale.status, 503);
-    globalThis.fetch = async (input, init) => {
-      const request = new Request(input, init);
-      assert.equal(request.url, 'https://api.openai.com/v1/responses');
-      assert.equal(request.headers.get('authorization'), 'Bearer fictional-openai-cleanup-key');
-      return Response.json({ id:'resp_fiction', object:'response', status:'completed', output:[{
-        type:'message', id:'msg_fiction', role:'assistant', status:'completed',
-        content:[{ type:'output_text', text:JSON.stringify({text:'Fictional cleaned text.'}), annotations:[] }]
-      }] });
-    };
-    const cleaned = await dispatch(new Request('http://localhost/api/shares/cleanup', { method: 'POST', headers, body: JSON.stringify({ text:'Um fictional words.' }) }));
-    assert.equal(cleaned.status, 200);
-    assert.deepEqual(await cleaned.json(), { text:'Fictional cleaned text.' });
-  `;
-  execFileSync(
-    process.execPath,
-    [
-      '--conditions=react-server',
-      '--import',
-      'tsx',
-      '--input-type=module',
-      '-e',
-      script
-    ],
-    {
-      cwd: process.cwd(),
-      timeout: 15_000,
-      env: {
-        ...process.env,
-        NODE_ENV: 'test',
-        SESSION_SECRET: 'fictional-session-secret-at-least-32-bytes',
-        STT_PROVIDER: 'xai',
-        STT_ENABLED: 'true',
-        STT_XAI_RELAY_URL: 'wss://relay.example/stt',
-        STT_XAI_RELAY_SECRET: 'fictional-shared-relay-secret-at-least-32-bytes',
-        STT_OPENAI_API_KEY: 'fictional-openai-cleanup-key'
+const origin = 'https://fictional.example';
+const relay = 'wss://relay.example/stt';
+const secret = 'fictional-relay-signing-secret-at-least-32-bytes';
+
+test('xAI composition issues only relay authorization and rejects stale clients without contacting a provider', async (t) => {
+  t.mock.property(process, 'env', {
+    ...process.env,
+    STT_XAI_RELAY_URL: relay,
+    STT_XAI_RELAY_SECRET: secret
+  });
+  const requests = t.mock.method(globalThis, 'fetch', async () => {
+    throw new Error('Unexpected provider request');
+  });
+  const signal = new AbortController().signal;
+  const token = await issueTranscriptionCredential(
+    'xai',
+    signal,
+    origin,
+    'xai'
+  );
+  assert.ok('provider' in token);
+  assert.equal(token.provider, 'xai');
+  assert.equal(token.relay_url, relay);
+  assert.equal(
+    verifyRelayTicket(token.value, secret, relay, origin).origin,
+    origin
+  );
+  assert.ok(!JSON.stringify(token).includes(secret));
+  for (const [provider, requested] of [
+    ['xai', 'openai'],
+    ['openai', 'xai']
+  ] as const)
+    await assert.rejects(
+      issueTranscriptionCredential(provider, signal, origin, requested),
+      /provider mismatch/
+    );
+  assert.equal(requests.mock.callCount(), 0);
+});
+
+for (const provider of ['openai', 'xai'] as const) {
+  test(`OpenAI cleanup remains independent with STT_PROVIDER=${provider}`, async (t) => {
+    t.mock.property(process, 'env', {
+      ...process.env,
+      STT_PROVIDER: provider,
+      STT_OPENAI_API_KEY: 'fictional-openai-cleanup-key'
+    });
+    const requests: Request[] = [];
+    t.mock.method(
+      globalThis,
+      'fetch',
+      async (input: RequestInfo | URL, init?: RequestInit) => {
+        requests.push(new Request(input, init));
+        return Response.json({
+          id: 'resp_fiction',
+          object: 'response',
+          status: 'completed',
+          output: [
+            {
+              type: 'message',
+              id: 'msg_fiction',
+              role: 'assistant',
+              status: 'completed',
+              content: [
+                {
+                  type: 'output_text',
+                  text: JSON.stringify({ text: 'Fictional cleaned text.' }),
+                  annotations: []
+                }
+              ]
+            }
+          ]
+        });
       }
-    }
-  );
-});
-
-test('invalid startup selection fails with an authored message and no environment value', () => {
-  assert.throws(
-    () =>
-      execFileSync(
-        process.execPath,
-        [
-          '--conditions=react-server',
-          '--import',
-          'tsx',
-          '--input-type=module',
-          '-e',
-          `
-    import { transcriptionProvider } from './src/shares/server/transcription-config.ts';
-    transcriptionProvider();
-  `
-        ],
-        {
-          cwd: process.cwd(),
-          timeout: 10_000,
-          stdio: 'pipe',
-          env: { ...process.env, STT_PROVIDER: 'unsupported-private-value' }
-        }
-      ),
-    (error: unknown) => {
-      const stderr = (error as { stderr: Buffer }).stderr.toString();
-      assert.match(stderr, /STT_PROVIDER must be openai or xai/);
-      assert.ok(!stderr.includes('unsupported-private-value'));
-      return true;
-    }
-  );
-});
+    );
+    assert.equal(
+      await cleanShareText('Um fictional words.'),
+      'Fictional cleaned text.'
+    );
+    assert.equal(requests.length, 1);
+    assert.equal(requests[0].url, 'https://api.openai.com/v1/responses');
+    assert.equal(
+      requests[0].headers.get('authorization'),
+      'Bearer fictional-openai-cleanup-key'
+    );
+  });
+}

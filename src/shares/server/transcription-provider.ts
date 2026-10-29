@@ -4,15 +4,15 @@ import 'server-only';
 // Provider error classification stays here so HTTP handlers never inspect SDK errors.
 import { issueTranscriptionCredential as issueOpenAI } from './providers/openai/session';
 import { issueXaiSession } from './providers/xai/session';
-import { transcriptionProvider } from './transcription-config';
+import type { TranscriptionProvider } from '../transcription/config';
 
 /** Session authorization and browser bootstrap share one immutable server selection. */
 export async function issueTranscriptionCredential(
+  provider: TranscriptionProvider,
   signal: AbortSignal,
   origin: string,
   requested: string | undefined
 ) {
-  const provider = transcriptionProvider();
   // Missing header remains compatible with pre-configuration OpenAI clients only.
   if ((requested ?? 'openai') !== provider)
     throw new Error('Transcription provider mismatch; reload the application');

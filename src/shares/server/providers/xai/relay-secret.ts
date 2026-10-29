@@ -4,6 +4,27 @@ import {
   GetSecretValueCommand
 } from '@aws-sdk/client-secrets-manager';
 import { validateRelaySecret } from '../../../../../services/xai-relay/ticket.mjs';
+import { parse as parseArn, validate as isArn } from '@aws-sdk/core/util';
+
+/** Use AWS's ARN parser for structure, then constrain this binding to a regional secret. */
+export function parseRelaySecretArn(value: string | undefined) {
+  const invalid = () =>
+    new Error('STT_XAI_RELAY_SECRET_ARN must name a Secrets Manager secret');
+  if (!value || !isArn(value)) throw invalid();
+  const parsed = parseArn(value);
+  const [kind, name, extra] = parsed.resource.split(':');
+  if (
+    !parsed.partition ||
+    parsed.service !== 'secretsmanager' ||
+    !parsed.region ||
+    !parsed.accountId ||
+    kind !== 'secret' ||
+    !name ||
+    extra !== undefined
+  )
+    throw invalid();
+  return { arn: value, region: parsed.region };
+}
 
 let cached:
   { arn: string; expires: number; value: Promise<string> } | undefined;
@@ -12,19 +33,12 @@ let cached:
 export async function relaySigningSecret(): Promise<string> {
   if (process.env.STT_XAI_RELAY_SECRET)
     return validateRelaySecret(process.env.STT_XAI_RELAY_SECRET);
-  const arn = process.env.STT_XAI_RELAY_SECRET_ARN;
-  if (
-    !arn ||
-    !/^arn:aws:secretsmanager:[a-z0-9-]+:\d{12}:secret:[A-Za-z0-9/_+=.@-]+$/.test(
-      arn
-    )
-  )
-    throw new Error(
-      'Configure STT_XAI_RELAY_SECRET or STT_XAI_RELAY_SECRET_ARN'
-    );
+  const { arn, region } = parseRelaySecretArn(
+    process.env.STT_XAI_RELAY_SECRET_ARN
+  );
   if (cached?.arn === arn && cached.expires > Date.now()) return cached.value;
   const client = new SecretsManagerClient({
-    region: arn.split(':')[3],
+    region,
     maxAttempts: 2
   });
   const value = client

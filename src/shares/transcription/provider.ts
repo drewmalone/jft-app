@@ -7,7 +7,7 @@ import { createXaiSpeech } from './providers/xai/engine';
 export function transcriptionEngineFactory(
   provider: TranscriptionProvider | null
 ): TranscriptionEngineFactory {
-  if (provider === null) throw new Error('Missing transcription provider bootstrap');
+  if (provider === null)
+    throw new Error('Missing transcription provider bootstrap');
   return provider === 'openai' ? createOpenAISpeech : createXaiSpeech;
 }
-

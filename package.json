@@ -18,6 +18,7 @@
   },
   "dependencies": {
     "@aws-sdk/client-secrets-manager": "^3.1156.0",
+    "@aws-sdk/core": "3.978.5",
     "@hono/zod-openapi": "^1.6.3",
     "content-type": "^3.1.1",
     "hono": "^4.13.13",

@@ -4,7 +4,7 @@ import {
   microphoneErrorCode,
   microphoneErrorMessage
 } from '../../microphone-permission';
-import { xaiSessionSchema } from '../../model';
+import { xaiSessionSchema } from './session';
 import { createPcmCapture, type PcmCapture } from './audio';
 import { relayEventSchema } from './relay';
 import { xaiConfig } from './config';

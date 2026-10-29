@@ -3,38 +3,25 @@ import {
   signRelayTicket,
   validateRelaySecret
 } from '../../../../../services/xai-relay/ticket.mjs';
-import { relaySigningSecret } from './relay-secret';
+import { relaySigningSecret, parseRelaySecretArn } from './relay-secret';
+import { xaiRelayUrlSchema } from '../../../transcription/providers/xai/session';
 
 /** Validate the fixed relay destination. Credentials never appear in its URL. */
 export function xaiRelayConfiguration() {
   const configured = process.env.STT_XAI_RELAY_URL;
   if (!configured) throw new Error('STT_XAI_RELAY_URL is required');
-  const url = new URL(configured);
-  const local =
-    process.env.NODE_ENV !== 'production' &&
-    ['localhost', '127.0.0.1', '[::1]'].includes(url.hostname);
+  const parsed = xaiRelayUrlSchema.safeParse(configured);
   if (
-    (url.protocol !== 'wss:' && !(local && url.protocol === 'ws:')) ||
-    url.username ||
-    url.password ||
-    url.search ||
-    url.hash ||
-    url.pathname !== '/stt'
+    !parsed.success ||
+    (process.env.NODE_ENV === 'production' && !parsed.data.startsWith('wss:'))
   )
     throw new Error(
       'STT_XAI_RELAY_URL must be a secure relay URL ending in /stt'
     );
   if (process.env.STT_XAI_RELAY_SECRET)
     validateRelaySecret(process.env.STT_XAI_RELAY_SECRET);
-  else if (
-    !/^arn:aws:secretsmanager:[a-z0-9-]+:\d{12}:secret:[A-Za-z0-9/_+=.@-]+$/.test(
-      process.env.STT_XAI_RELAY_SECRET_ARN ?? ''
-    )
-  )
-    throw new Error(
-      'Configure STT_XAI_RELAY_SECRET or STT_XAI_RELAY_SECRET_ARN'
-    );
-  return { url: url.href };
+  else parseRelaySecretArn(process.env.STT_XAI_RELAY_SECRET_ARN);
+  return { url: parsed.data };
 }
 
 /** The Amplify server signs a one-minute relay ticket. Only the relay needs STT_XAI_API_KEY. */

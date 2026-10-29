@@ -9,9 +9,12 @@ import {
   signRelayTicket,
   verifyRelayTicket
 } from '../../../services/xai-relay/ticket.mjs';
-import { xaiSessionSchema } from '../../../src/shares/transcription/model';
+import { xaiSessionSchema } from '../../../src/shares/transcription/providers/xai/session';
 import { SecretsManagerClient } from '@aws-sdk/client-secrets-manager';
-import { relaySigningSecret } from '../../../src/shares/server/providers/xai/relay-secret';
+import {
+  relaySigningSecret,
+  parseRelaySecretArn
+} from '../../../src/shares/server/providers/xai/relay-secret';
 
 const secret = 'fictional-relay-signing-key-at-least-32-bytes';
 const url = 'wss://relay.example/stt';
@@ -94,6 +97,31 @@ test('Amplify signing-secret reads cache successes and recover after safe failur
   });
   send.mock.mockImplementation(async () => ({ SecretString: secret }));
   assert.equal(await relaySigningSecret(), secret);
+});
+
+test('AWS ARN parsing accepts Secrets Manager partitions and rejects unrelated or incomplete resources safely', () => {
+  for (const [partition, region] of [
+    ['aws', 'us-east-1'],
+    ['aws-us-gov', 'us-gov-west-1'],
+    ['aws-cn', 'cn-north-1']
+  ]) {
+    const arn = `arn:${partition}:secretsmanager:${region}:123456789012:secret:fictional-signing-key`;
+    assert.deepEqual(parseRelaySecretArn(arn), { arn, region });
+  }
+  for (const arn of [
+    undefined,
+    '',
+    'private-malformed-input',
+    'arn:aws:s3:us-east-1:123456789012:secret:wrong-service',
+    'arn:aws:secretsmanager::123456789012:secret:missing-region',
+    'arn:aws:secretsmanager:us-east-1::secret:missing-account',
+    'arn:aws:secretsmanager:us-east-1:123456789012:key:wrong-resource',
+    'arn:aws:secretsmanager:us-east-1:123456789012:secret:'
+  ]) {
+    assert.throws(() => parseRelaySecretArn(arn), {
+      message: 'STT_XAI_RELAY_SECRET_ARN must name a Secrets Manager secret'
+    });
+  }
 });
 
 test('an interruption retains locked chunks once and discards only unlocked provisional text', async () => {
