@@ -23,7 +23,7 @@ For a production-mode local run, create `.env.local` first:
 node -e "console.log(require('node:crypto').randomBytes(32).toString('hex'))"
 ```
 
-Copy the generated value into `.env.local` as `SESSION_SECRET=<generated value>`, then run:
+Put `STT_PROVIDER=openai` and the generated `SESSION_SECRET=<generated value>` in `.env.local`, then run:
 
 ```bash
 npm run build
