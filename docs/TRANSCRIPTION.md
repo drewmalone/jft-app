@@ -174,3 +174,17 @@ Physical iOS capture, provider quality, account model availability, hosted laten
 ### Recorder library evaluation
 
 The published `@speechmatics/browser-audio-input` 2.0.4 package was inspected as a possible replacement for `audio.ts` and the small PCM worklet. Its recorder acquires its own microphone after asynchronous module loading, accepts no existing MediaStream, exposes no startup cancellation and provides no worklet-flush acknowledgement. Those differences would require additional lifecycle wrappers to meet this app's late-permission cancellation and trailing-audio guarantees. No dependency was added: the existing small capture module is retained. Provider parsing and cumulative transcript reconciliation now live exclusively in the relay, behind the normalized event contract.
+
+### Isolated xAI browser contract test
+
+After `npm run build`, run the xAI-only browser case with synthetic relay configuration:
+
+```bash
+STT_PROVIDER=xai \
+STT_XAI_RELAY_URL=wss://relay.example/stt \
+STT_XAI_RELAY_SECRET=fictional-e2e-signing-secret-at-least-32-bytes \
+npm run test:e2e -- tests/e2e/xai-transcription.spec.ts \
+  --project=mobile-chromium --project=desktop-chromium
+```
+
+Use the existing `PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH` override if required. This builds no extra service and makes no paid requests: the harness keeps `STT_ENABLED=false`, and the test mocks microphone capture, the relay and cleanup. It verifies runtime xAI selection, provider assertions, provisional/final text, trailing Stop results, cleanup, resume/error preservation and explicit saving. The case skips outside an explicit xAI test configuration, so the ordinary OpenAI regression suite is unchanged. It does not establish physical Safari support.
