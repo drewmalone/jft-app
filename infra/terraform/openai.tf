@@ -3,8 +3,8 @@
 # when combining branches, retain at least one binding for cleanup.
 resource "aws_iam_role_policy" "openai" {
   count = var.stt_openai_secret_arn == null ? 0 : 1
-  name  = "${local.prefix}-openai-secret"
-  role  = aws_iam_role.compute.id
+  name  = "${local.soniox_prefix}-openai-secret"
+  role  = local.soniox_compute_role_name
   policy = jsonencode({
     Version = "2012-10-17"
     Statement = [{

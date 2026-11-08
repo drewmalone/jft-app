@@ -2,18 +2,18 @@
 
 ## Soniox live transcription
 
-This PR contains speech-provider infrastructure only. Database resources, persistence code, DynamoDB dependencies and tests, and retention changes belong exclusively to PR #27. The root, S3 backend/native locking, bootstrap, provider lockfiles, environment prefixes/tags and `aws_iam_role.compute` identity intentionally match #27. Use one shared state backend and one compute role when combining the PRs; do not apply each branch as a separate stack. PR #23's provider bootstrap is included; the separate xAI relay PR #22 is untouched.
+This PR contains speech-provider infrastructure only. Database resources, persistence code, DynamoDB dependencies and tests, and retention changes belong exclusively to PR #27. The root, S3 backend/native locking, bootstrap, provider lockfiles, environment prefixes/tags and SSR compute role identity intentionally match #27. Use one shared state backend and one compute role when combining the PRs; do not apply each branch as a separate stack. PR #23's provider bootstrap is included; the separate xAI relay PR #22 is untouched.
 
-The shared `main.tf` contains only the naming prefix, Amplify trust document and SSR role. `soniox.tf` adds secret metadata and exact-secret access; `openai.tf` optionally preserves cleanup secret access without requiring database permissions. When merging #27, retain its database resources/policy alongside these files, retain the union of variables/outputs, and keep its persistence helper separate from this PR's transcription helper. If both branches add a shared file, resolve by retaining the common definitions once and the database additions from #27. No state/resource renaming or second bootstrap is needed.
+This PR does not create an SSR role: it attaches narrowly scoped provider policies to an existing trusted role, defaulting to #27's `${project_name}-${environment}-ssr-compute` name. Override `amplify_compute_role_name` for an existing deployment. Provision that role through #27 (or your existing infrastructure) before applying these policies. This keeps all role/database additions in #27 and prevents duplicate role definitions when combining the PRs. Common provider/backend/bootstrap files match #27; retain the union of shared variables when merging. Speech-specific variables live in `soniox-variables.tf`, and environment settings in `environments/soniox-dev.tfvars` and `soniox-prod.tfvars`. The speech preparation helper is independent of #27's persistence helper.
 
 ### Account and secrets
 
 1. Create a Soniox account/project with billing and usage monitoring. Create separate dev/prod API keys. Restrict each key to **Temporary API keys** plus **real-time speech-to-text** (`transcribe_websocket`); omit batch, TTS and translation permissions. Confirm permissions against [Soniox's current documentation](https://docs.soniox.com/authentication/api-key-permissions).
 2. By default, Terraform creates only metadata for `doorknob-dev-soniox-api-key` or `doorknob-prod-soniox-api-key`, using the existing environment prefix/tags and AWS-managed Secrets Manager encryption. It creates no secret version and never reads the value into state. Populate the plain-string value separately through the AWS Secrets Manager console's secure value editor after manual apply. Do not pass key material through Terraform variables, outputs, CLI history, Git, build logs or build artifacts.
 3. To reuse an existing secret, set `create_soniox_secret=false` and `stt_soniox_secret_arn` to its exact ARN in the environment's private local tfvars. Creating and referencing simultaneously fails validation at plan time. Setting false with no ARN intentionally omits Soniox permission. Keep `stt_openai_secret_arn` set for existing cleanup and OpenAI speech; credentials are independent.
-4. `aws_iam_role_policy.soniox` attaches **only** `secretsmanager:GetSecretValue` on that exact configured secret to the shared `aws_iam_role.compute`. Optional OpenAI cleanup access is scoped separately in `openai.tf`. No static AWS credentials or new compute service is needed. Customer-managed KMS secrets additionally require a separately reviewed narrowly scoped `kms:Decrypt` permission and key policy; this code adds none.
+4. `aws_iam_role_policy.soniox` attaches **only** `secretsmanager:GetSecretValue` on that exact configured secret to the shared SSR compute role. Optional OpenAI cleanup access is scoped separately in `openai.tf`. No static AWS credentials or new compute service is needed. Customer-managed KMS secrets additionally require a separately reviewed narrowly scoped `kms:Decrypt` permission and key policy; this code adds none.
 
-Both committed `environments/dev.tfvars` and `prod.tfvars` use the default metadata creation; their existing environment, region, naming, tags, remote-state configuration remain authoritative. Optional private overrides contain ARNs and booleans only:
+Both committed `environments/soniox-dev.tfvars` and `soniox-prod.tfvars` use the default metadata creation; their existing environment, region, naming, tags, remote-state configuration remain authoritative. Optional private overrides contain ARNs and booleans only:
 
 ```hcl
 create_soniox_secret   = false
@@ -31,7 +31,7 @@ export TF_DATA_DIR="$PWD/.tmp/terraform-dev"
 terraform -chdir=infra/terraform fmt -check -recursive
 terraform -chdir=infra/terraform init -reconfigure -backend-config=environments/dev.s3.tfbackend
 terraform -chdir=infra/terraform validate
-terraform -chdir=infra/terraform plan -var-file=environments/dev.tfvars -var-file=environments/dev.local.tfvars -out=dev.tfplan
+terraform -chdir=infra/terraform plan -var-file=environments/soniox-dev.tfvars -var-file=environments/soniox-dev.local.tfvars -out=dev.tfplan
 # Operator reviews account, environment, secret metadata and exact IAM resources.
 terraform -chdir=infra/terraform apply dev.tfplan
 terraform -chdir=infra/terraform output stt_soniox_secret_arn
@@ -49,7 +49,7 @@ terraform -chdir=infra/terraform/bootstrap init -backend=false -input=false
 terraform -chdir=infra/terraform/bootstrap validate
 ```
 
-Populate the secret securely, then manually associate `compute_role_arn` with only the intended trusted Amplify branch. An existing association to this same role needs no new role. Review existing policies before any association change. Never make a sensitive role the default for untrusted preview branches.
+Populate the secret securely, then manually associate the existing role ARN with only the intended trusted Amplify branch. An existing association to this same role needs no new role. Review existing policies before any association change. Never make a sensitive role the default for untrusted preview branches.
 
 Set server-only Amplify runtime settings `STT_ENABLED=true`, `STT_PROVIDER=soniox`, `STT_SONIOX_SECRET_ARN=<output ARN>` and the existing `STT_OPENAI_SECRET_ARN` for cleanup. Preserve `SESSION_SECRET` and any existing required permissions. Run the existing `node scripts/prepare-transcription-env.mjs` before the build; it copies these allowlisted **non-secret** speech settings into `.env.production`. Keep API key values out of Amplify variables/artifacts; `STT_SONIOX_API_KEY` is development-only and ignored in production. Use compute-role SDK credentials at runtime. See [TRANSCRIPTION.md](../../docs/TRANSCRIPTION.md) for exact flow and device release checks.
 

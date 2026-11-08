@@ -100,7 +100,7 @@ test('Soniox development key is independent of OpenAI; production requires Secre
 
 test('Soniox IAM extends the existing compute role with exact secret access and no secret value resources', () => {
   const tf = readFileSync('infra/terraform/soniox.tf', 'utf8');
-  assert.ok(tf.includes('role   = aws_iam_role.compute.id'));
+  assert.ok(tf.includes('role   = local.soniox_compute_role_name'));
   assert.ok(tf.includes('resources = [local.soniox_secret_arn]'));
   assert.ok(tf.includes('actions   = ["secretsmanager:GetSecretValue"]'));
   assert.ok(!tf.includes('aws_secretsmanager_secret_version'));

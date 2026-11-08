@@ -1,7 +1,12 @@
+locals {
+  soniox_prefix            = "${var.project_name}-${var.environment}"
+  soniox_compute_role_name = var.amplify_compute_role_name == null ? "${var.project_name}-${var.environment}-ssr-compute" : var.amplify_compute_role_name
+}
+
 # Metadata only: no secret version/data source may put key material in state.
 resource "aws_secretsmanager_secret" "soniox" {
   count                   = var.create_soniox_secret ? 1 : 0
-  name                    = "${local.prefix}-soniox-api-key"
+  name                    = "${local.soniox_prefix}-soniox-api-key"
   description             = "Permanent Soniox key for server-issued temporary realtime credentials"
   recovery_window_in_days = 30
   lifecycle {
@@ -28,8 +33,8 @@ data "aws_iam_policy_document" "soniox" {
 
 resource "aws_iam_role_policy" "soniox" {
   count  = var.create_soniox_secret || var.stt_soniox_secret_arn != null ? 1 : 0
-  name   = "${local.prefix}-soniox-secret"
-  role   = aws_iam_role.compute.id
+  name   = "${local.soniox_prefix}-soniox-secret"
+  role   = local.soniox_compute_role_name
   policy = data.aws_iam_policy_document.soniox[0].json
 }
 

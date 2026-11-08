@@ -72,18 +72,3 @@ variable "stt_openai_secret_arn" {
   }
 }
 
-variable "create_soniox_secret" {
-  type        = bool
-  default     = true
-  description = "Create environment-specific secret metadata only. Provision its value separately. Set false when referencing an existing secret."
-}
-
-variable "stt_soniox_secret_arn" {
-  type        = string
-  default     = null
-  description = "Existing Soniox secret ARN; mutually exclusive with create_soniox_secret. Never supply a secret value."
-  validation {
-    condition     = var.stt_soniox_secret_arn == null ? true : can(regex("^arn:[^:]+:secretsmanager:[^:]+:[0-9]{12}:secret:.+$", var.stt_soniox_secret_arn))
-    error_message = "Use a complete Secrets Manager secret ARN."
-  }
-}
