@@ -3,11 +3,6 @@ locals {
   digits            = "0123456789"
 }
 
-variable "aws_region" {
-  type        = string
-  description = "Region of the existing Amplify deployment and provider secrets."
-}
-
 variable "environment" {
   type        = string
   description = "Explicit environment. Use separate backends and credentials for production."

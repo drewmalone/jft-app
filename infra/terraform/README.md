@@ -1,5 +1,17 @@
 # Speech infrastructure and deployment
 
+## Region configuration
+
+Set the region once in the operator's shell before bootstrap, initialization or planning:
+
+```bash
+export AWS_REGION=us-west-2
+```
+
+Both AWS providers and the S3 backend use this standard setting (or the selected AWS profile's region when it is unset). The environment files contain only settings that vary by environment; no `aws_region` Terraform variable or repeated backend `region` is needed. Select the matching `AWS_PROFILE` separately for dev/prod. If a state bucket intentionally lives in another region, supply an explicit `-backend-config=region=STATE_BUCKET_REGION` at initialization while keeping `AWS_REGION` as the resource region. Backend configuration cannot reference Terraform input variables.
+
+When combining with #27, preserve this shared region convention rather than restoring its repeated `aws_region` inputs/provider references.
+
 ## Soniox live transcription
 
 This PR contains speech-provider infrastructure only. Database resources, persistence code, DynamoDB dependencies and tests, and retention changes belong exclusively to PR #27. The root, S3 backend/native locking, bootstrap, provider lockfiles, environment prefixes/tags and SSR compute role identity intentionally match #27. Use one shared state backend and one compute role when combining the PRs; do not apply each branch as a separate stack. PR #23's provider bootstrap is included; the separate xAI relay PR #22 is untouched.
@@ -13,7 +25,7 @@ This PR does not create an SSR role: it attaches narrowly scoped provider polici
 3. To reuse an existing secret, set `create_soniox_secret=false` and `stt_soniox_secret_arn` to its exact ARN in the environment's private local tfvars. Creating and referencing simultaneously fails validation at plan time. Setting false with no ARN intentionally omits Soniox permission. Keep `stt_openai_secret_arn` set for existing cleanup and OpenAI speech; credentials are independent.
 4. `aws_iam_role_policy.soniox` attaches **only** `secretsmanager:GetSecretValue` on that exact configured secret to the shared SSR compute role. Optional OpenAI cleanup access is scoped separately in `openai.tf`. No static AWS credentials or new compute service is needed. Customer-managed KMS secrets additionally require a separately reviewed narrowly scoped `kms:Decrypt` permission and key policy; this code adds none.
 
-Both committed `environments/soniox-dev.tfvars` and `soniox-prod.tfvars` use the default metadata creation; their existing environment, region, naming, tags, remote-state configuration remain authoritative. Optional private overrides contain ARNs and booleans only:
+Both committed `environments/soniox-dev.tfvars` and `soniox-prod.tfvars` use the default metadata creation; their existing environment, naming, tags and remote-state configuration remain authoritative. Optional private overrides contain ARNs and booleans only:
 
 ```hcl
 create_soniox_secret   = false
@@ -69,7 +81,7 @@ Leave secret metadata/state intact during rollback; the created secret has `prev
 export AWS_PROFILE=doorknob-dev
 export TF_DATA_DIR="$PWD/.tmp/bootstrap-dev"
 terraform -chdir=infra/terraform/bootstrap init
-terraform -chdir=infra/terraform/bootstrap plan -var=environment=dev -var=aws_region=us-west-2 -var=bucket_name=REPLACE-WITH-UNIQUE-DEV-BUCKET -state="$PWD/.tmp/bootstrap-dev.tfstate" -out=bootstrap-dev.tfplan
+terraform -chdir=infra/terraform/bootstrap plan -var=environment=dev -var=bucket_name=REPLACE-WITH-UNIQUE-DEV-BUCKET -state="$PWD/.tmp/bootstrap-dev.tfstate" -out=bootstrap-dev.tfplan
 # Review account, region and bucket; operator applies manually.
 terraform -chdir=infra/terraform/bootstrap apply -state="$PWD/.tmp/bootstrap-dev.tfstate" bootstrap-dev.tfplan
 ```

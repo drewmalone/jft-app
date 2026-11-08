@@ -9,3 +9,5 @@ Revised-branch checks: `npm run check` passed (formatting, ESLint, OpenAPI/Spect
 Role creation remains outside #28. Soniox policies target an existing role, defaulting to #27’s role name, so no duplicate role resource is introduced. Shared variable additions and runbooks may need a small merge reconciliation; database application files are unchanged from main.
 
 The merge simulation with #27 has no application/resource-definition conflicts. Remaining reconciliation is limited to the two READMEs, common Terraform variables, the test command and two platform-checksum lockfiles; preserve both provider hashes.
+
+Region configuration uses the standard `AWS_REGION` environment setting for both roots and the S3 backend. Environment files no longer repeat region values, and neither root declares an `aws_region` input. Backend state in a different region can still use an explicit backend override.
