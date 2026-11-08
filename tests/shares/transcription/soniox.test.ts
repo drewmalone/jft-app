@@ -62,10 +62,10 @@ test('Soniox replaces provisional suffix, preserves split words, punctuation, or
   p.finish();
   assert.deepEqual(
     e.finals.map((x) => x.trim()),
-    ['Hello,', 'world! go', 'go']
+    ['Hello', ', world', '!', 'go go']
   );
   assert.equal(e.interims[0], 'Hel');
-  assert.ok(e.interims.includes('Hello wrong'));
+  assert.ok(e.interims.includes(' wrong'));
   assert.equal(e.interims.at(-1), '');
 });
 function fixture() {
@@ -211,8 +211,8 @@ test('Soniox Unicode boundaries keep split contractions, punctuation and scripts
     const protocol = createSonioxProtocol(e.callbacks);
     for (const piece of pieces) protocol.accept(result(token(piece)));
     protocol.finish();
-    const actual = e.finals.map((text) => text.trim()).join(' ');
-    const expected = pieces.join('').replaceAll('\u00a0', ' ');
+    const actual = e.finals.join('');
+    const expected = pieces.join('');
     assert.equal(actual, expected);
   }
 });

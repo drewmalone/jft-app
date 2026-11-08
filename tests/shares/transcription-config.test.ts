@@ -13,24 +13,23 @@ test('startup provider names default to Soniox and reject invalid values safely'
   assert.equal(parseTranscriptionProvider(undefined), 'soniox');
   assert.equal(parseTranscriptionProvider('soniox'), 'soniox');
   assert.equal(parseTranscriptionProvider('openai'), 'openai');
-  assert.equal(parseTranscriptionProvider('xai'), 'xai');
-  for (const value of ['', 'OPENAI', ' xai', 'private-unknown-value'])
+  for (const value of ['', 'OPENAI', 'xai', ' soniox', 'private-unknown-value'])
     assert.throws(
       () => parseTranscriptionProvider(value),
-      /^Error: STT_PROVIDER must be soniox, openai or xai$/
+      /^Error: STT_PROVIDER must be soniox or openai$/
     );
 });
 
 test('server selection remains fixed after initialization and stale clients cannot issue credentials', async (t) => {
   t.mock.property(process, 'env', { ...process.env, STT_PROVIDER: 'openai' });
   assert.equal(transcriptionProvider(), 'openai');
-  process.env.STT_PROVIDER = 'xai';
+  process.env.STT_PROVIDER = 'soniox';
   assert.equal(transcriptionProvider(), 'openai');
   await assert.rejects(
     issueTranscriptionCredential(
       transcriptionProvider(),
       new AbortController().signal,
-      'xai'
+      'soniox'
     ),
     /provider mismatch/
   );

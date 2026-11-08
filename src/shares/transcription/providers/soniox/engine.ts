@@ -30,7 +30,9 @@ const browser: SonioxDependencies = {
     typeof MediaRecorder !== 'undefined' &&
     typeof WebSocket !== 'undefined',
   record: (options, api_key) =>
-    new SonioxClient({ api_key }).realtime.record({
+    new SonioxClient({
+      config: async () => ({ api_key: await api_key() })
+    }).realtime.record({
       ...options,
       source: new MicrophoneSource({
         constraints: { echoCancellation: true, channelCount: 1 }
@@ -60,8 +62,8 @@ export class SonioxTranscriptionSession implements TranscriptionEngine {
     this.events = events;
     this.protocol = createSonioxProtocol({
       ...events,
-      final: (text) => {
-        if (this.live) events.final(text);
+      final: (text, join) => {
+        if (this.live) events.final(text, join);
       },
       interim: (text) => {
         if (this.live) events.interim(text);

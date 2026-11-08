@@ -13,11 +13,9 @@ export async function issueTranscriptionCredential(
   if ((requested ?? 'openai') !== provider)
     throw new Error('Transcription provider mismatch; reload the application');
   if (provider === 'soniox') return issueSonioxCredential(signal);
-  if (provider !== 'openai')
-    throw new Error('The xAI integration is not installed');
   return issueOpenAI(signal);
 }
 export {
   reportTranscriptionFailure,
   reportTranscriptionConfiguration
-} from './providers/openai/diagnostics';
+} from './transcription-diagnostics';

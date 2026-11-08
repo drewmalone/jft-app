@@ -199,7 +199,7 @@ Dependencies are installed with `npm ci` under Node 24. Tests need no credential
 
 Only the short-lived credential reaches the browser. It expires after 60 seconds for establishing sessions. Soniox credentials are single-use and enforce a ten-minute active-session cap; the retained OpenAI credential can establish multiple sessions before expiry. Initial transcription configuration is not an enforceable spending boundary against a modified client. The app does not store credentials in browser storage. Do not record credential endpoint response bodies in proxy/APM logs.
 
-See [Amplify setup](docs/TRANSCRIPTION.md#amplify-and-terraform) for server key storage, branch permissions, and preview access protection. See the [code review and provider replacement guide](docs/TRANSCRIPTION_REVIEW.md) for adapter boundaries and remaining simplifications.
+See [Amplify setup](docs/TRANSCRIPTION.md#amplify-and-terraform) for server key storage, branch permissions, and preview access protection. See [recording and text ownership](docs/TRANSCRIPTION.md#recording-and-text-ownership) for adapter boundaries.
 
 ### Processing, retention, and cost
 
@@ -232,6 +232,6 @@ Use fictional text on a trusted HTTPS Amplify preview, with a configured provide
 
 ### Startup transcription selection
 
-`STT_PROVIDER` is validated server-side at startup. It defaults to `soniox`; set it to `openai` to select the existing WebRTC provider. See [live transcription deployment](docs/TRANSCRIPTION.md) for Soniox credentials and Terraform setup. The server passes this nonsecret value through runtime page bootstrap, and session requests assert a matching provider. Restart/redeploy when changing configuration. This preparatory change recognizes the reserved `xai` name but rejects it until the separate xAI integration is installed; it never falls back silently. Existing OpenAI credentials and cleanup behavior are unchanged.
+`STT_PROVIDER` is validated server-side at startup. It defaults to `soniox`; set it to `openai` to select the existing WebRTC provider. See [live transcription deployment](docs/TRANSCRIPTION.md) for Soniox credentials and Terraform setup. The server passes this nonsecret value through runtime page bootstrap, and session requests assert a matching provider. Restart/redeploy when changing configuration. Only Soniox and OpenAI are supported; there is no automatic fallback. Existing OpenAI credentials and cleanup behavior are unchanged.
 
 Soniox browser contracts run separately after building: `STT_PROVIDER=soniox PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH=/usr/bin/chromium npm run test:e2e -- tests/e2e/soniox.spec.ts --project=mobile-chromium --project=desktop-chromium`. These exercise the real SDK with synthetic audio and WebSocket boundaries; no Soniox credits are used.

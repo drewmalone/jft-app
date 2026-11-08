@@ -10,7 +10,5 @@ export function transcriptionEngineFactory(
   if (provider === null)
     throw new Error('Missing transcription provider bootstrap');
   if (provider === 'soniox') return createSonioxSpeech;
-  if (provider !== 'openai')
-    throw new Error('The xAI adapter is not installed');
   return createOpenAISpeech;
 }

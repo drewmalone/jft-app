@@ -15,6 +15,8 @@ import {
 import { watchWebRTCStats } from '../../webrtc-diagnostics';
 import { speechDiagnostic } from '../../diagnostics';
 
+const AUDIO_DRAIN_MS = 300;
+
 const FAILURE =
   'Speech recognition could not continue. Your finalized words are still here. Please try again.';
 type Phase =
@@ -98,7 +100,7 @@ export class OpenAITranscriptionSession implements TranscriptionEngine {
     this.later(() => {
       this.phase = 'finalizing';
       this.commit();
-    }, sessionConfig.audioDrainMs);
+    }, AUDIO_DRAIN_MS);
     this.later(
       () =>
         this.finish(

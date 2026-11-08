@@ -10,8 +10,6 @@ let selected: TranscriptionProvider | undefined;
 export function transcriptionProvider(): TranscriptionProvider {
   if (!selected) {
     const provider = parseTranscriptionProvider(process.env.STT_PROVIDER);
-    if (provider === 'xai')
-      throw new Error('STT_PROVIDER=xai requires the xAI integration');
     selected = provider;
   }
   return selected;

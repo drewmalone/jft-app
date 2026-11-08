@@ -1,4 +1,10 @@
-import { useContext, useEffect, useRef, useState } from 'react';
+import {
+  useContext,
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useState
+} from 'react';
 import { configureSpeechDiagnostics, speechDiagnostic } from './diagnostics';
 import { transcriptionEngineFactory } from './provider';
 import { TranscriptionProviderContext } from './provider-context';
@@ -38,7 +44,9 @@ export function useTranscription(
   const generation = useRef(0);
   const stopped = useRef(false);
   const current = useRef({ text, onTextChange, onStopped });
-  useEffect(() => {
+  // Synchronize at commit: a delayed passive effect can overwrite fragments
+  // received after that render and lose a fast provider update.
+  useLayoutEffect(() => {
     current.current = { text, onTextChange, onStopped };
   }, [text, onTextChange, onStopped]);
   useEffect(() => {
@@ -155,8 +163,12 @@ export function useTranscription(
             if (value) pulse();
           }
         },
-        final: (value) => {
-          if (!live() || !value.trim()) {
+        final: (value, join = 'space') => {
+          if (
+            !live() ||
+            !value ||
+            ((first || join === 'space') && !value.trim())
+          ) {
             speechDiagnostic('final-ignored', {
               session,
               stage: !live() ? 'stale' : 'empty'
@@ -166,7 +178,12 @@ export function useTranscription(
           finalized = true;
           pulse();
           speechDiagnostic('final-committed', { session });
-          const result = appendTranscript(current.current.text, value, first);
+          const result = appendTranscript(
+            current.current.text,
+            value,
+            first,
+            join
+          );
           first = false;
           current.current.text = result.text;
           current.current.onTextChange(result.text);

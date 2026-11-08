@@ -7,7 +7,6 @@ import {
 import { sonioxKey } from '../../src/shares/server/providers/soniox/key';
 import { issueSonioxCredential } from '../../src/shares/server/providers/soniox/session';
 import { reportTranscriptionFailure } from '../../src/shares/server/transcription-provider';
-import { readFileSync } from 'node:fs';
 
 test('Soniox credential policy is realtime-only, single-use and bounded; response contains no permanent key', async () => {
   let body: unknown;
@@ -102,13 +101,4 @@ test('Soniox development key is independent of OpenAI; production requires Secre
   process.env.STT_SONIOX_SECRET_ARN =
     'arn:aws:secretsmanager:us-west-2:123456789012:other-resource';
   await assert.rejects(sonioxKey(), /Invalid secret ARN/);
-});
-
-test('Soniox IAM extends the existing compute role with exact secret access and no secret value resources', () => {
-  const tf = readFileSync('infra/terraform/soniox.tf', 'utf8');
-  assert.ok(tf.includes('role   = local.soniox_compute_role_name'));
-  assert.ok(tf.includes('resources = [local.soniox_secret_arn]'));
-  assert.ok(tf.includes('actions   = ["secretsmanager:GetSecretValue"]'));
-  assert.ok(!tf.includes('aws_secretsmanager_secret_version'));
-  assert.ok(!tf.includes('secret_string'));
 });

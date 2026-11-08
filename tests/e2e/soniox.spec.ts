@@ -119,8 +119,9 @@ test('Soniox streams provisional words, drains Stop, repeats sessions, edits, sa
   ).toBeVisible();
   await result(page, [['Draft guess', false]]);
   await expect(page.getByText('Draft guess', { exact: false })).toBeVisible();
+  await result(page, [['Hel', true]]);
   await result(page, [
-    ['Hello', true],
+    ['lo', true],
     [' wrong', false]
   ]);
   await result(page, [
@@ -143,7 +144,9 @@ test('Soniox streams provisional words, drains Stop, repeats sessions, edits, sa
   await expect(
     page.getByRole('button', { name: 'Stop listening' })
   ).toBeVisible();
-  await result(page, [['Another reflection.', true]]);
+  for (const fragment of ['Another', ' ', 'reflection', '.']) {
+    await result(page, [[fragment, true]]);
+  }
   await page.getByRole('button', { name: 'Stop listening' }).click();
   await result(page, [], true);
   await expect(page.getByRole('textbox')).toHaveValue(

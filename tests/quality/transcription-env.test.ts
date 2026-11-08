@@ -4,13 +4,13 @@ import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { test } from 'node:test';
-import { parse } from 'dotenv';
+import { parseEnv as parse } from 'node:util';
 
 test('Amplify transcription preparation validates configuration and copies only non-secret settings idempotently', () => {
   const directory = mkdtempSync(path.join(tmpdir(), 'doorknob-env-test-'));
   const script = path.resolve('scripts/prepare-transcription-env.mjs');
   const file = path.join(directory, '.env.production');
-  const run = (settings: Record<string, string> = {}) =>
+  const run = (settings: Record<string, string | undefined> = {}) =>
     spawnSync(process.execPath, [script], {
       cwd: directory,
       encoding: 'utf8',
@@ -30,9 +30,11 @@ test('Amplify transcription preparation validates configuration and copies only 
     writeFileSync(
       file,
       [
+        '# Preserve this comment and all unrelated source exactly.',
+        `LITERAL_QUOTES='"quoted"'`,
         'export EXISTING_SETTING="keep # a literal hash"',
         'QUOTED_SETTING="a value with spaces"',
-        'MULTILINE_SETTING="first\nsecond"',
+        'MULTILINE_SETTING="first\nSTT_PROVIDER=inside a multiline value\nsecond"',
         'STT_PROVIDER=openai',
         ''
       ].join('\n')
@@ -42,9 +44,21 @@ test('Amplify transcription preparation validates configuration and copies only 
     const parsed = parse(generated);
     assert.equal(parsed.EXISTING_SETTING, 'keep # a literal hash');
     assert.equal(parsed.QUOTED_SETTING, 'a value with spaces');
-    assert.equal(parsed.MULTILINE_SETTING, 'first\nsecond');
-    assert.match(generated, /STT_PROVIDER=soniox/);
-    assert.match(generated, /STT_SONIOX_SECRET_ARN=arn:aws:secretsmanager/);
+    assert.equal(
+      parsed.MULTILINE_SETTING,
+      'first\nSTT_PROVIDER=inside a multiline value\nsecond'
+    );
+    assert.equal(parsed.LITERAL_QUOTES, '"quoted"');
+    assert.ok(
+      generated.includes(
+        '# Preserve this comment and all unrelated source exactly.\nLITERAL_QUOTES=\'"quoted"\'\n'
+      )
+    );
+    assert.equal(parsed.STT_PROVIDER, 'soniox');
+    assert.equal(
+      parsed.STT_SONIOX_SECRET_ARN,
+      'arn:aws:secretsmanager:us-west-2:123456789012:secret:synthetic'
+    );
     assert.equal(
       run({ STT_SONIOX_SECRET_ARN: 'bad\nINJECTED=true' }).status,
       1
@@ -53,6 +67,19 @@ test('Amplify transcription preparation validates configuration and copies only 
     assert.equal(run({ STT_PROVIDER: 'soniox\nINJECTED=true' }).status, 1);
     assert.equal(run().status, 0);
     assert.equal(readFileSync(file, 'utf8'), generated);
+    assert.equal(
+      run({
+        STT_ENABLED: undefined,
+        STT_PROVIDER: undefined,
+        STT_SONIOX_SECRET_ARN: undefined
+      }).status,
+      0
+    );
+    const cleared = parse(readFileSync(file, 'utf8'));
+    assert.equal(cleared.STT_PROVIDER, 'soniox');
+    assert.equal(cleared.STT_ENABLED, 'false');
+    assert.equal(cleared.STT_SONIOX_SECRET_ARN, '');
+    assert.equal(cleared.LITERAL_QUOTES, '"quoted"');
   } finally {
     rmSync(directory, { recursive: true, force: true });
   }

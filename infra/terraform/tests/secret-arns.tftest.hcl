@@ -17,11 +17,22 @@ run "optional_secrets_absent" {
   command = plan
 }
 
-run "valid_secret_arns" {
+run "valid_secret_arn" {
   command = plan
   variables {
     stt_soniox_secret_arn = "arn:aws:secretsmanager:us-west-2:123456789012:secret:soniox-test"
-    stt_openai_secret_arn = "arn:aws:secretsmanager:us-west-2:123456789012:secret:openai-test"
+  }
+  assert {
+    condition     = aws_iam_role_policy.soniox[0].role == "review-test-dev-ssr-compute"
+    error_message = "Grant access on the existing environment role only."
+  }
+  assert {
+    condition     = one(data.aws_iam_policy_document.soniox[0].statement).resources == toset([var.stt_soniox_secret_arn])
+    error_message = "Scope access to the exact configured Soniox secret."
+  }
+  assert {
+    condition     = one(data.aws_iam_policy_document.soniox[0].statement).actions == toset(["secretsmanager:GetSecretValue"])
+    error_message = "Grant only the secret read action."
   }
 }
 
@@ -33,10 +44,10 @@ run "malformed_soniox_arn" {
   expect_failures = [var.stt_soniox_secret_arn]
 }
 
-run "wrong_openai_service" {
+run "wrong_secret_service" {
   command = plan
   variables {
-    stt_openai_secret_arn = "arn:aws:s3:us-west-2:123456789012:bucket:wrong-service"
+    stt_soniox_secret_arn = "arn:aws:s3:us-west-2:123456789012:bucket:wrong-service"
   }
-  expect_failures = [var.stt_openai_secret_arn]
+  expect_failures = [var.stt_soniox_secret_arn]
 }

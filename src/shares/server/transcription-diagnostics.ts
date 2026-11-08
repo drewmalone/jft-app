@@ -1,9 +1,8 @@
 import 'server-only';
 import OpenAI from 'openai';
-import { CleanupResultError } from '../../cleanup-result-error';
-import { OpenAIKeyError } from './key';
-import { SonioxKeyError } from '../soniox/key';
-import { SonioxCredentialError } from '../soniox/errors';
+import { CleanupResultError } from './cleanup-result-error';
+import { SecretKeyError } from './secret-key';
+import { SonioxCredentialError } from './providers/soniox/errors';
 
 const publicCodes = new Set([
   'invalid_api_key',
@@ -38,7 +37,7 @@ export function reportTranscriptionFailure(
       reason: cause.reason,
       ...(cause.status ? { status: cause.status } : {})
     });
-  } else if (cause instanceof SonioxKeyError) {
+  } else if (cause instanceof SecretKeyError) {
     console.warn(label, { reason: cause.reason });
   } else if (cause instanceof CleanupResultError) {
     console.warn(label, {
@@ -49,8 +48,6 @@ export function reportTranscriptionFailure(
     console.warn(label, { reason: 'provider_timeout' });
   } else if (cause instanceof OpenAI.APIConnectionError) {
     console.warn(label, { reason: 'provider_connection_failure' });
-  } else if (cause instanceof OpenAIKeyError) {
-    console.warn(label, { reason: cause.reason });
   } else if (cause instanceof OpenAI.APIError) {
     console.warn(label, {
       reason: 'provider_request_failed',
