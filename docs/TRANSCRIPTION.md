@@ -15,6 +15,23 @@ Soniox (`stt-rt-v6`) is the default. Set `STT_PROVIDER=openai` to retain the exi
 
 For local recording, securely put the enable flag and Soniox key in ignored `.env.local`; no AWS credentials are required. Add the OpenAI key for cleanup. Never use `NEXT_PUBLIC_` for credentials. Both providers use `server/secret-key.ts` for cached Secrets Manager access through the normal AWS SDK credential chain. Successful reads cache for five minutes per ARN. Concurrent failed reads share one sanitized error, clear the failed cache entry, and permit retry. Empty/binary secrets fail closed; restart for immediate rotation pickup.
 
+## Run locally
+
+Use Node 24, run `npm ci`, and create an ignored `.env.local` at the repository root:
+
+```dotenv
+STT_ENABLED=true
+STT_PROVIDER=soniox
+STT_SONIOX_API_KEY=replace-with-your-soniox-key
+STT_OPENAI_API_KEY=replace-with-your-openai-key
+```
+
+The Soniox key needs **Temporary API keys** and **Speech-to-text, real-time** permissions. OpenAI needs Responses access for automatic `gpt-5.4-mini` cleanup. Without the OpenAI key, cleanup fails safely and preserves the original draft. Selecting OpenAI speech additionally requires Realtime access.
+
+Run `npm run dev` and open `http://localhost:3000`. No AWS variables or Secrets Manager ARNs are needed. `SESSION_SECRET` is optional in development; omit it to use the process-generated secret, or generate a stable value with `node -e "console.log(require('node:crypto').randomBytes(32).toString('hex'))"`. Production requires a stable signing secret and role-based Soniox secret access; `npm run start` intentionally ignores the direct Soniox development key.
+
+Set `STT_ENABLED=false` to type and save without paid provider calls. The local in-memory store loses shares on restart. Do not run the Amplify environment-preparation script for local development.
+
 ## Recording and text ownership
 
 An explicit Record tap invokes the official Soniox recording SDK, which starts microphone acquisition before asynchronously resolving connection configuration. This preserves mobile Safari user activation. The SDK owns capture, temporary in-memory startup buffering, direct WebSocket streaming, graceful Stop and cancellation. No audio is proxied through Amplify or persisted by this application.
