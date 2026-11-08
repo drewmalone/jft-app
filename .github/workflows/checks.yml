@@ -12,6 +12,9 @@ concurrency:
   group: checks-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
 
+env:
+  STT_PROVIDER: openai
+
 jobs:
   quality:
     name: Code and contracts
