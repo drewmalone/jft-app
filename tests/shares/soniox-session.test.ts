@@ -96,6 +96,12 @@ test('Soniox development key is independent of OpenAI; production requires Secre
   assert.equal(send.mock.callCount(), 1);
   process.env.STT_SONIOX_SECRET_ARN = 'invalid';
   await assert.rejects(sonioxKey(), /Invalid secret ARN/);
+  process.env.STT_SONIOX_SECRET_ARN =
+    'arn:aws:s3:us-west-2:123456789012:secret:wrong-service';
+  await assert.rejects(sonioxKey(), /Invalid secret ARN/);
+  process.env.STT_SONIOX_SECRET_ARN =
+    'arn:aws:secretsmanager:us-west-2:123456789012:other-resource';
+  await assert.rejects(sonioxKey(), /Invalid secret ARN/);
 });
 
 test('Soniox IAM extends the existing compute role with exact secret access and no secret value resources', () => {

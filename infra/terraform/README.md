@@ -25,7 +25,7 @@ This PR does not create an SSR role: it attaches narrowly scoped provider polici
 3. To reuse an existing secret, set `create_soniox_secret=false` and `stt_soniox_secret_arn` to its exact ARN in the environment's private local tfvars. Creating and referencing simultaneously fails validation at plan time. Setting false with no ARN intentionally omits Soniox permission. Keep `stt_openai_secret_arn` set for existing cleanup and OpenAI speech; credentials are independent.
 4. `aws_iam_role_policy.soniox` attaches **only** `secretsmanager:GetSecretValue` on that exact configured secret to the shared SSR compute role. Optional OpenAI cleanup access is scoped separately in `openai.tf`. No static AWS credentials or new compute service is needed. Customer-managed KMS secrets additionally require a separately reviewed narrowly scoped `kms:Decrypt` permission and key policy; this code adds none.
 
-Both committed `environments/soniox-dev.tfvars` and `soniox-prod.tfvars` use the default metadata creation; their existing environment, naming, tags and remote-state configuration remain authoritative. Optional private overrides contain ARNs and booleans only:
+Both committed `environments/soniox-dev.tfvars` and `soniox-prod.tfvars` explicitly set `project_name` and `create_soniox_secret`; their existing environment, naming, tags and remote-state configuration remain authoritative. Private overrides can select existing secret ARNs and the existing compute role. Terraform uses the AWS provider’s `arn_parse` function for ARN structure; AWS validates resource names rather than duplicating its naming rules here. Optional overrides:
 
 ```hcl
 create_soniox_secret   = false
@@ -49,7 +49,7 @@ terraform -chdir=infra/terraform apply dev.tfplan
 terraform -chdir=infra/terraform output stt_soniox_secret_arn
 ```
 
-Use distinct prod backend, profile, data directory, tfvars and plan for production. Omit the local var file if using defaults and no OpenAI secret binding; cleanup still requires its existing OpenAI configuration. Never use a secret value as a Terraform argument. Saved plans contain infrastructure metadata and should be kept private and deleted after use. These commands are operator instructions; no apply or AWS plan was run by this implementation.
+Use distinct prod backend, profile, data directory, tfvars and plan for production. Omit the local var file if the committed environment settings suffice and no OpenAI secret binding is required; cleanup still requires its existing OpenAI configuration. Never use a secret value as a Terraform argument. Saved plans contain infrastructure metadata and should be kept private and deleted after use. These commands are operator instructions; no apply or AWS plan was run by this implementation.
 
 For credential-free validation (also performed by the existing PR workflow):
 
@@ -57,6 +57,7 @@ For credential-free validation (also performed by the existing PR workflow):
 terraform -chdir=infra/terraform fmt -check -recursive
 terraform -chdir=infra/terraform init -backend=false -input=false
 terraform -chdir=infra/terraform validate
+terraform -chdir=infra/terraform test # mocked AWS provider; no account access
 terraform -chdir=infra/terraform/bootstrap init -backend=false -input=false
 terraform -chdir=infra/terraform/bootstrap validate
 ```
@@ -95,3 +96,5 @@ aws amplify update-branch --app-id REPLACE_APP_ID --branch-name REPLACE_TRUSTED_
 ```
 
 The operator needs narrowly scoped `amplify:UpdateBranch` and `iam:PassRole`; runtime code receives neither. Do not set this role as an app-wide default for untrusted previews. The compute role differs from Amplify's build service role. No AWS action is performed by these instructions automatically.
+
+The transcription preparation script uses `dotenv` and `dotenv-stringify` for existing assignments and quoting, and AWS’s ARN parser for secret metadata. Rewriting normalizes formatting/comments while preserving parsed values. Its source header documents when and how Amplify invokes it; it is unnecessary for local `.env.local` development.

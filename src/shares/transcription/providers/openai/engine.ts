@@ -6,7 +6,7 @@ import {
   requestOpenAICredential,
   TranscriptionUnavailable
 } from './connection';
-import { sessionConfig } from './config';
+import { sessionConfig } from '../../session-config';
 import { browser, type SpeechDependencies } from './browser';
 import {
   microphoneErrorCode,

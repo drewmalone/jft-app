@@ -1,4 +1,5 @@
 import 'server-only';
+import { parse as parseArn } from '@aws-sdk/util-arn-parser';
 import {
   SecretsManagerClient,
   GetSecretValueCommand
@@ -27,13 +28,20 @@ export async function sonioxKey(): Promise<string> {
   if (!arn)
     throw new SonioxKeyError('missing_key', 'Transcription is not configured');
   if (cached?.arn === arn && cached.expires > Date.now()) return cached.value;
-  const region = arn.split(':')[3];
-  if (
-    !/^arn:aws(?:-[a-z]+)*:secretsmanager:[a-z0-9-]+:\d{12}:secret:[A-Za-z0-9/_+=.@-]+$/.test(
-      arn
-    )
-  )
+  let region: string;
+  try {
+    const parsed = parseArn(arn);
+    if (
+      parsed.service !== 'secretsmanager' ||
+      !parsed.resource.startsWith('secret:') ||
+      !parsed.region
+    ) {
+      throw new Error('Not a regional Secrets Manager secret');
+    }
+    region = parsed.region;
+  } catch {
     throw new SonioxKeyError('invalid_secret_arn', 'Invalid secret ARN');
+  }
   const client = new SecretsManagerClient({ region, maxAttempts: 2 });
   const value = client
     .send(new GetSecretValueCommand({ SecretId: arn }), {

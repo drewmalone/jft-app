@@ -7,6 +7,7 @@ import type { TranscriptionEvents } from '../../types';
  * speaker can legitimately repeat a word. Timed retransmissions are ignored.
  */
 export function createSonioxProtocol(events: TranscriptionEvents) {
+  const words = new Intl.Segmenter('en', { granularity: 'word' });
   let pending = '';
   let provisional = '';
   const seen = new Set<string>();
@@ -32,7 +33,18 @@ export function createSonioxProtocol(events: TranscriptionEvents) {
         pending += token.text;
       }
       // Commit complete words while retaining the last word for split tokens.
-      const boundary = pending.search(/\s+\S+\s*$/u);
+      let boundary = 0;
+      for (const word of words.segment(pending)) {
+        // Use Unicode word segmentation, but only emit where the editor can
+        // safely insert its space separator. Keep scripts without spaces intact.
+        if (
+          word.isWordLike &&
+          word.index > 0 &&
+          !pending[word.index - 1].trim()
+        ) {
+          boundary = word.index;
+        }
+      }
       if (boundary > 0) {
         const complete = pending.slice(0, boundary);
         pending = pending.slice(boundary);

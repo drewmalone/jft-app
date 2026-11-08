@@ -46,3 +46,13 @@ A query cache, state-machine package, agent framework or generic provider plugin
 ## Follow-up organization refactor
 
 All six follow-up areas are implemented: explicit session ownership with one lifecycle phase, protocol/transport separation, adoption of the SDK WebRTC helper, a composer coordination hook, server folders by responsibility, and immutable provider settings separate from secrets. Classes are reserved for the resource-owning recording session and existing repository; stateless HTTP operations/configuration remain functions/data. See [architecture](ARCHITECTURE.md#recording-ownership-and-lifecycle) for lifecycle transitions and the server map.
+
+## Review follow-up: provider boundary and libraries
+
+The provider name is intentionally visible to the browser: direct Soniox WebSocket and OpenAI WebRTC streaming need different client SDKs. The server owns the selection and serializes only that non-secret name. Permanent keys, secret resolution and temporary credential issuance remain server-only. Keeping even adapter selection on the server would require an audio relay, which is outside the direct-stream architecture.
+
+The remaining token adapter exists because Soniox emits token fragments while the editor appends final segments with separators. `Intl.Segmenter` supplies Unicode word boundaries; a small pending suffix prevents split words and punctuation from acquiring spaces. Timestamp/text identity suppresses duplicate timed finals while preserving repeated words at different times. The SDK's segment/utterance buffers group by speaker/language or endpoint; they do not supply the editor's complete-word append boundary. Recording, streaming, graceful Stop and cancellation remain SDK-owned.
+
+ARN syntax comes from AWS's `util-arn-parser` in Node and `provider::aws::arn_parse` in Terraform. The app checks only that an ARN identifies a regional Secrets Manager secret; it does not reimplement ARN grammar or resource naming rules. The Amplify preparation script uses `dotenv` and `dotenv-stringify`, has an inline usage header, and copies only allowlisted non-secret settings. The project name and secret-creation choice are explicit environment inputs; optional settings may remain absent.
+
+Session lifecycle policy now lives in `transcription/session-config.ts`, shared by both browser engines and the Soniox server issuer. The Soniox engine separates credential requests, event subscription, named event handlers and lifecycle methods. CI no longer globally selects OpenAI: quality/build checks use Soniox's default, while provider-specific browser steps select their matching adapter.

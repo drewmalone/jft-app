@@ -4,6 +4,7 @@ import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { test } from 'node:test';
+import { parse } from 'dotenv';
 
 test('Amplify transcription preparation validates configuration and copies only non-secret settings idempotently', () => {
   const directory = mkdtempSync(path.join(tmpdir(), 'doorknob-env-test-'));
@@ -26,10 +27,22 @@ test('Amplify transcription preparation validates configuration and copies only 
       }
     });
   try {
-    writeFileSync(file, 'EXISTING_SETTING=keep\nSTT_PROVIDER=openai\n');
+    writeFileSync(
+      file,
+      [
+        'export EXISTING_SETTING="keep # a literal hash"',
+        'QUOTED_SETTING="a value with spaces"',
+        'MULTILINE_SETTING="first\nsecond"',
+        'STT_PROVIDER=openai',
+        ''
+      ].join('\n')
+    );
     assert.equal(run().status, 0);
     const generated = readFileSync(file, 'utf8');
-    assert.match(generated, /EXISTING_SETTING=keep/);
+    const parsed = parse(generated);
+    assert.equal(parsed.EXISTING_SETTING, 'keep # a literal hash');
+    assert.equal(parsed.QUOTED_SETTING, 'a value with spaces');
+    assert.equal(parsed.MULTILINE_SETTING, 'first\nsecond');
     assert.match(generated, /STT_PROVIDER=soniox/);
     assert.match(generated, /STT_SONIOX_SECRET_ARN=arn:aws:secretsmanager/);
     assert.equal(
@@ -37,6 +50,7 @@ test('Amplify transcription preparation validates configuration and copies only 
       1
     );
     assert.equal(generated.includes('fictional-must-not-be-written'), false);
+    assert.equal(run({ STT_PROVIDER: 'soniox\nINJECTED=true' }).status, 1);
     assert.equal(run().status, 0);
     assert.equal(readFileSync(file, 'utf8'), generated);
   } finally {

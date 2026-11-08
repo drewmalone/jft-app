@@ -200,3 +200,19 @@ test('Soniox startup and finalization deadlines cancel resources without losing 
   assert.deepEqual(drain.e.finals, ['Retained.']);
   assert.match(drain.e.errors[0], /Finalization timed out/);
 });
+
+test('Soniox Unicode boundaries keep split contractions, punctuation and scripts without spaces intact', () => {
+  for (const pieces of [
+    ['We', "'re", ' here', '!', ' Again', '.'],
+    ['Caf', 'é', '\u00a0déjà', ' vu', '.'],
+    ['今日は', 'いい', '日です', '。']
+  ]) {
+    const e = events();
+    const protocol = createSonioxProtocol(e.callbacks);
+    for (const piece of pieces) protocol.accept(result(token(piece)));
+    protocol.finish();
+    const actual = e.finals.map((text) => text.trim()).join(' ');
+    const expected = pieces.join('').replaceAll('\u00a0', ' ');
+    assert.equal(actual, expected);
+  }
+});

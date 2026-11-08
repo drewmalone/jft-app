@@ -2,7 +2,7 @@ import 'server-only';
 import { z } from 'zod';
 import { sonioxKey } from './key';
 import { SonioxCredentialError } from './errors';
-import { sessionConfig } from '../../../transcription/providers/openai/config';
+import { sessionConfig } from '../../../transcription/session-config';
 
 const credential = z.object({
   api_key: z.string().min(1),

@@ -12,9 +12,6 @@ concurrency:
   group: checks-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
 
-env:
-  STT_PROVIDER: openai
-
 jobs:
   quality:
     name: Code and contracts
@@ -73,7 +70,9 @@ jobs:
         env:
           SESSION_SECRET: fictional-ci-build-secret-at-least-32-bytes
         run: npm run build
-      - name: Browser and accessibility tests
+      - name: OpenAI browser and accessibility contracts
+        env:
+          STT_PROVIDER: openai
         run: npm run test:e2e -- --project=mobile-${{ matrix.browser }} --project=desktop-${{ matrix.browser }}
       - name: Soniox browser contract (synthetic provider)
         env:
