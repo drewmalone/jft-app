@@ -179,3 +179,7 @@ The composer receives explicit session readiness/saving flags and a narrow clean
 ## Startup transcription selection
 
 Node instrumentation validates the server-only `STT_PROVIDER`; `server/transcription-config.ts` fixes the selection per process. The request-time home page serializes the validated nonsecret value through `TranscriptionBootstrap`, and the hook retains its selected factory. Session issuance rejects a mismatching provider assertion. OpenAI capture/SDK/protocol and independent cleanup ownership are unchanged. The xAI name is reserved for the separate adapter/relay integration and fails clearly in this foundational change.
+
+## Soniox speech provider
+
+Soniox is the default runtime-selected provider; `STT_PROVIDER=openai` retains WebRTC. The official browser recording SDK owns direct WebSocket streaming, graceful Stop and cancellation. The existing anonymous-session endpoint issues single-use credentials with 60-second establishment expiry and a ten-minute provider-enforced duration cap. Soniox secrets resolve through the shared Amplify SSR compute role. OpenAI cleanup stays independent. See [TRANSCRIPTION.md](TRANSCRIPTION.md) for deployment and lifecycle details.

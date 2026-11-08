@@ -1,3 +1,4 @@
+import { createSonioxSpeech } from './providers/soniox/engine';
 import { createOpenAISpeech } from './providers/openai/engine';
 import type { TranscriptionEngineFactory } from './types';
 import type { TranscriptionProvider } from './config';
@@ -8,6 +9,7 @@ export function transcriptionEngineFactory(
 ): TranscriptionEngineFactory {
   if (provider === null)
     throw new Error('Missing transcription provider bootstrap');
+  if (provider === 'soniox') return createSonioxSpeech;
   if (provider !== 'openai')
     throw new Error('The xAI adapter is not installed');
   return createOpenAISpeech;

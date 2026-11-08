@@ -1,3 +1,5 @@
+> Soniox integration update: the default adapter now uses the official recording SDK. OpenAI architecture notes below describe the retained alternative. See [TRANSCRIPTION.md](TRANSCRIPTION.md) and [the infrastructure runbook](../infra/terraform/README.md#soniox-live-transcription) for the current provider flow and shared Terraform conventions.
+
 # Transcription code review
 
 The useful boundary is the existing `TranscriptionEngine`, not a provider registry. The editor needs finalized text, replacement interim text, activity and lifecycle callbacks. Provider credentials, audio encoding, transport and wire events belong to adapters.

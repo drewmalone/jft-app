@@ -45,7 +45,7 @@ export const transcriptionSessionRoute = createRoute({
   responses: {
     200: {
       description:
-        'Ephemeral OpenAI credential; expires after 60 seconds for establishing connections, not terminating active sessions.',
+        'Ephemeral provider credential; expires after 60 seconds for establishing connections. Soniox additionally limits active sessions to ten minutes.',
       headers: privateHeaders,
       content: { 'application/json': { schema: transcriptionCredential } }
     },

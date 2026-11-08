@@ -5,23 +5,19 @@ import { parseTranscriptionProvider } from '../../src/shares/transcription/confi
 import { transcriptionProvider } from '../../src/shares/server/transcription-config';
 import { issueTranscriptionCredential } from '../../src/shares/server/transcription-provider';
 
-test('startup provider names require an explicit value and reject invalid values safely', () => {
+test('startup provider names default to Soniox and reject invalid values safely', () => {
   assert.throws(
     () => transcriptionEngineFactory(null),
     /Missing transcription provider bootstrap/
   );
+  assert.equal(parseTranscriptionProvider(undefined), 'soniox');
+  assert.equal(parseTranscriptionProvider('soniox'), 'soniox');
   assert.equal(parseTranscriptionProvider('openai'), 'openai');
   assert.equal(parseTranscriptionProvider('xai'), 'xai');
-  for (const value of [
-    undefined,
-    '',
-    'OPENAI',
-    ' xai',
-    'private-unknown-value'
-  ])
+  for (const value of ['', 'OPENAI', ' xai', 'private-unknown-value'])
     assert.throws(
       () => parseTranscriptionProvider(value),
-      /^Error: STT_PROVIDER must be explicitly set to openai or xai$/
+      /^Error: STT_PROVIDER must be soniox, openai or xai$/
     );
 });
 

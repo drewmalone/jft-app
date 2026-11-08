@@ -2,6 +2,8 @@ import 'server-only';
 import OpenAI from 'openai';
 import { CleanupResultError } from '../../cleanup-result-error';
 import { OpenAIKeyError } from './key';
+import { SonioxKeyError } from '../soniox/key';
+import { SonioxCredentialError } from '../soniox/errors';
 
 const publicCodes = new Set([
   'invalid_api_key',
@@ -31,7 +33,14 @@ export function reportTranscriptionFailure(
 ) {
   const label =
     operation === 'cleanup' ? '[Doorknob cleanup]' : '[Doorknob transcription]';
-  if (cause instanceof CleanupResultError) {
+  if (cause instanceof SonioxCredentialError) {
+    console.warn(label, {
+      reason: cause.reason,
+      ...(cause.status ? { status: cause.status } : {})
+    });
+  } else if (cause instanceof SonioxKeyError) {
+    console.warn(label, { reason: cause.reason });
+  } else if (cause instanceof CleanupResultError) {
     console.warn(label, {
       reason: cause.reason,
       ...(cause.detail ? { code: cause.detail } : {})
