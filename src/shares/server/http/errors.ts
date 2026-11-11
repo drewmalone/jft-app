@@ -23,6 +23,16 @@ export const apiFailures = {
     message:
       'Your text could not be tidied. Your original words are still here.'
   },
+  INVALID_READING_QUERY: { status: 400, message: 'Provide a valid timezone.' },
+  READING_CHANGED: {
+    status: 409,
+    message:
+      'The reading was updated. Your words are still here. Review the updated reading before saving again.'
+  },
+  READING_UNAVAILABLE: {
+    status: 503,
+    message: 'The reading is unavailable. Your words are still here. Try again.'
+  },
   INVALID_HISTORY_QUERY: {
     status: 400,
     message: 'Provide a valid history cursor and a limit from 1 to 50.'

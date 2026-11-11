@@ -100,7 +100,7 @@ export function optionsRoute(
   path: string,
   allow: string,
   operationId: string,
-  tag: 'Shares' | 'Transcription' = 'Shares'
+  tag: 'Shares' | 'Transcription' | 'Readings' = 'Shares'
 ) {
   return createRoute({
     method: 'options',
@@ -130,10 +130,15 @@ export const openApiConfiguration = {
     version: '0.3.0',
     contact: { url: 'https://github.com/drewmalone/jft-app/issues' },
     description:
-      'Local-development process-memory persistence. Restarts erase shares; serverless instances/replicas do not share data. Owner-scoped private shares and expiring UUID public reading links. No login or immediate link revocation.'
+      'Explicit DynamoDB persistence or disposable process memory, with date-keyed daily readings. Owner-scoped private shares and expiring UUID public reading links. No login or immediate link revocation.'
   },
   servers: [{ url: '/', description: 'Same origin as the application.' }],
   tags: [
+    {
+      name: 'Readings',
+      description:
+        'Date-keyed Just for Today text, selected by reader timezone and cached per process.'
+    },
     {
       name: 'Transcription',
       description:

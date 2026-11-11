@@ -10,6 +10,8 @@ output "compute_role_arn" {
 
 output "runtime_environment" {
   value = {
+    READINGS_SOURCE     = "dynamodb"
+    READINGS_TABLE_NAME = aws_dynamodb_table.readings.name
     SHARE_PERSISTENCE   = "dynamodb"
     DYNAMODB_TABLE_NAME = aws_dynamodb_table.shares.name
     DYNAMODB_REGION     = data.aws_region.current.region

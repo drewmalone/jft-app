@@ -1,0 +1,4 @@
+readings:
+  - date: '2026-02-30'
+    title: Fictional invalid date
+    body: This fictional test must never be uploaded.

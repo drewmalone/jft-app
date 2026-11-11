@@ -1,3 +1,4 @@
+import { reflection } from '../../src/readings/sample-reading';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
@@ -41,7 +42,11 @@ test('stale signing keys and expired credentials start fresh owners without trus
   t.mock.property(process, 'env', { ...process.env, SESSION_SECRET: key });
   t.mock.method(Date, 'now', () => now * 1000);
   const store = new InMemoryShareRepository();
-  const saved = await store.create(ownerId, 'A fictional private record.');
+  const saved = await store.create(
+    ownerId,
+    'A fictional private record.',
+    reflection
+  );
   for (const [expiresAt, signingKey] of [
     [now + 3600, 'fictional-previous-key-at-least-32-bytes'],
     [now - 1, key]

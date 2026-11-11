@@ -86,3 +86,13 @@ test('intentional exceptions require matching kind, scoped pattern and an explan
     'unexpected console error'
   );
 });
+
+test('reading revision conflicts are expected only when the matching HTTP failure was observed', () => {
+  const message =
+    'Failed to load resource: the server responded with a status of 409 (Conflict)';
+  assert.equal(browserErrorCategory('console', message, [], true), undefined);
+  assert.equal(
+    browserErrorCategory('console', message, [], false),
+    'unexpected console error'
+  );
+});

@@ -1,3 +1,4 @@
+import { reflection } from '../../src/readings/sample-reading';
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
 import type { ShareRepository } from '../../src/shares/server/storage/repository';
@@ -6,7 +7,11 @@ import { readPublicShare } from '../../src/shares/server/application/read-public
 /** Reusable behavioral checks for memory and DynamoDB; no SDK-specific expectations. */
 export async function repositoryContract(repository: ShareRepository) {
   const owner = randomUUID();
-  const saved = await repository.create(owner, '  Fictional contract text.  ');
+  const saved = await repository.create(
+    owner,
+    '  Fictional contract text.  ',
+    reflection
+  );
   assert.equal(saved.text, 'Fictional contract text.');
   assert.equal(await repository.findByOwner(saved.id, randomUUID()), null);
   assert.equal(await repository.findById('invalid'), null);
@@ -34,8 +39,10 @@ export async function repositoryContract(repository: ShareRepository) {
     (await repository.findById(saved.id))?.reflection.title,
     'Mutation'
   );
-  await assert.rejects(repository.create(owner, ' '));
-  await assert.rejects(repository.create('invalid', 'Fictional text.'));
+  await assert.rejects(repository.create(owner, ' ', reflection));
+  await assert.rejects(
+    repository.create('invalid', 'Fictional text.', reflection)
+  );
   // Legacy TTL metadata is not part of new records: links alone expire.
   assert.equal('expiresAt' in (await repository.findById(saved.id))!, false);
   assert.ok(await readPublicShare(saved.id, repository));

@@ -1,3 +1,10 @@
+import { getCookie } from 'hono/cookie';
+import { readings } from '../../../../readings/server/configured-readings';
+import {
+  readingTimeZone,
+  READING_TIME_ZONE_COOKIE
+} from '../../../../readings/calendar';
+import { errorBody } from '../errors';
 import 'server-only';
 import { createRoute, type RouteHandler } from '@hono/zod-openapi';
 import { shareSchema } from '../../../model';
@@ -27,7 +34,7 @@ export const createShareRoute = createRoute({
   request: {
     body: {
       required: true,
-      description: `Only text is accepted: at most ${MAX_SHARE_TEXT_LENGTH} Unicode code points before trimming, then at least one non-whitespace character. Raw JSON is limited to ${MAX_SHARE_REQUEST_BYTES} bytes. JSON media types are case-insensitive; valid parameters are accepted.`,
+      description: `Text plus an optional ISO readingDate is accepted: at most ${MAX_SHARE_TEXT_LENGTH} Unicode code points before trimming, then at least one non-whitespace character. Raw JSON is limited to ${MAX_SHARE_REQUEST_BYTES} bytes. JSON media types are case-insensitive; valid parameters are accepted.`,
       content: {
         'application/json': {
           schema: createShareSchema.openapi('CreateShare', {
@@ -56,17 +63,34 @@ export const createShareRoute = createRoute({
     403: failed(['CROSS_ORIGIN_REQUEST']),
     413: failed(['PAYLOAD_TOO_LARGE']),
     415: failed(['UNSUPPORTED_MEDIA_TYPE']),
+    409: failed(['READING_CHANGED']),
+    503: failed(['READING_UNAVAILABLE']),
     ...commonFailures
   }
 });
 
-/** Ownership comes from the session; client input supplies only text. */
+/** Ownership comes from the session; client input selects a date, never the reading text. */
 export const createShare: RouteHandler<
   typeof createShareRoute,
   SessionEnvironment
 > = async (c) => {
-  const { text } = c.req.valid('json');
-  const share = await shareRepository.create(c.get('ownerId'), text);
+  const { text, readingDate, readingId } = c.req.valid('json');
+  let reading;
+  try {
+    reading = readingDate
+      ? await readings.findByDate(readingDate)
+      : (
+          await readings.today(
+            readingTimeZone(getCookie(c, READING_TIME_ZONE_COOKIE))
+          )
+        ).reading;
+  } catch {
+    return c.json(errorBody('READING_UNAVAILABLE'), 503);
+  }
+  if (!reading) return c.json(errorBody('READING_UNAVAILABLE'), 503);
+  if (readingId && reading.id !== readingId)
+    return c.json(errorBody('READING_CHANGED'), 409);
+  const share = await shareRepository.create(c.get('ownerId'), text, reading);
   c.header('Location', `/api/shares/${share.id}`);
   return c.json(shareSchema.parse(share), 201);
 };

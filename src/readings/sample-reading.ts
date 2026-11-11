@@ -1,7 +1,7 @@
-import type { Reflection } from '../model';
+import type { Reading } from './model';
 
-/** Fictional placeholder used by the UI and copied by the server when saving a share. */
-export const reflection: Reflection = {
+/** Fictional local sample; deployed reading failures never fall back to this text. */
+export const reflection: Reading = {
   id: 'acceptance-2025-04-23',
   date: '2025-04-23',
   title: 'Acceptance is the answer to all my problems today.',

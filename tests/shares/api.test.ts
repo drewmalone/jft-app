@@ -5,7 +5,7 @@ import { serializeSigned } from 'hono/utils/cookie';
 import { NextRequest } from 'next/server';
 import { GET, POST } from '../../src/app/api/shares/route';
 import { GET as getDetail } from '../../src/app/api/shares/[id]/route';
-import { reflection } from '../../src/shares/reflection/reflection-fixture';
+import { reflection } from '../../src/readings/sample-reading';
 import { shareRepository } from '../../src/shares/server/storage/configured-repository';
 
 function request(method = 'GET', cookie?: string, body?: unknown) {
@@ -156,7 +156,11 @@ test('rejects cross-origin writes', async () => {
 test('repository enforces ownership and returns independent snapshots', async () => {
   const owner = randomUUID();
   const other = randomUUID();
-  const created = await shareRepository.create(owner, 'Fictional thought.');
+  const created = await shareRepository.create(
+    owner,
+    'Fictional thought.',
+    reflection
+  );
   created.reflection.title = 'Changed';
   assert.equal(
     (await shareRepository.findByOwner(created.id, owner))?.reflection.title,

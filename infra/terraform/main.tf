@@ -63,6 +63,11 @@ resource "aws_iam_role" "compute" {
 
 data "aws_iam_policy_document" "shares" {
   statement {
+    sid       = "ReadDailyReading"
+    actions   = ["dynamodb:GetItem"]
+    resources = [aws_dynamodb_table.readings.arn]
+  }
+  statement {
     sid       = "CreateAndReadShares"
     actions   = ["dynamodb:PutItem", "dynamodb:GetItem"]
     resources = [aws_dynamodb_table.shares.arn]

@@ -1,3 +1,4 @@
+import { reflection } from '../../src/readings/sample-reading';
 import '@hono/zod-openapi';
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
@@ -20,9 +21,11 @@ test('bounded memory pages traverse timestamp ties once and cannot reveal anothe
   const foreign = randomUUID();
   const saved = [];
   for (let index = 0; index < 7; index++)
-    saved.push(await repository.create(owner, `Fictional page ${index}.`));
+    saved.push(
+      await repository.create(owner, `Fictional page ${index}.`, reflection)
+    );
   assert.equal(new Set(saved.map((share) => share.createdAt)).size, 1);
-  await repository.create(foreign, 'Fictional foreign share.');
+  await repository.create(foreign, 'Fictional foreign share.', reflection);
   const ids: string[] = [];
   let cursor: string | undefined;
   do {
@@ -109,7 +112,8 @@ test('history HTTP rejects invalid queries before storage and advertises an expl
 test('later-page database failure is a sanitized HTTP failure, never a successful partial page', async (t) => {
   const stored = createStoredShare(
     randomUUID(),
-    'Fictional first database page.'
+    'Fictional first database page.',
+    reflection
   );
   let calls = 0;
   const repository = new DynamoDbShareRepository('fictional-shares', {

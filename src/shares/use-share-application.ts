@@ -1,5 +1,6 @@
+import { ApiRequestError } from './http-client';
 import { useEffect, useRef, useState, type FormEvent } from 'react';
-import type { Share } from './model';
+import type { Share, Reflection } from './model';
 import { readShare, saveShare } from './api';
 import { useShareCleanup } from './cleanup/use-share-cleanup';
 import { useShareHistory } from './history/use-share-history';
@@ -12,7 +13,10 @@ type DetailState =
   | { status: 'failed'; message: string };
 
 /** Mounted application owns the draft and async transitions across screens; never persists draft text. */
-export function useShareApplication() {
+export function useShareApplication(
+  reading: Reflection | null,
+  refreshReading: () => void
+) {
   const [screen, setScreen] = useState<Screen>({ view: 'today' });
   const [text, setText] = useState('');
   const cleanup = useShareCleanup(text, setText);
@@ -62,6 +66,12 @@ export function useShareApplication() {
   async function save(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (savePending.current || !sessionReady) return;
+    if (!reading) {
+      setSaveError(
+        'The daily reading is unavailable. Your words are still here.'
+      );
+      return;
+    }
     if (!text.trim()) {
       setSaveError('Write a few words before saving your share.');
       return;
@@ -70,12 +80,14 @@ export function useShareApplication() {
     setSaving(true);
     setSaveError('');
     try {
-      const share = await saveShare(text);
+      const share = await saveShare(text, reading.date, reading.id);
       if (!mounted.current) return;
       cleanup.edit('');
       navigate({ view: 'saved', share });
     } catch (cause) {
       if (!mounted.current) return;
+      if (cause instanceof ApiRequestError && cause.code === 'READING_CHANGED')
+        refreshReading();
       setSaveError(
         `Your share could not be saved. Your words are still here. ${cause instanceof Error ? cause.message : 'Check your connection and try again.'}`
       );

@@ -18,6 +18,7 @@ export function ShareForm({
   isCleanupPending,
   onCleanup,
   sessionReady,
+  readingReady,
   saving,
   error,
   onTextChange,
@@ -29,6 +30,7 @@ export function ShareForm({
     isCleanupPending,
     onCleanup,
     sessionReady,
+    readingReady,
     saving,
     onTextChange,
     onSave

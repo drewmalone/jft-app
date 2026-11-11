@@ -1,5 +1,7 @@
 'use client';
 
+import { useDailyReading } from '../readings/use-daily-reading';
+import type { DailyReading } from '../readings/model';
 import { useEffect, useRef } from 'react';
 import { useShareApplication } from './use-share-application';
 import { ShareForm } from './composer/share-form';
@@ -29,7 +31,8 @@ const screenCopy = {
 };
 
 /** Drafts live only in this mounted app; a fresh page starts a fresh share. */
-export function ShareApp() {
+export function ShareApp({ initialReading }: { initialReading: DailyReading }) {
+  const reading = useDailyReading(initialReading);
   const {
     screen,
     text,
@@ -44,7 +47,7 @@ export function ShareApp() {
     navigate,
     openShare,
     save
-  } = useShareApplication();
+  } = useShareApplication(reading.daily.reading, reading.retry);
   const { view } = screen;
   const heading = useRef<HTMLHeadingElement>(null);
   const navigated = useRef(false);
@@ -69,7 +72,14 @@ export function ShareApp() {
         }
       />
       <main className="mx-auto max-w-xl px-6 pb-12 pt-8 sm:px-8 sm:pt-14">
-        {view === 'today' && <ReflectionReading />}
+        {view === 'today' && (
+          <ReflectionReading
+            daily={reading.daily}
+            loading={reading.loading}
+            failed={reading.failed}
+            onRetry={reading.retry}
+          />
+        )}
         {view === 'saved' && (
           <div
             className="check mx-auto mb-5 flex h-12 w-12 items-center justify-center rounded-full text-2xl"
@@ -124,6 +134,7 @@ export function ShareApp() {
           <ShareForm
             text={text}
             sessionReady={sessionReady}
+            readingReady={!!reading.daily.reading && !reading.loading}
             saving={saving}
             error={saveError}
             onTextChange={cleanup.edit}

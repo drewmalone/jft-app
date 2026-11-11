@@ -1,8 +1,7 @@
 import 'server-only';
 import { randomUUID } from 'node:crypto';
 import { z } from 'zod';
-import { createShareSchema, shareSchema } from '../../model';
-import { reflection } from '../../reflection/reflection-fixture';
+import { createShareSchema, shareSchema, type Reflection } from '../../model';
 
 export const storedShareSchema = shareSchema.extend({
   ownerId: z.uuid()
@@ -11,7 +10,11 @@ export const storedShareSchema = shareSchema.extend({
 export type StoredShare = z.infer<typeof storedShareSchema>;
 
 /** Construct a validated reading snapshot and metadata without writing to storage. */
-export function createStoredShare(ownerId: string, text: string): StoredShare {
+export function createStoredShare(
+  ownerId: string,
+  text: string,
+  reading: Reflection
+): StoredShare {
   const input = createShareSchema.parse({ text });
   const id = randomUUID();
   const now = Date.now();
@@ -21,7 +24,7 @@ export function createStoredShare(ownerId: string, text: string): StoredShare {
     createdAt: new Date(now).toISOString(),
     kind: 'text',
     text: input.text,
-    reflection: { ...reflection },
+    reflection: { ...reading },
     ownerId
   });
 }

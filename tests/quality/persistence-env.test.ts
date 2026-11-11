@@ -19,6 +19,7 @@ test('Amplify persistence preparation writes only non-secret runtime settings', 
         encoding: 'utf8',
         env: {
           ...process.env,
+          READINGS_SOURCE: 'sample',
           SHARE_PERSISTENCE: 'dynamodb',
           DYNAMODB_TABLE_NAME: 'fictional-dev-shares',
           DYNAMODB_REGION: 'us-west-2',

@@ -1,3 +1,4 @@
+import type { Reflection } from '../../model';
 import 'server-only';
 import { DynamoDBClient } from '@aws-sdk/client-dynamodb';
 import {
@@ -34,8 +35,12 @@ export class DynamoDbShareRepository implements ShareRepository {
     return new DynamoDbShareRepository(tableName, client);
   }
 
-  async create(ownerId: string, text: string): Promise<StoredShare> {
-    const share = createStoredShare(ownerId, text);
+  async create(
+    ownerId: string,
+    text: string,
+    reading: Reflection
+  ): Promise<StoredShare> {
+    const share = createStoredShare(ownerId, text, reading);
     await this.client.send(
       new PutCommand({
         TableName: this.tableName,

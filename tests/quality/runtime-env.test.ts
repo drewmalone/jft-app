@@ -54,6 +54,8 @@ test('generated configuration round-trips through Next environment loading and m
   writeFileSync(file, initial);
   const settings = {
     SHARE_PERSISTENCE: 'dynamodb',
+    READINGS_SOURCE: 'dynamodb',
+    READINGS_TABLE_NAME: 'fictional-readings',
     DYNAMODB_TABLE_NAME: 'fictional-shares',
     DYNAMODB_REGION: 'us-west-2',
     STT_PROVIDER: 'soniox',
@@ -106,15 +108,21 @@ test('generated configuration round-trips through Next environment loading and m
     });
     assert.equal(prepare({ DYNAMODB_TABLE_NAME: '' }).status, 1);
     assert.equal(readFileSync(file, 'utf8'), generated);
+    assert.equal(prepare({ SHARE_PERSISTENCE: 'memory' }).status, 0);
+    assert.equal(load().DYNAMODB_REGION, 'us-west-2');
+    assert.equal(load().READINGS_TABLE_NAME, 'fictional-readings');
     assert.equal(
       prepare({
         SHARE_PERSISTENCE: 'memory',
+        READINGS_SOURCE: 'sample',
         STT_PROVIDER: 'openai',
         STT_ENABLED: 'false'
       }).status,
       0
     );
     assert.equal(load().DYNAMODB_TABLE_NAME, '');
+    assert.equal(load().READINGS_TABLE_NAME, '');
+    assert.equal(load().READINGS_SOURCE, 'sample');
     assert.equal(load().DYNAMODB_REGION, '');
     assert.equal(load().STT_PROVIDER, 'openai');
     assert.equal(

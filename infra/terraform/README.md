@@ -111,3 +111,11 @@ DynamoDB is on-demand; request and retained table/index storage costs grow with 
 ## Bounded history
 
 The API returns at most 20 shares by default (maximum requested limit 50). The client follows `X-Next-Cursor` only after an explicit Load more action; a database size boundary can produce a smaller page. Cursors are private positions, not authorization credentials. Each query reconstructs its owner partition from the verified session. See [the API contract](../../docs/API.md#list-private-shares) for request/response details. Pagination is not a consistent snapshot across concurrent writes or index propagation; the UI deduplicates repeated IDs and refresh starts again from the newest page.
+
+## Daily reading table and YAML content
+
+The shared root also provisions `${project_name}-${environment}-readings`, keyed directly by ISO `date`. The compute role receives only `dynamodb:GetItem` on this table. The `runtime_environment` output includes `READINGS_SOURCE=dynamodb` and `READINGS_TABLE_NAME`; the shared preparation command validates and copies them. Upload content before enabling that runtime selection.
+
+Set `readings_yaml_path` to a file containing the complete desired reading list. By default it is null and no content is seeded. The included `readings.example.yaml` contains fictional examples only. Terraform plans one item per date, updates corrections, and deletes managed entries removed from the file. Runtime code has no write permission. Full editorial text appears in Terraform state and plans. See [the YAML format, import commands, timezone and cache guide](../../docs/READINGS.md) for operator instructions.
+
+The table uses on-demand billing; process-local date caching reduces repeat reads but each replica/cold start performs its own lookups. There is no new recurring worker, scan, secondary index or distributed-cache service.

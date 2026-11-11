@@ -19,6 +19,22 @@ export function parsePersistenceConfig(env: Environment) {
     DYNAMODB_REGION: env.DYNAMODB_REGION ?? env.AWS_REGION
   });
 }
+const readingSource = z.discriminatedUnion('READINGS_SOURCE', [
+  z.object({ READINGS_SOURCE: z.literal('sample') }),
+  z.object({
+    READINGS_SOURCE: z.literal('dynamodb'),
+    READINGS_TABLE_NAME: z.string().trim().min(3).max(255),
+    DYNAMODB_REGION: z.string().trim().min(1)
+  })
+]);
+/** Explicit deployed reading storage; invalid settings never fall back to sample content. */
+export function parseReadingsConfig(env: Environment) {
+  return readingSource.parse({
+    READINGS_SOURCE: env.READINGS_SOURCE ?? 'sample',
+    READINGS_TABLE_NAME: env.READINGS_TABLE_NAME,
+    DYNAMODB_REGION: env.DYNAMODB_REGION ?? env.AWS_REGION
+  });
+}
 const secretArn = z.string().refine((value) => {
   if (!value) return true;
   try {
@@ -38,6 +54,7 @@ const speech = z.object({
 export function parseRuntimeConfig(env: Environment) {
   return {
     ...parsePersistenceConfig(env),
+    ...parseReadingsConfig(env),
     ...speech.parse({
       STT_ENABLED: env.STT_ENABLED ?? 'false',
       STT_PROVIDER: env.STT_PROVIDER,

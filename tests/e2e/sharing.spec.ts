@@ -1,5 +1,5 @@
 import { expect, test, type Page } from './fixtures/test';
-import { reflection } from '../../src/shares/reflection/reflection-fixture';
+import { reflection } from '../../src/readings/sample-reading';
 
 const fictionalText =
   'A fictional thought for a fellow alcoholic.\nOne day at a time.';

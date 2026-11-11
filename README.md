@@ -1,6 +1,6 @@
 # Doorknob v0.4
 
-Doorknob is a mobile-first recovery reflection app. Read the sample reflection, write a text share, save it through the Next.js Backend for Frontend (BFF), revisit past shares, and optionally send a reading link to another person.
+Doorknob is a mobile-first recovery reflection app. Read the daily reflection, write a text share, save it through the Next.js Backend for Frontend (BFF), revisit past shares, and optionally send a reading link to another person.
 
 ## Getting started
 
@@ -35,7 +35,7 @@ Save a share, then tap **Share with fellow alcoholic** beneath your thoughts on 
 
 Saved and shared detail pages show thoughts in full. Past shares keeps a compact two-line preview. Recipients can read the original reading and thoughts without an account, then choose **Write your own share** to open the homepage. They cannot browse the sender's history. Sharing URLs contain only a cryptographically random UUID. Anyone who learns that UUID can read that share during its lifetime; treat the full URL and share IDs as credentials and never log them. No separate sharing secret is required. Technical lifetime and storage details are in [architecture](docs/ARCHITECTURE.md#public-sharing-boundary).
 
-The reading is a fixed fictional sample dated April 23, 2025, labeled as a sample in the UI. Saved dates and times describe when each share was created, using the viewer’s local time zone. History leads with the user’s thoughts and retains the reading title as context.
+Deployed daily readings are selected by the reader’s browser timezone, with Central Time as the first-render fallback. Local development keeps the fictional sample labeled in the UI. See [daily content, YAML import and caching](docs/READINGS.md). Saved dates and times describe when each share was created, using the viewer’s local time zone. History leads with the user’s thoughts and retains the reading title as context.
 
 A sharing URL is created at save time; anyone holding it can view the share while it remains available. The UI therefore describes browser-session access and link access rather than promising that saving alone keeps a share inaccessible through its URL.
 
@@ -56,7 +56,7 @@ A sharing URL is created at save time; anyone holding it can view the share whil
 
 Blank shares cannot be saved. Text is limited to 10,000 Unicode code points, and the full JSON request is limited to 64 KiB. Oversized-input failures retain the draft for editing. Navigating between views preserves drafts. Failed saves retain your words and show an error. Pending saves disable editing and duplicate submissions. History and detail requests have loading and error feedback; failed history requests can be retried.
 
-The reading and April 23, 2025 date remain deliberate placeholders.
+Local sample mode retains the fictional April 23, 2025 reading; deployed mode uses the date-keyed readings table.
 
 ## Persistence and privacy limitations
 
