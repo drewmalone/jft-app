@@ -2,7 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
 import { readPublicShare } from '../../src/shares/server/application/read-public-share';
-import { InMemoryShareRepository } from '../../src/shares/server/storage/repository';
+import { InMemoryShareRepository } from '../../src/shares/server/storage/memory-repository';
 import { dispatch } from '../../src/shares/server/app';
 import { reflection } from '../../src/shares/reflection/reflection-fixture';
 
@@ -35,33 +35,36 @@ async function create() {
   };
 }
 
-test('public service validates UUIDs before lookup and enforces seven days from stored creation time', async (t) => {
-  t.mock.method(Date, 'now', () => now * 1000);
+test('public service validates UUIDs before lookup and expires public links without expiring private history', async (t) => {
+  let currentTime = now * 1000;
+  t.mock.method(Date, 'now', () => currentTime);
   const store = new InMemoryShareRepository();
   const saved = await store.create(
     randomUUID(),
     'Fictional public service text.'
   );
   const lookup = t.mock.method(store, 'findById');
-  assert.equal(await readPublicShare('invalid', store, now * 1000), null);
+  assert.equal(await readPublicShare('invalid', store), null);
   assert.equal(lookup.mock.callCount(), 0);
-  assert.deepEqual(await readPublicShare(saved.id, store, now * 1000), {
+  assert.deepEqual(await readPublicShare(saved.id, store), {
     reflection,
     text: saved.text
   });
-  const boundary = Date.parse(saved.createdAt) + 7 * 24 * 60 * 60 * 1000;
-  assert.ok(await readPublicShare(saved.id, store, boundary - 1));
-  assert.equal(await readPublicShare(saved.id, store, boundary), null);
-  assert.equal(await readPublicShare(saved.id, store, boundary + 1), null);
-  assert.equal(await readPublicShare(saved.id, store, now * 1000 - 1), null);
-  assert.equal(await readPublicShare(saved.id, store, NaN), null);
+  const boundary = Date.parse(saved.createdAt) + 7 * 86400_000;
+  currentTime = boundary - 1;
+  assert.ok(await readPublicShare(saved.id, store));
+  currentTime = boundary;
+  assert.equal(await readPublicShare(saved.id, store), null);
+  assert.ok(await store.findByOwner(saved.id, saved.ownerId));
+  assert.equal((await store.listByOwner(saved.ownerId)).shares.length, 1);
+  currentTime = boundary + 1;
+  assert.equal(await readPublicShare(saved.id, store), null);
+  currentTime = Number.NaN;
+  assert.equal(await readPublicShare(saved.id, store), null);
   assert.equal(
-    await readPublicShare(saved.id, new InMemoryShareRepository(), now * 1000),
+    await readPublicShare(saved.id, new InMemoryShareRepository()),
     null
   );
-  const detached = await store.findById(saved.id);
-  detached!.createdAt = new Date(boundary).toISOString();
-  assert.equal(await readPublicShare(saved.id, store, boundary), null);
 });
 
 test('saving creates one reusable UUID URL; public reads have no session side effects', async (t) => {

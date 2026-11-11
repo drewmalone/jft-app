@@ -1,6 +1,12 @@
 # Architecture
 
-Doorknob v0.3 keeps the React frontend and Next.js Backend for Frontend (BFF) in `jft-app`. App Router Route Handlers run in Node.js. There is no separately deployed backend, database, ORM, login/authentication framework, or external persistence. `@hono/zod-openapi` implements the small HTTP layer within the existing Next.js server; it does not add a separately hosted backend.
+Doorknob v0.3 keeps the React frontend and Next.js Backend for Frontend (BFF) in `jft-app`. App Router Route Handlers run in Node.js. There is no separately deployed backend, ORM, or account login framework. Storage defaults to a process-local Map; explicit deployed configuration selects a DynamoDB table. See [infrastructure and deployment](../infra/terraform/README.md). `@hono/zod-openapi` implements the small HTTP layer within the existing Next.js server; it does not add a separately hosted backend.
+
+## Persistence and retention
+
+The storage contract is defined in `storage/repository.ts`. `memory-repository.ts` and `dynamodb-repository.ts` implement it; `configured-repository.ts` selects and caches the adapter. The pure parser in `src/config/runtime.ts` is shared with deployment preparation. Provider choices and regional secret ARN parsing are shared with runtime modules; filesystem and credential I/O remain separate. Invalid configuration fails rather than falling back to memory; SDK failures propagate to generic HTTP error handling.
+
+DynamoDB uses an `id` primary key and an ALL-projection `owner-created-at` GSI. Detail reads are strongly consistent; owner history is eventually consistent and returns one bounded database page per request. The client explicitly requests older pages using a private continuation cursor; it preserves earlier pages on failure and ignores stale responses after refresh. Equal-timestamp order is unspecified. Private reads enforce ownership. The public application service separately limits link access to seven days from creation. Private records have no automatic expiry or deletion; see [data lifecycle](DATA_GLOSSARY.md#app-data-lifecycle).
 
 ## Responsibilities
 
@@ -30,7 +36,7 @@ flowchart TD
   App --> Origin[POST same-origin check]
   Origin --> Session[Validate or issue anonymous session]
   Session --> Input[POST media type, byte limit, JSON syntax, Zod validation]
-  Input --> Repository[Owner-scoped Map repository]
+  Input --> Repository[Owner-scoped memory or DynamoDB repository]
   Repository --> Output[Project saved records through Share schema]
   Output --> Browser
   Contract[Route definitions and shared Zod schemas] --> Input
@@ -43,7 +49,7 @@ Media types use `content-type` parsing rather than handwritten regular expressio
 
 ## Anonymous session boundary
 
-Hono's signed-cookie utilities sign and verify a JSON payload containing a random UUID `ownerId` and numeric `expiresAt`. After signature verification, Zod validates the payload and the server enforces absolute expiry. `getSession` returns a typed `newSession` payload only for new owners; `setSessionCookie` validates and serializes that server-created payload internally before signing. Payload types alone do not establish authenticity. Missing, malformed, forged, or expired cookies start a fresh random owner. Invalid credentials never restore ownership or grant access to old records. This disposable in-memory prototype deliberately has no separate session-recovery workflow. Cookie parsing/signature encoding and cryptographic verification belong to the library, rather than an application-specific credential format. Transport policy and client recovery behavior are documented in [the API reference](API.md#session-and-response-conventions).
+Hono's signed-cookie utilities sign and verify a JSON payload containing a random UUID `ownerId` and numeric `expiresAt`. After signature verification, Zod validates the payload and the server enforces absolute expiry. `getSession` returns a typed `newSession` payload only for new owners; `setSessionCookie` validates and serializes that server-created payload internally before signing. Payload types alone do not establish authenticity. Missing, malformed, forged, or expired cookies start a fresh random owner. Invalid credentials never restore ownership or grant access to old records. Anonymous ownership has no session-recovery workflow, including in DynamoDB mode. Cookie parsing/signature encoding and cryptographic verification belong to the library, rather than an application-specific credential format. Transport policy and client recovery behavior are documented in [the API reference](API.md#session-and-response-conventions).
 
 This prototype replaces the earlier development cookie format without migration. Old-format cookies automatically start a fresh empty owner; existing test shares are disposable.
 
@@ -63,11 +69,9 @@ A network failure after the server commits can leave the client uncertain whethe
 
 ## Persistence boundary and limitations
 
-One repository instance and the development secret are attached to `globalThis` to survive module reloads and separate route bundles within the same Node process. The repository’s Map stays private; creating another instance creates a separate empty store. Requests in that process share the data. The repository methods are asynchronous to allow replacing their implementation with a database later; there is no factory or dependency injection framework.
+A lazily selected repository instance and the development signing secret are attached to `globalThis` to survive module reloads and separate route bundles. Memory instances remain isolated. DynamoDB-backed replicas use the same configured table and stable signing secret; temporary compute-role credentials are resolved by the AWS SDK. There is no ORM or additional backend service.
 
-**Restarting the process clears all shares. This is local development storage, not reliable persistence on Vercel or other serverless infrastructure.** Replicas and workers have separate memory; no synchronization, backup, disk writes, or durability exists. The Map grows for the life of the process; cookie expiry does not evict records. There is no deletion endpoint or retention job. A future durable implementation must retain ownership checks and explicit privacy/retention rules.
-
-v0.1 browser persistence, compatibility fixtures, and storage-only tests are removed. There is no migration or import. v0.3 adds UUID public links without changing this persistence boundary.
+Restarting the process clears memory-mode shares; DynamoDB shares survive restarts. Cookie loss does not delete stored content or provide recovery. Only public links expire; neither store automatically deletes shares. There is no manual delete endpoint, backup, or migration from process-local or old browser storage. The factory and implementation preserve the same repository interface and HTTP contracts.
 
 ## Public sharing boundary
 
@@ -77,7 +81,7 @@ The sharing URL is `/s/{id}`, where `id` is generated by Node's cryptographicall
 
 `application/read-public-share.ts` validates UUIDv4 before calling trusted `findById` and returns only `reflection` and `text`. The public API and server-rendered recipient page never require or create session cookies. Malformed UUIDs, expired links, and missing records receive the same API 404; the page shows a generic unavailable message. Unexpected failures are sanitized and thrown to the Next.js error boundary, which shows a retryable error page. Diagnostics never include the raw cause, bearer URL, or reflection content. Private detail/history still require the owning session and omit owner IDs from responses.
 
-Public responses use private/no-store caching, noindex/nofollow and no-referrer headers. The recipient page has static generic metadata and no tracking. Development URL logging is disabled; hosting proxies must redact public sharing paths, including `/s/{id}`, `/api/public/shares/{id}`, and private detail paths containing the same share ID, separately. Anyone holding a link can forward it or retain copies. There is no per-link revocation, regeneration, or deletion endpoint. Links stop working after a week, loss of the underlying record; already received copies cannot be recalled. Restarts erase the in-memory shares. This remains disposable local storage.
+Public responses use private/no-store caching, noindex/nofollow and no-referrer headers. The recipient page has static generic metadata and no tracking. Development URL logging is disabled; hosting proxies must redact public sharing paths, including `/s/{id}`, `/api/public/shares/{id}`, and private detail paths containing the same share ID, separately. Anyone holding a link can forward it or retain copies. There is no per-link revocation, regeneration, or deletion endpoint. Links stop working after a week, loss of the underlying record; already received copies cannot be recalled. Restarts erase memory-mode shares. DynamoDB-mode records persist across restarts without automatic expiration.
 
 On owner and recipient detail pages, `ThoughtsText` renders the complete escaped text with preserved line breaks and wrapping for long words. Only archive entries use a two-line CSS preview. The recipient's **Write your own share** link opens `/` with prefetch disabled, so simply viewing a public share still never bootstraps a session.
 
@@ -127,7 +131,7 @@ OpenAI processes microphone audio remotely. Doorknob persists no audio; provider
 
 `server/providers/openai/cleanup.ts` uses the official OpenAI Responses SDK with `gpt-5.4-mini`, reasoning disabled, `store:false`, no tools, a timeout and no retries. A structured response is validated against the same bounded nonblank text schema. Incomplete, refused, empty or oversized responses are rejected rather than truncating or replacing the original. Instructions favor frequent mobile-friendly paragraphs (usually one or two sentences, roughly 20–45 words) and light filler editing, preservation of meaning and voice, and treating embedded commands as transcript data. These instructions are not a guarantee of semantic preservation; explicit review/save remains necessary. Safe diagnostics omit all text and raw errors.
 
-`ThoughtsText` renders each blank-line-separated paragraph as its own escaped paragraph element with larger spacing on small screens, retaining single line breaks inside paragraphs. Saved share schema, storage and public sharing boundaries stay the same. Cleanup sends an unsaved finalized draft through the BFF to OpenAI before saving; provider retention is separate from the app's lack of persistence. See README for privacy and cost. Tests cover access/size limits, non-stored structured requests, refusals/incomplete output, Unicode, stale requests, cancellation, automatic Stop behavior, and browser save/history/sharing of paragraph text. Live model editing quality remains a separate check.
+`ThoughtsText` renders each blank-line-separated paragraph as its own escaped paragraph element with larger spacing on small screens, retaining single line breaks inside paragraphs. Saved share schema, storage and public sharing boundaries stay the same. Cleanup sends an unsaved finalized draft through the BFF to OpenAI before saving; provider retention is separate from the app's storage policy. See README for privacy and cost. Tests cover access/size limits, non-stored structured requests, refusals/incomplete output, Unicode, stale requests, cancellation, automatic Stop behavior, and browser save/history/sharing of paragraph text. Live model editing quality remains a separate check.
 
 ## Startup latency and progress
 

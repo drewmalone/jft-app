@@ -50,7 +50,7 @@ Soniox results contain incremental finals and a replacement provisional suffix. 
 
 ## Amplify and Terraform
 
-Follow [the infrastructure runbook](../infra/terraform/README.md) for dev/prod state, Secrets Manager, existing-role permissions, manual plan/apply, cost and rollback procedures. Run `node scripts/prepare-transcription-env.mjs` from the repository root before the trusted Amplify build. It uses dotenvx's source editor to update only the four non-secret speech settings in `.env.production`, preserving unrelated values, comments, quoting and multiline source. Missing flags use their runtime defaults; absent secret ARNs are written empty to clear stale build configuration. Invalid input leaves the file untouched. API keys are never copied from the build environment. Local `.env.local` development needs no preparation script.
+Follow [the infrastructure runbook](../infra/terraform/README.md) for dev/prod state, Secrets Manager, existing-role permissions, manual plan/apply, cost and rollback procedures. Run `node --import tsx scripts/prepare-runtime-env.ts` from the repository root before the trusted Amplify build. It uses dotenvx's source editor to update only the four non-secret speech settings in `.env.production`, preserving unrelated values, comments, quoting and multiline source. Missing flags use their runtime defaults; absent secret ARNs are written empty to clear stale build configuration. Invalid input leaves the file untouched. API keys are never copied from the build environment. Local `.env.local` development needs no preparation script.
 
 ## Release checks and public access
 

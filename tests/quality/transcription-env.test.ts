@@ -8,24 +8,29 @@ import { parseEnv as parse } from 'node:util';
 
 test('Amplify transcription preparation validates configuration and copies only non-secret settings idempotently', () => {
   const directory = mkdtempSync(path.join(tmpdir(), 'doorknob-env-test-'));
-  const script = path.resolve('scripts/prepare-transcription-env.mjs');
+  const script = path.resolve('scripts/prepare-runtime-env.ts');
   const file = path.join(directory, '.env.production');
   const run = (settings: Record<string, string | undefined> = {}) =>
-    spawnSync(process.execPath, [script], {
-      cwd: directory,
-      encoding: 'utf8',
-      env: {
-        ...process.env,
-        AWS_SECRET_ACCESS_KEY: 'fictional-must-not-be-written',
-        STT_OPENAI_API_KEY: 'fictional-must-not-be-written',
-        STT_SONIOX_API_KEY: 'fictional-must-not-be-written',
-        STT_SONIOX_SECRET_ARN:
-          'arn:aws:secretsmanager:us-west-2:123456789012:secret:synthetic',
-        STT_PROVIDER: 'soniox',
-        STT_ENABLED: 'true',
-        ...settings
+    spawnSync(
+      process.execPath,
+      ['--import', path.resolve('node_modules/tsx/dist/loader.mjs'), script],
+      {
+        cwd: directory,
+        encoding: 'utf8',
+        env: {
+          ...process.env,
+          SHARE_PERSISTENCE: 'memory',
+          AWS_SECRET_ACCESS_KEY: 'fictional-must-not-be-written',
+          STT_OPENAI_API_KEY: 'fictional-must-not-be-written',
+          STT_SONIOX_API_KEY: 'fictional-must-not-be-written',
+          STT_SONIOX_SECRET_ARN:
+            'arn:aws:secretsmanager:us-west-2:123456789012:secret:synthetic',
+          STT_PROVIDER: 'soniox',
+          STT_ENABLED: 'true',
+          ...settings
+        }
       }
-    });
+    );
   try {
     writeFileSync(
       file,

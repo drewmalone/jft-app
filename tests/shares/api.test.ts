@@ -6,7 +6,7 @@ import { NextRequest } from 'next/server';
 import { GET, POST } from '../../src/app/api/shares/route';
 import { GET as getDetail } from '../../src/app/api/shares/[id]/route';
 import { reflection } from '../../src/shares/reflection/reflection-fixture';
-import { shareRepository } from '../../src/shares/server/storage/repository';
+import { shareRepository } from '../../src/shares/server/storage/configured-repository';
 
 function request(method = 'GET', cookie?: string, body?: unknown) {
   return new NextRequest('http://localhost/api/shares', {
@@ -163,7 +163,7 @@ test('repository enforces ownership and returns independent snapshots', async ()
     reflection.title
   );
   assert.equal(await shareRepository.findByOwner(created.id, other), null);
-  assert.deepEqual(await shareRepository.listByOwner(other), []);
+  assert.deepEqual((await shareRepository.listByOwner(other)).shares, []);
 });
 
 test('production cookies are Secure and an expired cookie starts a fresh owner', async (context) => {
