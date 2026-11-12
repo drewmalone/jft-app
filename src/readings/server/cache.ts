@@ -1,5 +1,6 @@
 import 'server-only';
 import { z } from 'zod';
+import type { Reading } from '../model';
 import { parseCatalog, type ReadingCatalog } from './catalog';
 import type { CatalogLoad } from './sources';
 
@@ -50,9 +51,15 @@ export class ReadingCache {
       });
       await this.pending;
     }
+    const entry = this.catalog!.byDay.get(date.slice(5));
+    let reading: Reading | null = null;
+    if (entry) {
+      const { revision, ...text } = entry;
+      reading = { ...text, date, id: `jft-${date}-${revision}` };
+    }
     return {
       date,
-      reading: structuredClone(this.catalog!.byDate.get(date) ?? null),
+      reading,
       sample: this.sample
     };
   }

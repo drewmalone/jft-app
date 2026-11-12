@@ -53,7 +53,10 @@ test(
       body: 'Fictional first paragraph.\n\nFictional second paragraph.'
     };
     const put = (value: typeof item) =>
-      writeFile(path, JSON.stringify([value]));
+      writeFile(
+        path,
+        JSON.stringify([{ ...value, date: value.date.slice(5) }])
+      );
     await put(item);
     const request = () =>
       dispatch(

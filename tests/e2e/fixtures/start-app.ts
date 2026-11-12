@@ -15,7 +15,7 @@ async function main() {
         ...reflection,
         date: new Date(Date.now() + (index - 4) * 86400_000)
           .toISOString()
-          .slice(0, 10)
+          .slice(5, 10)
       }))
     )
   );

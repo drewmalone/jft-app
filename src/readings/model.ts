@@ -13,6 +13,13 @@ const readingTextSchema = z.object({
 });
 /** New publications require the quotation and its attribution. */
 export const dailyTextSchema = readingTextSchema.extend({
+  date: z
+    .string()
+    .regex(/^\d{2}-\d{2}$/)
+    .refine(
+      (value) => z.iso.date().safeParse(`2000-${value}`).success,
+      'Use a valid MM-DD, including 02-29 for leap day.'
+    ),
   quote: text(5000),
   source: text(1000)
 });

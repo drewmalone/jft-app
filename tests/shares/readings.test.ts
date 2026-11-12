@@ -20,6 +20,8 @@ const reading = {
   body: 'A fictional first paragraph.\n\nA fictional second paragraph.'
 };
 
+const catalogReading = { ...reading, date: '11-11' };
+
 test('calendar selection follows reader timezone, DST, leap days, and Central fallback', () => {
   const now = Date.parse('2026-11-12T02:00:00Z');
   assert.equal(readingDate('America/Chicago', now), '2026-11-11');
@@ -43,7 +45,7 @@ test('calendar selection follows reader timezone, DST, leap days, and Central fa
 test('catalog refresh coalesces callers across dates, preserves last-good data and retries initial failures', async () => {
   let now = 0,
     calls = 0;
-  let content = JSON.stringify([reading]);
+  let content = JSON.stringify([catalogReading]);
   let fail = true;
   const cache = new ReadingCache(
     async () => {
@@ -70,7 +72,9 @@ test('catalog refresh coalesces callers across dates, preserves last-good data a
   await cache.get('2026-11-12');
   assert.equal(calls, 3);
   now = 200;
-  content = JSON.stringify([{ ...reading, body: 'Fictional correction' }]);
+  content = JSON.stringify([
+    { ...catalogReading, body: 'Fictional correction' }
+  ]);
   const corrected = (await cache.get(reading.date)).reading!;
   assert.notEqual(corrected.id, first.reading!.id);
   assert.equal(corrected.body, 'Fictional correction');
@@ -85,7 +89,7 @@ test('unchanged catalogs reuse validated content and send only the last validate
       if (calls++ === 0) {
         assert.equal(etag, undefined);
         return {
-          content: JSON.stringify([reading]),
+          content: JSON.stringify([catalogReading]),
           etag: 'one'
         };
       }
@@ -102,14 +106,14 @@ test('unchanged catalogs reuse validated content and send only the last validate
 
 test('catalog validation rejects duplicates, invalid dates, blank bodies and malformed YAML', () => {
   for (const content of [
-    JSON.stringify([reading, reading]),
-    JSON.stringify([{ ...reading, date: '2026-02-30' }]),
-    JSON.stringify([{ ...reading, body: '  ' }]),
+    JSON.stringify([catalogReading, catalogReading]),
+    JSON.stringify([{ ...catalogReading, date: '02-30' }]),
+    JSON.stringify([{ ...catalogReading, body: '  ' }]),
     'readings: []\nreadings: []',
     'readings: ['
   ])
     assert.throws(() => parseCatalog(content));
-  assert.equal(parseCatalog(JSON.stringify([])).byDate.size, 0);
+  assert.equal(parseCatalog(JSON.stringify([])).byDay.size, 0);
 });
 
 test('reading configuration selects local or S3 independently of share persistence', () => {
@@ -280,23 +284,23 @@ test('bare-list YAML preserves quotations and sources, hashes revisions, and acc
     'utf8'
   );
   assert.ok(Array.isArray(parse(content)));
-  const first = parseCatalog(content).byDate.values().next().value!;
+  const first = parseCatalog(content).byDay.values().next().value!;
   assert.ok(first.quote);
   assert.ok(first.source);
   const rows = parse(content);
   rows[0].quote += ' Fictional correction.';
   assert.notEqual(
-    parseCatalog(JSON.stringify(rows)).byDate.get(first.date)!.id,
-    first.id
+    parseCatalog(JSON.stringify(rows)).byDay.get(first.date)!.revision,
+    first.revision
   );
   rows[0].quote = first.quote;
   rows[0].source += ' Fictional correction.';
   assert.notEqual(
-    parseCatalog(JSON.stringify(rows)).byDate.get(first.date)!.id,
-    first.id
+    parseCatalog(JSON.stringify(rows)).byDay.get(first.date)!.revision,
+    first.revision
   );
   for (const field of ['quote', 'source']) {
-    const invalid = { ...reading, [field]: '' };
+    const invalid = { ...catalogReading, [field]: '' };
     assert.throws(() => parseCatalog(JSON.stringify([invalid])));
     delete invalid[field as keyof typeof invalid];
     assert.throws(() => parseCatalog(JSON.stringify([invalid])));
@@ -309,4 +313,27 @@ test('bare-list YAML preserves quotations and sources, hashes revisions, and acc
   };
   assert.deepEqual(readingSchema.parse(legacy), legacy);
   assert.throws(() => parseCatalog(JSON.stringify({ readings: [reading] })));
+});
+
+test('annual month-day readings recur across years while snapshots keep their full selected date', async () => {
+  const cache = new ReadingCache(async () => ({
+    content: JSON.stringify([
+      { ...catalogReading, date: '12-03' },
+      { ...catalogReading, date: '02-29' }
+    ])
+  }));
+  const first = (await cache.get('2028-12-03')).reading!;
+  const nextYear = (await cache.get('2029-12-03')).reading!;
+  assert.equal(first.date, '2028-12-03');
+  assert.equal(nextYear.date, '2029-12-03');
+  assert.equal(first.body, nextYear.body);
+  assert.notEqual(first.id, nextYear.id);
+  assert.equal((await cache.get('2028-02-29')).reading?.date, '2028-02-29');
+  assert.equal((await cache.get('2029-02-28')).reading, null);
+  assert.equal((await cache.get('2029-03-01')).reading, null);
+  await assert.rejects(cache.get('2029-02-29'));
+  for (const date of ['2028-12-03', '2-03', '02-30', '04-31', '13-01'])
+    assert.throws(() =>
+      parseCatalog(JSON.stringify([{ ...catalogReading, date }]))
+    );
 });

@@ -57,7 +57,7 @@ The public service rejects links seven days after the stored `createdAt` timesta
 
 `GET /api/readings/today?timeZone=America%2FChicago` is public and never creates a session cookie. `timeZone` defaults to America/Chicago and must be a valid Intl timezone. Success is 200 `{ "date": "YYYY-MM-DD", "reading": { "id": "...", "date": "...", "title": "...", "quote": "...", "source": "...", "body": "..." }, "sample": false }`. A date without published content returns `reading: null`. Invalid timezone queries return 400 `INVALID_READING_QUERY`; storage/configuration failures return sanitized 503 `READING_UNAVAILABLE`. GET/HEAD/OPTIONS are supported; other methods return coded 405. Responses are private/no-store at HTTP level; the service maintains its own bounded catalog cache.
 
-The `sample` flag reflects the configured `READINGS_SAMPLE` label for fictional content. New catalog readings include `quote` and `source`; saved snapshots created before this change may omit both. It never supplies fallback content for missing dates or source failures. See [daily readings](READINGS.md) for timezone preferences and cache behavior.
+The `sample` flag reflects the configured `READINGS_SAMPLE` label for fictional content. The catalog uses annual `MM-DD` keys; response and snapshot dates remain full ISO dates for the selected year. New catalog readings include `quote` and `source`; saved snapshots created before this change may omit both. It never supplies fallback content for missing dates or source failures. See [daily readings](READINGS.md) for timezone preferences and cache behavior.
 
 ## Read a public share
 

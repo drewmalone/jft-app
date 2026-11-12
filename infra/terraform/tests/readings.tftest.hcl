@@ -60,3 +60,12 @@ run "missing_attribution" {
   variables { readings_yaml_path = "tests/fixtures/missing-attribution.yaml" }
   expect_failures = [aws_s3_object.readings]
 }
+
+run "leap_day_is_a_valid_annual_key" {
+  command = plan
+  variables { readings_yaml_path = "tests/fixtures/leap-day-readings.yaml" }
+  assert {
+    condition     = local.readings[0].date == "02-29"
+    error_message = "Annual calendars must accept February 29 without binding the catalog to a year."
+  }
+}

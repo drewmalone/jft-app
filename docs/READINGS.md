@@ -7,7 +7,7 @@ Readings form one YAML catalog, loaded from either a local file or a private S3 
 The included [YAML example](../infra/terraform/readings.example.yaml) contains **fictional examples**, not a real reading library. Supply your own licensed editorial content:
 
 ```yaml
-- date: '2028-12-03'
+- date: '12-03'
   title: A FICTIONAL TITLE
   quote: A fictional quotation for today.
   source: Fictional collection, p. 1
@@ -17,7 +17,7 @@ The included [YAML example](../infra/terraform/readings.example.yaml) contains *
     A fictional second paragraph.
 ```
 
-Quote full ISO calendar dates, including explicit leap-day entries. Duplicate or invalid dates and blank text are rejected. Titles allow 500 characters, quotations 5,000, sources 1,000, and bodies 50,000. All five fields are required in new publications. The file is a top-level list, without a `readings:` wrapper. The catalog allows at most 3,660 entries and 10 MiB of UTF-8 YAML. Plain text and line breaks are preserved; HTML is not interpreted. Missing dates remain unavailable. The runtime setting `READINGS_SAMPLE=true` labels fictional content on Today; this metadata is outside the YAML. It never supplies a fallback for missing dates. Quotation and source display above the body and form part of the revision hash and saved snapshot. Older saved shares without those fields remain readable.
+Use quoted month-day keys (`MM-DD`), without a year. Each entry recurs annually; include `02-29` for leap days. Other days never borrow the leap-day reading. Duplicate or invalid dates and blank text are rejected. Titles allow 500 characters, quotations 5,000, sources 1,000, and bodies 50,000. Calendar matching uses the reader’s local month and day. API responses and saved snapshots still contain the full selected ISO date, including its year. All five fields are required in new publications. The file is a top-level list, without a `readings:` wrapper. The catalog allows at most 366 entries and 10 MiB of UTF-8 YAML. Plain text and line breaks are preserved; HTML is not interpreted. Missing dates remain unavailable. The runtime setting `READINGS_SAMPLE=true` labels fictional content on Today; this metadata is outside the YAML. It never supplies a fallback for missing dates. Quotation and source display above the body and form part of the revision hash and saved snapshot. Older saved shares without those fields remain readable.
 
 For local development, set `READINGS_SOURCE=local` and `READINGS_LOCAL_PATH` to the file. The default path is `infra/terraform/readings.example.yaml`, relative to the application working directory. The example only covers its listed dates, so add fictional entries for dates you want to exercise locally.
 
@@ -60,3 +60,9 @@ Browsers do not reliably send their timezone in ordinary headers. First server r
 The page checks for a date change every minute and on focus. An empty composer follows the current reading. At rollover the old unpinned reading becomes unavailable while the new date loads, including if the request fails. Existing pins remain usable. Browser requests time out after 15 seconds and are aborted on unmount; a failed request can be retried. The first nonblank typed words or recording start pins the displayed reading to that draft, including its date, revision and sample label. Background rollover does not replace it. Navigation preserves the draft. Clearing an inactive draft or successfully saving releases the pin; stopping a recording with no words also releases it. Drafting and recording work when a reading is unavailable, but saving requires a reading.
 
 The server checks a supplied revision before saving. If editorial content changed, it returns `READING_CHANGED` without writing. The draft keeps its original reading and words while the client refreshes. **Review current reading** deliberately attaches the refreshed current reading to the draft; the person then reviews it and explicitly saves again. If the pinned date was a previous day, this action moves the draft to today's reading. There is no automatic resubmission. Saved shares never follow later content edits.
+
+## Local troubleshooting
+
+Set `READINGS_SOURCE=local`, `READINGS_LOCAL_PATH=./readings.yaml`, and `READINGS_SAMPLE=false` in `.env.local`, then restart the dev server. The path is relative to the application working directory. Keep one entry per `MM-DD`; replace a full date such as `2028-12-03` with `12-03` in your local file.
+
+`/api/readings/today` returns the full selected date and reading. A 200 response with `reading: null` means no entry matches its month and day. A 503 means the catalog or configuration could not be loaded. Check the server terminal for `[readings]`: missing files and malformed YAML receive safe hints; schema failures show the field and zero-based entry index, without printing reading text. The entire catalog must validate, including entries for other days. Correct the file and retry; an initial failure is not cached. After a successful load, file edits may take up to five minutes to refresh, or restart the server to clear the process cache.
