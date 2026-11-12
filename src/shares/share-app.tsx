@@ -34,6 +34,12 @@ const screenCopy = {
 export function ShareApp({ initialReading }: { initialReading: DailyReading }) {
   const reading = useDailyReading(initialReading);
   const {
+    displayedReading,
+    pinned,
+    recordingChanged,
+    needsReview,
+    canReview,
+    reviewReading,
     screen,
     text,
     cleanup,
@@ -47,7 +53,7 @@ export function ShareApp({ initialReading }: { initialReading: DailyReading }) {
     navigate,
     openShare,
     save
-  } = useShareApplication(reading.daily.reading, reading.retry);
+  } = useShareApplication(reading.daily, reading.retry);
   const { view } = screen;
   const heading = useRef<HTMLHeadingElement>(null);
   const navigated = useRef(false);
@@ -74,9 +80,9 @@ export function ShareApp({ initialReading }: { initialReading: DailyReading }) {
       <main className="mx-auto max-w-xl px-6 pb-12 pt-8 sm:px-8 sm:pt-14">
         {view === 'today' && (
           <ReflectionReading
-            daily={reading.daily}
-            loading={reading.loading}
-            failed={reading.failed}
+            daily={displayedReading}
+            loading={!pinned && reading.loading}
+            failed={!pinned && reading.failed}
             onRetry={reading.retry}
           />
         )}
@@ -130,11 +136,36 @@ export function ShareApp({ initialReading }: { initialReading: DailyReading }) {
               Preparing your private session…
             </p>
           ))}
+        {view === 'today' && needsReview && (
+          <div className="mt-6">
+            <p>
+              Your draft still uses its original reading. Review the current
+              reading before saving again.
+            </p>
+            <button
+              className="secondary mt-3"
+              disabled={!canReview || reading.loading}
+              onClick={reviewReading}
+            >
+              Review current reading
+            </button>
+            {!canReview && (
+              <button className="secondary mt-3" onClick={reading.retry}>
+                Try reading again
+              </button>
+            )}
+          </div>
+        )}
         {view === 'today' && (
           <ShareForm
             text={text}
             sessionReady={sessionReady}
-            readingReady={!!reading.daily.reading && !reading.loading}
+            readingReady={
+              !!displayedReading.reading &&
+              (pinned || !reading.loading) &&
+              !needsReview
+            }
+            onRecordingChange={recordingChanged}
             saving={saving}
             error={saveError}
             onTextChange={cleanup.edit}

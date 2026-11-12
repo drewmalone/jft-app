@@ -1,6 +1,13 @@
+import type { DailyReading } from '../readings/model';
 import { ApiRequestError } from './http-client';
-import { useEffect, useRef, useState, type FormEvent } from 'react';
-import type { Share, Reflection } from './model';
+import {
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+  type FormEvent
+} from 'react';
+import type { Share } from './model';
 import { readShare, saveShare } from './api';
 import { useShareCleanup } from './cleanup/use-share-cleanup';
 import { useShareHistory } from './history/use-share-history';
@@ -14,11 +21,46 @@ type DetailState =
 
 /** Mounted application owns the draft and async transitions across screens; never persists draft text. */
 export function useShareApplication(
-  reading: Reflection | null,
+  daily: DailyReading,
   refreshReading: () => void
 ) {
   const [screen, setScreen] = useState<Screen>({ view: 'today' });
-  const [text, setText] = useState('');
+  const [draft, setDraft] = useState<{
+    text: string;
+    pinned: DailyReading | null;
+    recording: boolean;
+  }>({ text: '', pinned: null, recording: false });
+  const { text } = draft;
+  const [needsReview, setNeedsReview] = useState(false);
+  const setText = (value: string) => {
+    setDraft((current) => ({
+      ...current,
+      text: value,
+      pinned:
+        value.trim() || current.recording
+          ? (current.pinned ?? (daily.reading ? daily : null))
+          : null
+    }));
+    if (!value.trim()) setNeedsReview(false);
+  };
+  const recordingChanged = useCallback(
+    (recording: boolean) => {
+      setDraft((current) => {
+        if (current.recording === recording) return current;
+        return {
+          ...current,
+          recording,
+          pinned:
+            recording || current.text.trim()
+              ? (current.pinned ?? (daily.reading ? daily : null))
+              : null
+        };
+      });
+    },
+    [daily]
+  );
+  const displayedReading = draft.pinned ?? daily;
+  const reading = displayedReading.reading;
   const cleanup = useShareCleanup(text, setText);
   const {
     history,
@@ -65,7 +107,7 @@ export function useShareApplication(
   }
   async function save(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (savePending.current || !sessionReady) return;
+    if (savePending.current || !sessionReady || needsReview) return;
     if (!reading) {
       setSaveError(
         'The daily reading is unavailable. Your words are still here.'
@@ -83,11 +125,18 @@ export function useShareApplication(
       const share = await saveShare(text, reading.date, reading.id);
       if (!mounted.current) return;
       cleanup.edit('');
+      setDraft({ text: '', pinned: null, recording: false });
+      setNeedsReview(false);
       navigate({ view: 'saved', share });
     } catch (cause) {
       if (!mounted.current) return;
-      if (cause instanceof ApiRequestError && cause.code === 'READING_CHANGED')
+      if (
+        cause instanceof ApiRequestError &&
+        cause.code === 'READING_CHANGED'
+      ) {
+        setNeedsReview(true);
         refreshReading();
+      }
       setSaveError(
         `Your share could not be saved. Your words are still here. ${cause instanceof Error ? cause.message : 'Check your connection and try again.'}`
       );
@@ -97,6 +146,17 @@ export function useShareApplication(
     }
   }
   return {
+    displayedReading,
+    pinned: !!draft.pinned,
+    recordingChanged,
+    needsReview,
+    canReview: !!daily.reading && daily.reading.id !== reading?.id,
+    reviewReading() {
+      if (!daily.reading || daily.reading.id === reading?.id) return;
+      setDraft((current) => ({ ...current, pinned: daily }));
+      setNeedsReview(false);
+      setSaveError('');
+    },
     screen,
     text,
     cleanup,

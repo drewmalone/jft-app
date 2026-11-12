@@ -1,4 +1,4 @@
-import { reflection } from '../../src/readings/sample-reading';
+import { reflection } from '../fixtures/sample-reading';
 import '@hono/zod-openapi';
 import assert from 'node:assert/strict';
 import { test } from 'node:test';

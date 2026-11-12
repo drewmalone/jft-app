@@ -1,9 +1,8 @@
 import '@hono/zod-openapi';
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { GetCommand, type DynamoDBDocumentClient } from '@aws-sdk/lib-dynamodb';
+import { parseCatalog } from '../../src/readings/server/catalog';
 import { ReadingCache } from '../../src/readings/server/cache';
-import { DynamoReadingRepository } from '../../src/readings/server/repository';
 import { readingDate, readingTimeZone } from '../../src/readings/calendar';
 import { readings } from '../../src/readings/server/configured-readings';
 import { dispatch } from '../../src/shares/server/app';
@@ -36,96 +35,98 @@ test('calendar selection follows reader timezone, DST, leap days, and Central fa
   assert.equal(readingTimeZone(), 'America/Chicago');
 });
 
-test('cache shares in-flight reads, detaches results, caches missing dates, expires and bounds entries', async () => {
-  let now = 0;
-  let calls = 0;
-  let release!: () => void;
-  const gate = new Promise<void>((resolve) => {
-    release = resolve;
-  });
+test('catalog refresh coalesces callers across dates, preserves last-good data and retries initial failures', async () => {
+  let now = 0,
+    calls = 0;
+  let content = JSON.stringify({ readings: [reading] });
+  let fail = true;
   const cache = new ReadingCache(
-    async (date: string) => {
+    async () => {
       calls++;
-      await gate;
-      return date === reading.date ? reading : null;
+      if (fail) throw new Error('Fictional outage');
+      return { content, etag: 'revision-one' };
     },
     () => now,
-    100,
-    2
+    100
   );
-  const first = cache.get(reading.date);
-  const second = cache.get(reading.date);
-  release();
-  const [a, b] = await Promise.all([first, second]);
-  assert.equal(calls, 1);
-  a!.body = 'Mutation';
-  assert.equal(b!.body, reading.body);
-  assert.equal((await cache.get(reading.date))?.body, reading.body);
-  assert.equal(calls, 1);
-  assert.equal(await cache.get('2026-11-12'), null);
-  assert.equal(await cache.get('2026-11-12'), null);
+  await assert.rejects(cache.get(reading.date));
+  fail = false;
+  const [first, missing] = await Promise.all([
+    cache.get(reading.date),
+    cache.get('2026-11-12')
+  ]);
   assert.equal(calls, 2);
+  assert.equal(missing.reading, null);
+  first.reading!.body = 'Mutation';
+  assert.equal((await cache.get(reading.date)).reading!.body, reading.body);
   now = 100;
-  await cache.get(reading.date);
+  content = 'invalid: [';
+  assert.equal((await cache.get(reading.date)).reading!.body, reading.body);
   assert.equal(calls, 3);
-  await cache.get('2026-11-13');
   await cache.get('2026-11-12');
-  assert.equal(calls, 5);
+  assert.equal(calls, 3);
+  now = 200;
+  content = JSON.stringify({
+    readings: [{ ...reading, body: 'Fictional correction' }]
+  });
+  const corrected = (await cache.get(reading.date)).reading!;
+  assert.notEqual(corrected.id, first.reading!.id);
+  assert.equal(corrected.body, 'Fictional correction');
   await assert.rejects(cache.get('2026-02-30'));
 });
 
-test('failed reading lookups are not cached and date rollover selects a new key', async () => {
-  let calls = 0;
-  const cache = new ReadingCache(async (date: string) => {
-    if (++calls === 1) throw new Error('Fictional service error');
-    return { ...reading, date };
-  });
-  await assert.rejects(cache.get(reading.date));
-  assert.ok(await cache.get(reading.date));
-  assert.ok(await cache.get('2026-11-12'));
-  assert.equal(calls, 3);
+test('unchanged catalogs reuse validated content and send only the last validated ETag', async () => {
+  let now = 0,
+    calls = 0;
+  const cache = new ReadingCache(
+    async (etag) => {
+      if (calls++ === 0) {
+        assert.equal(etag, undefined);
+        return {
+          content: JSON.stringify({ readings: [reading] }),
+          etag: 'one'
+        };
+      }
+      assert.equal(etag, 'one');
+      return { notModified: true };
+    },
+    () => now,
+    100
+  );
+  const first = await cache.get(reading.date);
+  now = 100;
+  assert.deepEqual(await cache.get(reading.date), first);
+  assert.equal(calls, 2);
 });
 
-test('date-keyed adapter uses GetItem and rejects invalid/mismatched content', async () => {
-  let item: unknown = reading;
-  const client = {
-    send: async (command: GetCommand) => {
-      assert.ok(command instanceof GetCommand);
-      assert.equal(command.input.TableName, 'fictional-readings');
-      assert.deepEqual(command.input.Key, { date: reading.date });
-      assert.equal(command.input.ConsistentRead, true);
-      return { Item: item };
-    }
-  } as unknown as Pick<DynamoDBDocumentClient, 'send'>;
-  const repository = new DynamoReadingRepository('fictional-readings', client);
-  const loaded = await repository.findByDate(reading.date);
-  assert.equal(loaded?.date, reading.date);
-  assert.equal(loaded?.body, reading.body);
-  assert.ok(loaded?.id.startsWith(`jft-${reading.date}-`));
-  item = { ...reading, body: 'A fictional revision.' };
-  assert.notEqual((await repository.findByDate(reading.date))?.id, loaded?.id);
-  item = undefined;
-  assert.equal(await repository.findByDate(reading.date), null);
-  item = { ...reading, date: '2026-11-12' };
-  await assert.rejects(repository.findByDate(reading.date));
-  item = { ...reading, body: '' };
-  await assert.rejects(repository.findByDate(reading.date));
+test('catalog validation rejects duplicates, invalid dates, blank bodies and malformed YAML', () => {
+  for (const content of [
+    JSON.stringify({ readings: [reading, reading] }),
+    JSON.stringify({ readings: [{ ...reading, date: '2026-02-30' }] }),
+    JSON.stringify({ readings: [{ ...reading, body: '  ' }] }),
+    'readings: []\nreadings: []',
+    'readings: ['
+  ])
+    assert.throws(() => parseCatalog(content));
+  assert.equal(parseCatalog(JSON.stringify({ readings: [] })).byDate.size, 0);
 });
 
-test('reading configuration is explicit and never falls back from invalid DynamoDB settings', () => {
-  assert.deepEqual(parseReadingsConfig({}), { READINGS_SOURCE: 'sample' });
+test('reading configuration selects local or S3 independently of share persistence', () => {
+  assert.equal(parseReadingsConfig({}).READINGS_SOURCE, 'local');
   assert.throws(() => parseReadingsConfig({ READINGS_SOURCE: 'unknown' }));
-  assert.throws(() => parseReadingsConfig({ READINGS_SOURCE: 'dynamodb' }));
+  assert.throws(() => parseReadingsConfig({ READINGS_SOURCE: 's3' }));
   assert.deepEqual(
     parseReadingsConfig({
-      READINGS_SOURCE: 'dynamodb',
-      READINGS_TABLE_NAME: 'fictional-readings',
-      AWS_REGION: 'us-west-2'
+      READINGS_SOURCE: 's3',
+      READINGS_S3_BUCKET: 'fictional-readings',
+      AWS_REGION: 'us-east-2',
+      DYNAMODB_REGION: 'us-west-2'
     }),
     {
-      READINGS_SOURCE: 'dynamodb',
-      READINGS_TABLE_NAME: 'fictional-readings',
-      DYNAMODB_REGION: 'us-west-2'
+      READINGS_SOURCE: 's3',
+      READINGS_S3_BUCKET: 'fictional-readings',
+      READINGS_S3_KEY: 'just-for-today.yaml',
+      READINGS_REGION: 'us-east-2'
     }
   );
 });

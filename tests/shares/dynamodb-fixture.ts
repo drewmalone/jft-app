@@ -9,7 +9,7 @@ import {
 import { DynamoDBDocumentClient } from '@aws-sdk/lib-dynamodb';
 
 /** Isolated local tables with synthetic credentials. Never selects the AWS credential chain. */
-export async function dynamoTable(t: TestContext, key: 'id' | 'date') {
+export async function dynamoTable(t: TestContext) {
   const endpoint = process.env.DYNAMODB_LOCAL_ENDPOINT;
   if (!endpoint) throw new Error('Configure DynamoDB Local explicitly.');
   const client = new DynamoDBClient({
@@ -20,7 +20,7 @@ export async function dynamoTable(t: TestContext, key: 'id' | 'date') {
       secretAccessKey: 'localtestsecretaccesskey000000000000000000000000'
     }
   });
-  const tableName = `test-${key}-${randomUUID()}`;
+  const tableName = `test-shares-${randomUUID()}`;
   let created = false;
   t.after(async () => {
     try {
@@ -34,30 +34,22 @@ export async function dynamoTable(t: TestContext, key: 'id' | 'date') {
     new CreateTableCommand({
       TableName: tableName,
       BillingMode: 'PAY_PER_REQUEST',
-      KeySchema: [{ AttributeName: key, KeyType: 'HASH' }],
+      KeySchema: [{ AttributeName: 'id', KeyType: 'HASH' }],
       AttributeDefinitions: [
-        { AttributeName: key, AttributeType: 'S' },
-        ...(key === 'id'
-          ? [
-              { AttributeName: 'ownerId', AttributeType: 'S' as const },
-              { AttributeName: 'createdAt', AttributeType: 'S' as const }
-            ]
-          : [])
+        { AttributeName: 'id', AttributeType: 'S' },
+        { AttributeName: 'ownerId', AttributeType: 'S' },
+        { AttributeName: 'createdAt', AttributeType: 'S' }
       ],
-      ...(key === 'id'
-        ? {
-            GlobalSecondaryIndexes: [
-              {
-                IndexName: 'owner-created-at',
-                KeySchema: [
-                  { AttributeName: 'ownerId', KeyType: 'HASH' as const },
-                  { AttributeName: 'createdAt', KeyType: 'RANGE' as const }
-                ],
-                Projection: { ProjectionType: 'ALL' as const }
-              }
-            ]
-          }
-        : {})
+      GlobalSecondaryIndexes: [
+        {
+          IndexName: 'owner-created-at',
+          KeySchema: [
+            { AttributeName: 'ownerId', KeyType: 'HASH' },
+            { AttributeName: 'createdAt', KeyType: 'RANGE' }
+          ],
+          Projection: { ProjectionType: 'ALL' }
+        }
+      ]
     })
   );
   created = true;

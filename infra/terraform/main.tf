@@ -63,9 +63,9 @@ resource "aws_iam_role" "compute" {
 
 data "aws_iam_policy_document" "shares" {
   statement {
-    sid       = "ReadDailyReading"
-    actions   = ["dynamodb:GetItem"]
-    resources = [aws_dynamodb_table.readings.arn]
+    sid       = "ReadDailyReadings"
+    actions   = ["s3:GetObject"]
+    resources = ["${aws_s3_bucket.readings.arn}/${aws_s3_object.readings.key}"]
   }
   statement {
     sid       = "CreateAndReadShares"

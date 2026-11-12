@@ -1,4 +1,4 @@
-import type { FormEvent } from 'react';
+import { useEffect, useRef, type FormEvent } from 'react';
 import type { CleanupStatus } from '../cleanup/model';
 import { useTranscription } from '../transcription/use-transcription';
 
@@ -13,6 +13,7 @@ export interface ShareComposerOptions {
   readingReady?: boolean;
   saving: boolean;
   onTextChange: (text: string) => void;
+  onRecordingChange?: (active: boolean) => void;
   onSave: (event: FormEvent<HTMLFormElement>) => void;
 }
 
@@ -26,6 +27,7 @@ export function useShareComposer({
   readingReady = true,
   saving,
   onTextChange,
+  onRecordingChange,
   onSave
 }: ShareComposerOptions) {
   const voice = useTranscription(text, onTextChange, {
@@ -33,6 +35,14 @@ export function useShareComposer({
       void onCleanup(value);
     }
   });
+  useEffect(() => {
+    onRecordingChange?.(voice.active);
+  }, [voice.active, voice.state, onRecordingChange]);
+  const recordingCallback = useRef(onRecordingChange);
+  useEffect(() => {
+    recordingCallback.current = onRecordingChange;
+  }, [onRecordingChange]);
+  useEffect(() => () => recordingCallback.current?.(false), []);
   return {
     voice,
     recordingDisabled: !sessionReady || saving || cleanupStatus === 'pending',
@@ -60,7 +70,10 @@ export function useShareComposer({
     toggleRecording() {
       if (!sessionReady || saving || isCleanupPending()) return;
       if (voice.active) voice.stop();
-      else voice.start();
+      else {
+        onRecordingChange?.(true);
+        voice.start();
+      }
     },
     retryCleanup() {
       if (!voice.active && !saving && !isCleanupPending()) void onCleanup(text);

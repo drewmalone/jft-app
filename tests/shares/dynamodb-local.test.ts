@@ -1,4 +1,4 @@
-import { reflection } from '../../src/readings/sample-reading';
+import { reflection } from '../fixtures/sample-reading';
 import '@hono/zod-openapi';
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
@@ -17,7 +17,7 @@ test(
   'DynamoDB Local applies repository contract, ordering, pagination, and conditional writes',
   { skip: !endpoint },
   async (t) => {
-    const { documentClient, tableName } = await dynamoTable(t, 'id');
+    const { documentClient, tableName } = await dynamoTable(t);
     const repository = new DynamoDbShareRepository(tableName, documentClient);
     await repositoryContract(repository);
     const ownerId = randomUUID();

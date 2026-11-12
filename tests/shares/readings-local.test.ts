@@ -1,8 +1,10 @@
 import '@hono/zod-openapi';
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { GetCommand, PutCommand } from '@aws-sdk/lib-dynamodb';
-import { DynamoReadingRepository } from '../../src/readings/server/repository';
+import { mkdtemp, writeFile, rm } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { localCatalog } from '../../src/readings/server/sources';
 import { ReadingCache } from '../../src/readings/server/cache';
 import { readings } from '../../src/readings/server/configured-readings';
 import { readingDate } from '../../src/readings/calendar';
@@ -15,8 +17,10 @@ test(
   'date-keyed readings are cached across HTTP requests and copied into durable shares',
   { skip: !process.env.DYNAMODB_LOCAL_ENDPOINT },
   async (t) => {
-    const readingTable = await dynamoTable(t, 'date');
-    const shareTable = await dynamoTable(t, 'id');
+    const directory = await mkdtemp(join(tmpdir(), 'readings-'));
+    t.after(() => rm(directory, { recursive: true, force: true }));
+    const path = join(directory, 'readings.yaml');
+    const shareTable = await dynamoTable(t);
     const shares = new DynamoDbShareRepository(
       shareTable.tableName,
       shareTable.documentClient
@@ -24,25 +28,22 @@ test(
     for (const method of ['create', 'findById', 'findByOwner'] as const)
       t.mock.method(shareRepository, method, shares[method].bind(shares));
     let lookups = 0;
-    const client = {
-      send: async (command: GetCommand) => {
-        lookups++;
-        return readingTable.documentClient.send(command);
-      }
-    };
-    const repository = new DynamoReadingRepository(
-      readingTable.tableName,
-      client
-    );
     let now = Date.parse('2026-11-11T12:00:00Z');
     const cache = new ReadingCache(
-      repository.findByDate.bind(repository),
+      async () => {
+        lookups++;
+        return localCatalog(path)();
+      },
       () => now
     );
-    t.mock.method(readings, 'findByDate', cache.get.bind(cache));
+    t.mock.method(
+      readings,
+      'findByDate',
+      async (date: string) => (await cache.get(date)).reading
+    );
     t.mock.method(readings, 'today', async (timeZone: string) => {
       const date = readingDate(timeZone, now);
-      return { date, reading: await cache.get(date), sample: false };
+      return cache.get(date);
     });
     const item = {
       date: '2026-11-11',
@@ -50,9 +51,7 @@ test(
       body: 'Fictional first paragraph.\n\nFictional second paragraph.'
     };
     const put = (value: typeof item) =>
-      readingTable.documentClient.send(
-        new PutCommand({ TableName: readingTable.tableName, Item: value })
-      );
+      writeFile(path, JSON.stringify({ readings: [value] }));
     await put(item);
     const request = () =>
       dispatch(
@@ -108,8 +107,8 @@ test(
       })
     );
     assert.equal((await privateRead.json()).reflection.body, item.body);
-    assert.equal(await cache.get('2026-11-12'), null);
-    assert.equal(await cache.get('2026-11-12'), null);
-    assert.equal(lookups, 3);
+    assert.equal((await cache.get('2026-11-12')).reading, null);
+    assert.equal((await cache.get('2026-11-12')).reading, null);
+    assert.equal(lookups, 2);
   }
 );

@@ -18,7 +18,11 @@ function main() {
   const settings = {
     DYNAMODB_TABLE_NAME: '',
     DYNAMODB_REGION: '',
-    READINGS_TABLE_NAME: '',
+    READINGS_TABLE_NAME: '', // Clear obsolete deployment setting.
+    READINGS_LOCAL_PATH: '',
+    READINGS_S3_BUCKET: '',
+    READINGS_S3_KEY: '',
+    READINGS_REGION: '',
     ...config
   };
   for (const [key, value] of Object.entries(settings))

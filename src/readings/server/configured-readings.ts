@@ -1,44 +1,34 @@
 import 'server-only';
+import { S3Client } from '@aws-sdk/client-s3';
 import { parseReadingsConfig } from '../../config/runtime';
-import { reflection } from '../sample-reading';
 import { readingDate } from '../calendar';
-import type { DailyReading, Reading } from '../model';
 import { ReadingCache } from './cache';
-import { DynamoReadingRepository } from './repository';
+import { localCatalog, s3Catalog } from './sources';
 
 const processState = globalThis as typeof globalThis & {
-  dailyReadings?: { cache: ReadingCache; sample: boolean };
+  dailyReadings?: ReadingCache;
 };
 function current() {
   if (!processState.dailyReadings) {
     const config = parseReadingsConfig(process.env);
-    const source =
-      config.READINGS_SOURCE === 'sample'
-        ? null
-        : DynamoReadingRepository.forRegion(
-            config.READINGS_TABLE_NAME,
-            config.DYNAMODB_REGION
-          );
-    processState.dailyReadings = {
-      cache: new ReadingCache(
-        source ? source.findByDate.bind(source) : async () => reflection
-      ),
-      sample: !source
-    };
+    processState.dailyReadings = new ReadingCache(
+      config.READINGS_SOURCE === 'local'
+        ? localCatalog(config.READINGS_LOCAL_PATH)
+        : s3Catalog(
+            config.READINGS_S3_BUCKET,
+            config.READINGS_S3_KEY,
+            new S3Client({ region: config.READINGS_REGION })
+          )
+    );
   }
   return processState.dailyReadings;
 }
-/** Shared server entry point. The table/cache are selected lazily, without build-time AWS access. */
+/** Lazily load on the first request, never during a build. Each process retains the validated catalog. */
 export const readings = {
-  findByDate(date: string): Promise<Reading | null> {
-    return current().cache.get(date);
+  async findByDate(date: string) {
+    return (await current().get(date)).reading;
   },
-  async today(timeZone: string, now = Date.now()): Promise<DailyReading> {
-    const date = readingDate(timeZone, now);
-    return {
-      date,
-      reading: await this.findByDate(date),
-      sample: current().sample
-    };
+  today(timeZone: string, now = Date.now()) {
+    return current().get(readingDate(timeZone, now));
   }
 };

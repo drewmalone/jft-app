@@ -1,4 +1,5 @@
 import { test, expect } from './fixtures/test';
+import { mockSpeech, emit } from './fixtures/openai-browser';
 import { randomUUID } from 'node:crypto';
 import { readingDate } from '../../src/readings/calendar';
 
@@ -20,12 +21,19 @@ test('browser supplies its timezone and saving keeps the displayed reading acros
   const now = Date.now() + 3 * 86400_000;
   const date = readingDate('Asia/Tokyo', now);
   const reading = fictionalReading(date);
+  let servedDate = date;
   await page.clock.install({ time: new Date(now) });
   await page.route('**/api/readings/today?*', async (route) => {
     expect(new URL(route.request().url()).searchParams.get('timeZone')).toBe(
       'Asia/Tokyo'
     );
-    await route.fulfill({ json: { date, reading, sample: false } });
+    await route.fulfill({
+      json: {
+        date: servedDate,
+        reading: fictionalReading(servedDate),
+        sample: false
+      }
+    });
   });
   await page.goto('/');
   await expect(page.getByText(reading.title, { exact: true })).toBeVisible();
@@ -39,7 +47,15 @@ test('browser supplies its timezone and saving keeps the displayed reading acros
   await expect(
     page.getByRole('button', { name: 'Save privately' })
   ).toBeEnabled();
+  servedDate = readingDate('Asia/Tokyo', now + 86400_000);
   await page.clock.setSystemTime(new Date(now + 86400_000));
+  const refreshed = page.waitForResponse('**/api/readings/today?*');
+  await page.evaluate(() => window.dispatchEvent(new Event('focus')));
+  await refreshed;
+  await expect(page.getByText(reading.title, { exact: true })).toBeVisible();
+  await page.getByRole('button', { name: 'Past shares' }).click();
+  await page.getByRole('button', { name: 'Today’s reflection' }).click();
+  await expect(page.getByText(reading.title, { exact: true })).toBeVisible();
   await page.route('**/api/shares', async (route) => {
     if (route.request().method() !== 'POST') return route.continue();
     expect(route.request().postDataJSON()).toEqual({
@@ -65,6 +81,13 @@ test('browser supplies its timezone and saving keeps the displayed reading acros
     page.getByRole('heading', { name: 'Your share is saved.' })
   ).toBeVisible();
   await expect(page.locator('article')).toContainText(reading.title);
+  await page
+    .getByRole('button', { name: "Today's reflection", exact: true })
+    .click();
+  await expect(page.getByRole('textbox')).toHaveValue('');
+  await expect(
+    page.getByText(fictionalReading(servedDate).title, { exact: true })
+  ).toBeVisible();
 });
 
 test('returning to the page after local midnight selects the new reading', async ({
@@ -173,14 +196,46 @@ test('an editorial update refreshes the reading without losing the draft or resu
     .getByRole('textbox')
     .fill('Fictional draft to keep after an edit.');
   await page.getByRole('button', { name: 'Save privately' }).click();
+  await page.getByRole('button', { name: 'Review current reading' }).click();
   await expect(
     page.getByText('Fictional revised reading', { exact: true })
   ).toBeVisible();
   await expect(page.getByRole('textbox')).toHaveValue(
     'Fictional draft to keep after an edit.'
   );
-  await expect(page.getByRole('main').getByRole('alert')).toContainText(
-    'The reading was updated'
-  );
+  await expect(
+    page.getByRole('button', { name: 'Save privately' })
+  ).toBeEnabled();
   expect(saves).toBe(1);
+});
+
+test('recording pins the reading before any final words and releases an empty stopped draft', async ({
+  page
+}) => {
+  const now = Date.now() + 3 * 86400_000;
+  let date = readingDate('Asia/Tokyo', now);
+  const original = fictionalReading(date);
+  await mockSpeech(page);
+  await page.clock.install({ time: new Date(now) });
+  await page.route('**/api/readings/today?*', (route) =>
+    route.fulfill({
+      json: { date, reading: fictionalReading(date), sample: false }
+    })
+  );
+  await page.goto('/');
+  await expect(page.getByText(original.title, { exact: true })).toBeVisible();
+  await page.getByRole('button', { name: 'Record your share' }).click();
+  await emit(page, 'speechStart');
+  date = readingDate('Asia/Tokyo', now + 86400_000);
+  await page.clock.setSystemTime(new Date(now + 86400_000));
+  const refreshed = page.waitForResponse('**/api/readings/today?*');
+  await page.evaluate(() => window.dispatchEvent(new Event('focus')));
+  await refreshed;
+  await expect(page.getByRole('textbox')).toHaveValue('');
+  await expect(page.getByText(original.title, { exact: true })).toBeVisible();
+  await page.getByRole('button', { name: 'Stop listening' }).click();
+  await emit(page, 'speechEnd');
+  await expect(
+    page.getByText(fictionalReading(date).title, { exact: true })
+  ).toBeVisible();
 });

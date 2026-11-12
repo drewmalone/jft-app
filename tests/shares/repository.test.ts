@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
 import { InMemoryShareRepository } from '../../src/shares/server/storage/memory-repository';
 import { createStoredShare } from '../../src/shares/server/storage/create-stored-share';
-import { reflection } from '../../src/readings/sample-reading';
+import { reflection } from '../fixtures/sample-reading';
 
 test('memory repository instances isolate records', async () => {
   const owner = randomUUID();

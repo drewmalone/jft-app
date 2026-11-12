@@ -1,10 +1,10 @@
 # Daily Just for Today readings
 
-Daily content lives in a separate DynamoDB table with a string partition key `date` (`YYYY-MM-DD`). One `GetItem` retrieves the reading; no secondary index, scan, audio storage or new backend service is needed. The runtime compute role can only read this table. Terraform's operator performs uploads.
+Readings form one YAML catalog, loaded from either a local file or a private S3 object. DynamoDB stores saved shares and their reading snapshots. The application loads the catalog lazily on its first reading request and caches it in memory; builds never download content.
 
-## Content and import
+## Content and publication
 
-The included [YAML example](../infra/terraform/readings.example.yaml) contains **fictional examples**, not a real reading library. Supply your own editorial content in this shape:
+The included [YAML example](../infra/terraform/readings.example.yaml) contains **fictional examples**, not a real reading library. Supply your own licensed editorial content:
 
 ```yaml
 readings:
@@ -16,58 +16,45 @@ readings:
       A fictional second paragraph.
 ```
 
-Use quoted, full ISO calendar dates, not timestamps or recurring month/day keys. Titles must be nonblank strings of at most 500 characters; bodies must be nonblank strings of at most 50,000 characters. Plain text and line breaks are preserved; HTML is not interpreted. Invalid calendar dates and duplicate dates fail Terraform planning. Include explicit leap-day entries when publishing leap years. Missing dates are unavailable; content is not silently borrowed from yesterday.
+Quote full ISO calendar dates, including explicit leap-day entries. Duplicate or invalid dates and blank text are rejected. Titles allow 500 characters; bodies allow 50,000. The catalog allows at most 3,660 entries and 10 MiB of UTF-8 YAML. Plain text and line breaks are preserved; HTML is not interpreted. Missing dates remain unavailable. The optional top-level `sample: true` labels fictional content in the UI; it never supplies a fallback for missing dates.
 
-After selecting and initializing the appropriate backend/account as described in the [infrastructure runbook](../infra/terraform/README.md), review a plan with the chosen file:
+For local development, set `READINGS_SOURCE=local` and `READINGS_LOCAL_PATH` to the file. The default path is `infra/terraform/readings.example.yaml`, relative to the application working directory. The example only covers its listed dates, so add fictional entries for dates you want to exercise locally.
+
+For S3, Terraform provisions a private encrypted, versioned bucket and uploads the complete catalog as `just-for-today.yaml`. Set the required `readings_yaml_path` in the environment's reviewed tfvars file; paths are relative to the Terraform root, or absolute. The checked-in environment files explicitly select the fictional example: replace that path before deploying real content. Keeping the path in configuration means a later routine plan cannot accidentally omit a one-off upload flag.
+
+After selecting and initializing the correct backend/account in the [infrastructure runbook](../infra/terraform/README.md):
 
 ```bash
-terraform -chdir=infra/terraform plan \
-  -var-file=environments/dev.tfvars \
-  -var=readings_yaml_path=readings.example.yaml \
-  -out=dev-readings.tfplan
-# Review the exact environment and data changes before applying.
+terraform -chdir=infra/terraform plan -var-file=environments/dev.tfvars -out=dev-readings.tfplan
+# Review the environment and object changes, then apply the reviewed plan.
 terraform -chdir=infra/terraform apply dev-readings.tfplan
 ```
 
-The operator needs GetItem, PutItem and DeleteItem on the readings table to manage its content; the runtime role deliberately has no write access.
-
-The filename is relative to the Terraform root after `-chdir` (absolute paths also work). Replace the example path with your own file. `readings_yaml_path` defaults to null: provisioning a table does not silently publish example text. Persist the chosen path in the environment's reviewed variable file or supply it on every plan. Plan/apply remains manual; app builds do not import content.
-
-Each date becomes an `aws_dynamodb_table_item.reading` resource. Editing a date updates it; removing an entry (or removing the file selection) plans deletion of previously managed rows. Keep the complete desired list in the selected file. Terraform state and saved plans contain the full editorial text. Do not place private shares, credentials or personal journal entries in this file. Saved shares retain their original reading snapshots even if a source row is edited or removed.
+Editing the selected file publishes a new object version. Removing entries makes those dates unavailable after refresh. The runtime role has only `s3:GetObject` on this object; Terraform's operator owns publication. Saved shares retain their original snapshots. Content belongs in the YAML file, never private shares, credentials or personal journals. S3 versions retain prior publications until explicitly removed.
 
 ## Runtime configuration
 
-| Setting                    | Meaning                                                                                                 |
-| -------------------------- | ------------------------------------------------------------------------------------------------------- |
-| `READINGS_SOURCE=sample`   | Default local-development mode; the existing fictional sample remains visibly labeled.                  |
-| `READINGS_SOURCE=dynamodb` | Explicit deployed mode; missing or invalid configuration fails rather than falling back to sample text. |
-| `READINGS_TABLE_NAME`      | Required in DynamoDB mode, supplied by Terraform's runtime output.                                      |
-| `DYNAMODB_REGION`          | Table region; `AWS_REGION` is a runtime fallback.                                                       |
+| Setting                 | Meaning                                                                          |
+| ----------------------- | -------------------------------------------------------------------------------- |
+| `READINGS_SOURCE=local` | Default; read a local YAML catalog.                                              |
+| `READINGS_LOCAL_PATH`   | File path; defaults to the included example.                                     |
+| `READINGS_SOURCE=s3`    | Read a private S3 YAML catalog; invalid configuration fails.                     |
+| `READINGS_S3_BUCKET`    | Required S3 bucket name.                                                         |
+| `READINGS_S3_KEY`       | Object key; defaults to `just-for-today.yaml`.                                   |
+| `READINGS_REGION`       | S3 region; falls back to `AWS_REGION`. Independent of shares' `DYNAMODB_REGION`. |
 
-Use the shared `node --import tsx scripts/prepare-runtime-env.ts` command before the application build, preserving the deployment's existing stable session-secret delivery. Upload content **before** enabling deployed reading mode. No permanent AWS keys are copied into the application. Changes to source/table/region require restart/redeployment.
+Terraform's `runtime_environment` output provides the S3 settings. Use `node --import tsx scripts/prepare-runtime-env.ts` before building, preserving stable session-secret delivery. The AWS SDK uses the compute role; do not copy permanent AWS keys. Changing source/path/bucket/key/region requires restarting the application. Local files must be included in the deployed artifact if local mode is used outside development.
 
-## Reader timezone and daily rollover
+## Cache and failures
 
-Browsers do not reliably send a timezone in normal request headers. The first server render defaults to `America/Chicago`. The page explicitly obtains the browser's timezone through `Intl.DateTimeFormat().resolvedOptions().timeZone`, stores it in the nonsecret `reading-time-zone` preference cookie, and requests the appropriate reading if its local date differs. The server validates the preference; invalid cookies fall back to Central Time. Later renders use the remembered preference. It provides no authentication or ownership.
+One process-global cache is shared by server rendering and API routes within each Node instance. It loads and validates the entire catalog before publishing any change, coalescing concurrent requests across all dates. Requests return detached readings. Subsequent requests revalidate after five minutes; S3 uses `If-None-Match` with the last successfully validated ETag. Local mode rereads the file. No request is needed merely to select another date from the loaded catalog.
 
-The page checks for a date change every minute and when the window regains focus. It does not send a request when the local calendar date is unchanged. Calendar selection uses Intl timezone rules, including DST and leap years. An already open page picks up a changed operating-system timezone on reload. A first visit near a date boundary may briefly show Central Time's reading before local selection finishes; saving is disabled while that lookup is pending.
+A refresh failure retains the last valid catalog and retries on a request after one minute. An initial failure has no fallback, returns unavailable, and is retried on the next request. Thus an outage can keep older content available beyond five minutes. Each replica/cold start loads independently; this is not a distributed cache. No timers or recurring jobs are required. S3 requests have a 15-second deadline and downloads are bounded to the catalog size limit.
 
-No reading is published for a selected date: show an unavailable state, preserve the draft, and offer retry. Drafting and recording remain independent of reading availability; saving requires a reading.
+## Reader timezone and active drafts
 
-## Process-local cache
+Browsers do not reliably send their timezone in ordinary headers. First server render defaults to `America/Chicago`. The client reads `Intl.DateTimeFormat().resolvedOptions().timeZone`, stores the validated nonsecret `reading-time-zone` preference cookie, and requests its local date when needed. Later server renders use the preference; invalid values fall back to Central Time. The cookie has no ownership or authentication role.
 
-A process-global cache is shared by server rendering and API routes within each Node instance. It retains up to 16 date entries for five minutes, including missing-date results, and coalesces concurrent lookups. Database failures are not cached. Cache entries are detached before returning them, so a caller cannot mutate a later response. New local dates select different cache keys immediately.
+The page checks for a date change every minute and on focus. An empty composer follows the current reading. The first nonblank typed words or recording start pins the displayed reading to that draft, including its date, revision and sample label. Background rollover does not replace it. Navigation preserves the draft. Clearing an inactive draft or successfully saving releases the pin; stopping a recording with no words also releases it. Drafting and recording work when a reading is unavailable, but saving requires a reading.
 
-This is an in-memory cache, not browser storage, disk persistence or a distributed cache. Each replica/cold start performs its own lookup. Corrections and newly published missing dates can take up to five minutes to appear on a new request. Restarting instances also clears their caches. An open page keeps its displayed reading until rollover or an explicit retry; it does not poll for same-day editorial edits.
-
-## Saved snapshots and revisions
-
-The client sends its displayed `readingDate` and `readingId` with the text. The server looks up the date and validates the content revision; it never accepts reading text, ownership or authoritative metadata from the client. IDs for deployed readings include a hash of the date/title/body. Saving after midnight still uses the displayed date.
-
-If an editorial correction changed that revision, save returns 409 `READING_CHANGED`, leaves the draft intact, refreshes the reading and asks the person to review before saving again. There is no automatic resubmission. A missing reading returns 503 `READING_UNAVAILABLE`. Existing text-only API clients remain supported and select the current reading using the remembered timezone (Central Time by default); clients should send both fields to bind a displayed revision.
-
-After saving, the complete reading snapshot lives in the share. Later cache expiration, edits or source deletion cannot rewrite it. Existing private ownership and seven-day public-link expiration are unchanged.
-
-## Verification
-
-Default tests cover timezone selection, DST/leap days, concurrent caching, expiry/eviction, missing dates, failures, revision conflicts and immutable snapshots. DynamoDB Local tests exercise the separate date-keyed table and HTTP reads/saves, including a single database read across concurrent requests. Terraform mock tests cover the date key, read-only runtime permissions, YAML items and invalid dates. Browser tests cover timezone preference, rollover, missing content, retry and preserved drafts after editorial corrections. No live content library, production apply or live AWS verification is implied.
+The server checks a supplied revision before saving. If editorial content changed, it returns `READING_CHANGED` without writing. The draft keeps its original reading and words while the client refreshes. **Review current reading** deliberately attaches the refreshed current reading to the draft; the person then reviews it and explicitly saves again. If the pinned date was a previous day, this action moves the draft to today's reading. There is no automatic resubmission. Saved shares never follow later content edits.

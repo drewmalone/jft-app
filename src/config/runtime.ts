@@ -20,19 +20,26 @@ export function parsePersistenceConfig(env: Environment) {
   });
 }
 const readingSource = z.discriminatedUnion('READINGS_SOURCE', [
-  z.object({ READINGS_SOURCE: z.literal('sample') }),
   z.object({
-    READINGS_SOURCE: z.literal('dynamodb'),
-    READINGS_TABLE_NAME: z.string().trim().min(3).max(255),
-    DYNAMODB_REGION: z.string().trim().min(1)
+    READINGS_SOURCE: z.literal('local'),
+    READINGS_LOCAL_PATH: z.string().trim().min(1)
+  }),
+  z.object({
+    READINGS_SOURCE: z.literal('s3'),
+    READINGS_S3_BUCKET: z.string().trim().min(3),
+    READINGS_S3_KEY: z.string().trim().min(1),
+    READINGS_REGION: z.string().trim().min(1)
   })
 ]);
-/** Explicit deployed reading storage; invalid settings never fall back to sample content. */
+/** Select a complete YAML catalog. Invalid deployment settings never fall back to local content. */
 export function parseReadingsConfig(env: Environment) {
   return readingSource.parse({
-    READINGS_SOURCE: env.READINGS_SOURCE ?? 'sample',
-    READINGS_TABLE_NAME: env.READINGS_TABLE_NAME,
-    DYNAMODB_REGION: env.DYNAMODB_REGION ?? env.AWS_REGION
+    READINGS_SOURCE: env.READINGS_SOURCE ?? 'local',
+    READINGS_LOCAL_PATH:
+      env.READINGS_LOCAL_PATH ?? 'infra/terraform/readings.example.yaml',
+    READINGS_S3_BUCKET: env.READINGS_S3_BUCKET,
+    READINGS_S3_KEY: env.READINGS_S3_KEY ?? 'just-for-today.yaml',
+    READINGS_REGION: env.READINGS_REGION ?? env.AWS_REGION
   });
 }
 const secretArn = z.string().refine((value) => {

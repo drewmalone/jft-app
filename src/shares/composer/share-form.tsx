@@ -21,6 +21,7 @@ export function ShareForm({
   readingReady,
   saving,
   error,
+  onRecordingChange,
   onTextChange,
   onSave
 }: ShareFormProps) {
@@ -32,6 +33,7 @@ export function ShareForm({
     sessionReady,
     readingReady,
     saving,
+    onRecordingChange,
     onTextChange,
     onSave
   });

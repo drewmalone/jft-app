@@ -1,4 +1,4 @@
-import { reflection } from '../../src/readings/sample-reading';
+import { reflection } from '../fixtures/sample-reading';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {

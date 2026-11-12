@@ -57,7 +57,7 @@ The public service rejects links seven days after the stored `createdAt` timesta
 
 `GET /api/readings/today?timeZone=America%2FChicago` is public and never creates a session cookie. `timeZone` defaults to America/Chicago and must be a valid Intl timezone. Success is 200 `{ "date": "YYYY-MM-DD", "reading": { "id": "...", "date": "...", "title": "...", "body": "..." }, "sample": false }`. A date without published content returns `reading: null`. Invalid timezone queries return 400 `INVALID_READING_QUERY`; storage/configuration failures return sanitized 503 `READING_UNAVAILABLE`. GET/HEAD/OPTIONS are supported; other methods return coded 405. Responses are private/no-store at HTTP level; the service maintains its own bounded date cache.
 
-The `sample` flag labels explicit local fixture mode. It is never an automatic fallback for deployed database failures. See [daily readings](READINGS.md) for timezone preferences and cache behavior.
+The `sample` flag labels fictional catalog content, independently of local or S3 source selection. It never supplies fallback content for missing dates or source failures. See [daily readings](READINGS.md) for timezone preferences and cache behavior.
 
 ## Read a public share
 
@@ -73,7 +73,7 @@ These are bearer links: recipients may forward, copy, or save content. There is 
 
 `POST /api/shares`
 
-Optional `readingDate` is an ISO calendar date and `readingId` is the displayed revision ID. The server resolves the date, never client-provided reading text. If omitted, it selects today using the timezone preference cookie, falling back to Central Time. A missing source returns 503 `READING_UNAVAILABLE`; a supplied revision that no longer matches returns 409 `READING_CHANGED` without writing a share. The UI retains the draft, refreshes the reading and requires another explicit save. The reading snapshot in a successful share never follows later editorial edits.
+Optional `readingDate` is an ISO calendar date and `readingId` is the displayed revision ID. The server resolves the date, never client-provided reading text. If omitted, it selects today using the timezone preference cookie, falling back to Central Time. A missing source returns 503 `READING_UNAVAILABLE`; a supplied revision that no longer matches returns 409 `READING_CHANGED` without writing a share. The UI retains the pinned draft, refreshes the current reading, and requires explicit review of that reading followed by another save. The reading snapshot in a successful share never follows later editorial edits.
 
 Send `Content-Type: application/json` and a JSON object containing only `text`:
 
@@ -83,7 +83,7 @@ Send `Content-Type: application/json` and a JSON object containing only `text`:
 }
 ```
 
-The server accepts at most **10,000 Unicode code points in the raw text**, then trims surrounding whitespace and rejects an empty/whitespace-only result, nonstrings, missing text, and extra fields. Code points match JSON Schema's length semantics; combining sequences may contain several code points. The complete raw JSON body is limited to **64 KiB (65,536 bytes)**, including escaping and whitespace. Hono's body-limit middleware counts actual streamed bytes; a smaller claimed Content-Length cannot bypass this limit. A text-length violation returns 400/INVALID_SHARE; an oversized request returns 413/PAYLOAD_TOO_LARGE before JSON/schema validation. `ownerId`, `id`, `createdAt`, `kind`, and `reflection` are not accepted input fields. The session establishes ownership; the server supplies UUID, UTC ISO creation timestamp, `kind: 'text'`, and the current fixed reading snapshot. Snapshotting happens when the server saves, so changing the reading later does not alter existing records.
+The server accepts at most **10,000 Unicode code points in the raw text**, then trims surrounding whitespace and rejects an empty/whitespace-only result, nonstrings, missing text, and extra fields. Code points match JSON Schema's length semantics; combining sequences may contain several code points. The complete raw JSON body is limited to **64 KiB (65,536 bytes)**, including escaping and whitespace. Hono's body-limit middleware counts actual streamed bytes; a smaller claimed Content-Length cannot bypass this limit. A text-length violation returns 400/INVALID_SHARE; an oversized request returns 413/PAYLOAD_TOO_LARGE before JSON/schema validation. `ownerId`, `id`, `createdAt`, `kind`, and `reflection` are not accepted input fields. The session establishes ownership; the server supplies UUID, UTC ISO creation timestamp, `kind: 'text'`, and the selected reading snapshot. Snapshotting happens when the server saves, so changing the reading later does not alter existing records.
 
 Success is **201 Created** with a share and a relative `Location: /api/shares/{id}` header. This identifies the private resource; the URL grants no access without the correct session. The following example uses fictional text and the local sample reading; the ID and timestamp are illustrative:
 

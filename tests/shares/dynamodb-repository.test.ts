@@ -1,4 +1,4 @@
-import { reflection } from '../../src/readings/sample-reading';
+import { reflection } from '../fixtures/sample-reading';
 // Initialize the existing Zod OpenAPI extension before loading shared schemas.
 import '@hono/zod-openapi';
 import assert from 'node:assert/strict';

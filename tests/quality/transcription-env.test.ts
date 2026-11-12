@@ -19,7 +19,7 @@ test('Amplify transcription preparation validates configuration and copies only 
         encoding: 'utf8',
         env: {
           ...process.env,
-          READINGS_SOURCE: 'sample',
+          READINGS_SOURCE: 'local',
           SHARE_PERSISTENCE: 'memory',
           AWS_SECRET_ACCESS_KEY: 'fictional-must-not-be-written',
           STT_OPENAI_API_KEY: 'fictional-must-not-be-written',

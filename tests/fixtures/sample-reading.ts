@@ -1,4 +1,4 @@
-import type { Reading } from './model';
+import type { Reading } from '../../src/readings/model';
 
 /** Fictional local sample; deployed reading failures never fall back to this text. */
 export const reflection: Reading = {

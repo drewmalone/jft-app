@@ -1,4 +1,4 @@
-import { reflection } from '../../src/readings/sample-reading';
+import { reflection } from '../fixtures/sample-reading';
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
 import type { ShareRepository } from '../../src/shares/server/storage/repository';

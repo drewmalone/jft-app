@@ -1,7 +1,10 @@
 mock_provider "aws" {
   override_during = plan
-  mock_resource "aws_dynamodb_table" {
-    defaults = { arn = "arn:aws:dynamodb:us-west-2:123456789012:table/readings-test" }
+  mock_resource "aws_s3_bucket" {
+    defaults = { arn = "arn:aws:s3:::fictional-readings", id = "fictional-readings" }
+  }
+  mock_data "aws_caller_identity" {
+    defaults = { account_id = "123456789012" }
   }
   mock_data "aws_iam_policy_document" {
     defaults = { json = "{\"Version\":\"2012-10-17\",\"Statement\":[]}" }
@@ -11,48 +14,43 @@ variables {
   project_name         = "readings-test"
   environment          = "dev"
   create_soniox_secret = false
+  readings_yaml_path   = "readings.example.yaml"
 }
-run "readings_are_date_keyed_and_runtime_is_read_only" {
+run "private_catalog_and_read_only_runtime" {
   command = plan
   assert {
-    condition     = aws_dynamodb_table.readings.hash_key == "date" && aws_dynamodb_table.readings.billing_mode == "PAY_PER_REQUEST"
-    error_message = "Readings need a direct date key and on-demand capacity."
+    condition     = aws_s3_bucket_public_access_block.readings.block_public_acls && aws_s3_bucket_public_access_block.readings.block_public_policy && aws_s3_bucket_public_access_block.readings.ignore_public_acls && aws_s3_bucket_public_access_block.readings.restrict_public_buckets
+    error_message = "Editorial storage must remain private."
   }
   assert {
-    condition     = [for statement in data.aws_iam_policy_document.shares.statement : statement if statement.sid == "ReadDailyReading"][0].actions == toset(["dynamodb:GetItem"])
-    error_message = "Runtime must not upload or scan editorial content."
+    condition     = aws_s3_bucket_versioning.readings.versioning_configuration[0].status == "Enabled"
+    error_message = "Editorial publications need recoverable versions."
   }
   assert {
-    condition     = [for statement in data.aws_iam_policy_document.shares.statement : statement if statement.sid == "ReadDailyReading"][0].resources == toset([aws_dynamodb_table.readings.arn])
-    error_message = "Reading access must target the readings table only."
+    condition     = [for statement in data.aws_iam_policy_document.shares.statement : statement if statement.sid == "ReadDailyReadings"][0].actions == toset(["s3:GetObject"])
+    error_message = "Runtime must only read published content."
   }
   assert {
-    condition     = output.runtime_environment.READINGS_SOURCE == "dynamodb" && output.runtime_environment.READINGS_TABLE_NAME == aws_dynamodb_table.readings.name
-    error_message = "The runtime must explicitly select the provisioned table."
+    condition     = [for statement in data.aws_iam_policy_document.shares.statement : statement if statement.sid == "ReadDailyReadings"][0].resources == toset(["${aws_s3_bucket.readings.arn}/${aws_s3_object.readings.key}"])
+    error_message = "Runtime access must target the one published object."
   }
   assert {
-    condition     = length(aws_dynamodb_table_item.reading) == 0
-    error_message = "Example content must not be uploaded implicitly."
-  }
-}
-run "yaml_upload" {
-  command = plan
-  variables {
-    readings_yaml_path = "readings.example.yaml"
+    condition     = output.runtime_environment.READINGS_SOURCE == "s3" && output.runtime_environment.READINGS_S3_BUCKET == aws_s3_bucket.readings.id && output.runtime_environment.READINGS_S3_KEY == aws_s3_object.readings.key
+    error_message = "Runtime must select the provisioned catalog."
   }
   assert {
-    condition     = length(aws_dynamodb_table_item.reading) == 2 && jsondecode(aws_dynamodb_table_item.reading["2026-11-11"].item).date.S == "2026-11-11"
-    error_message = "Every YAML date must become one managed item."
-  }
-  assert {
-    condition     = jsondecode(aws_dynamodb_table_item.reading["2026-11-11"].item).body.S == local.readings[0].body
-    error_message = "Import must preserve the reading body and line breaks."
+    condition     = aws_s3_object.readings.source == var.readings_yaml_path && aws_s3_object.readings.source_hash == filemd5(var.readings_yaml_path)
+    error_message = "Catalog edits must update the entire publication."
   }
 }
 run "invalid_calendar_date" {
   command = plan
-  variables {
-    readings_yaml_path = "tests/fixtures/invalid-readings.yaml"
-  }
-  expect_failures = [aws_dynamodb_table.readings]
+  variables { readings_yaml_path = "tests/fixtures/invalid-readings.yaml" }
+  expect_failures = [aws_s3_object.readings]
+}
+
+run "duplicate_dates" {
+  command = plan
+  variables { readings_yaml_path = "tests/fixtures/duplicate-readings.yaml" }
+  expect_failures = [aws_s3_object.readings]
 }

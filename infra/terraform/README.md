@@ -112,10 +112,10 @@ DynamoDB is on-demand; request and retained table/index storage costs grow with 
 
 The API returns at most 20 shares by default (maximum requested limit 50). The client follows `X-Next-Cursor` only after an explicit Load more action; a database size boundary can produce a smaller page. Cursors are private positions, not authorization credentials. Each query reconstructs its owner partition from the verified session. See [the API contract](../../docs/API.md#list-private-shares) for request/response details. Pagination is not a consistent snapshot across concurrent writes or index propagation; the UI deduplicates repeated IDs and refresh starts again from the newest page.
 
-## Daily reading table and YAML content
+## Daily reading catalog
 
-The shared root also provisions `${project_name}-${environment}-readings`, keyed directly by ISO `date`. The compute role receives only `dynamodb:GetItem` on this table. The `runtime_environment` output includes `READINGS_SOURCE=dynamodb` and `READINGS_TABLE_NAME`; the shared preparation command validates and copies them. Upload content before enabling that runtime selection.
+The shared root provisions a private, encrypted, versioned S3 bucket and one `just-for-today.yaml` object. The compute role receives only `s3:GetObject` for that exact object. `runtime_environment` outputs `READINGS_SOURCE=s3`, `READINGS_S3_BUCKET`, `READINGS_S3_KEY`, and `READINGS_REGION` for the shared runtime preparation command. DynamoDB continues to store shares.
 
-Set `readings_yaml_path` to a file containing the complete desired reading list. By default it is null and no content is seeded. The included `readings.example.yaml` contains fictional examples only. Terraform plans one item per date, updates corrections, and deletes managed entries removed from the file. Runtime code has no write permission. Full editorial text appears in Terraform state and plans. See [the YAML format, import commands, timezone and cache guide](../../docs/READINGS.md) for operator instructions.
+The required `readings_yaml_path` lives in each environment tfvars file. The checked-in files explicitly select fictional `readings.example.yaml`; replace the path with the complete licensed catalog before a real deployment. Ordinary plans use the same persistent selection. Terraform validates dates, duplicate dates and text bounds before publishing the object; edits replace the whole publication. The runtime validates the complete YAML again before caching it. Prior S3 versions remain recoverable. No AWS apply is part of application builds.
 
-The table uses on-demand billing; process-local date caching reduces repeat reads but each replica/cold start performs its own lookups. There is no new recurring worker, scan, secondary index or distributed-cache service.
+Both S3 and local-file loading use the same process-local catalog cache. See [YAML format, publication, timezone and cache behavior](../../docs/READINGS.md).

@@ -1,5 +1,5 @@
 import { getCookie } from 'hono/cookie';
-import { readings } from '../../../../readings/server/configured-readings';
+import { createShareForReading } from '../../application/create-share';
 import {
   readingTimeZone,
   READING_TIME_ZONE_COOKIE
@@ -8,7 +8,6 @@ import { errorBody } from '../errors';
 import 'server-only';
 import { createRoute, type RouteHandler } from '@hono/zod-openapi';
 import { shareSchema } from '../../../model';
-import { shareRepository } from '../../storage/configured-repository';
 import type { SessionEnvironment } from '../middleware';
 import {
   share,
@@ -74,23 +73,16 @@ export const createShare: RouteHandler<
   typeof createShareRoute,
   SessionEnvironment
 > = async (c) => {
-  const { text, readingDate, readingId } = c.req.valid('json');
-  let reading;
-  try {
-    reading = readingDate
-      ? await readings.findByDate(readingDate)
-      : (
-          await readings.today(
-            readingTimeZone(getCookie(c, READING_TIME_ZONE_COOKIE))
-          )
-        ).reading;
-  } catch {
-    return c.json(errorBody('READING_UNAVAILABLE'), 503);
-  }
-  if (!reading) return c.json(errorBody('READING_UNAVAILABLE'), 503);
-  if (readingId && reading.id !== readingId)
-    return c.json(errorBody('READING_CHANGED'), 409);
-  const share = await shareRepository.create(c.get('ownerId'), text, reading);
+  const result = await createShareForReading(
+    c.get('ownerId'),
+    c.req.valid('json'),
+    readingTimeZone(getCookie(c, READING_TIME_ZONE_COOKIE))
+  );
+  if (result.error === 'READING_UNAVAILABLE')
+    return c.json(errorBody(result.error), 503);
+  if (result.error === 'READING_CHANGED')
+    return c.json(errorBody(result.error), 409);
+  const { share } = result;
   c.header('Location', `/api/shares/${share.id}`);
   return c.json(shareSchema.parse(share), 201);
 };

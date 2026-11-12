@@ -1,5 +1,5 @@
 import { expect, test, type Page } from './fixtures/test';
-import { reflection } from '../../src/readings/sample-reading';
+import { reflection } from '../fixtures/sample-reading';
 
 const fictionalText =
   'A fictional thought for a fellow alcoholic.\nOne day at a time.';
@@ -75,13 +75,21 @@ test('share icon uses the saved URL directly for native sharing and session-free
       fictionalText
     );
     await expect(
-      reader.getByText('April 23, 2025', { exact: false })
+      reader.getByText(
+        new Intl.DateTimeFormat('en-US', {
+          month: 'long',
+          day: 'numeric',
+          year: 'numeric',
+          timeZone: 'UTC'
+        }).format(new Date(saved.reflection.date + 'T12:00:00Z')),
+        { exact: false }
+      )
     ).toBeVisible();
     expect(await recipient.cookies()).toEqual([]);
     const publicPath = `/api/public/shares/${saved.id}`;
     const publicResponse = await recipient.request.get(publicPath);
     expect(await publicResponse.json()).toEqual({
-      reflection,
+      reflection: saved.reflection,
       text: fictionalText
     });
     expect(publicResponse.headers()['set-cookie']).toBeUndefined();
