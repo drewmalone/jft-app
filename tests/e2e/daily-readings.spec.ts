@@ -239,3 +239,59 @@ test('recording pins the reading before any final words and releases an empty st
     page.getByText(fictionalReading(date).title, { exact: true })
   ).toBeVisible();
 });
+
+for (const activeDraft of [false, true]) {
+  test(`failed rollover ${activeDraft ? 'keeps an active draft pinned' : 'blocks a new draft from using yesterday'}`, async ({
+    page
+  }) => {
+    const now = Date.now() + 3 * 86400_000;
+    const date = readingDate('Asia/Tokyo', now);
+    let failed = false;
+    await page.clock.install({ time: new Date(now) });
+    await page.route('**/api/readings/today?*', (route) =>
+      route.fulfill(
+        failed
+          ? {
+              status: 503,
+              json: {
+                error: {
+                  code: 'READING_UNAVAILABLE',
+                  message: 'Fictional unavailable reading.'
+                }
+              }
+            }
+          : { json: { date, reading: fictionalReading(date), sample: false } }
+      )
+    );
+    await page.goto('/');
+    await expect(
+      page.getByText(fictionalReading(date).title, { exact: true })
+    ).toBeVisible();
+    if (activeDraft)
+      await page.getByRole('textbox').fill('Fictional active draft.');
+    failed = true;
+    await page.clock.setSystemTime(new Date(now + 86400_000));
+    const refreshed = page.waitForResponse('**/api/readings/today?*');
+    await page.evaluate(() => window.dispatchEvent(new Event('focus')));
+    await refreshed;
+    if (activeDraft) {
+      await expect(
+        page.getByText(fictionalReading(date).title, { exact: true })
+      ).toBeVisible();
+      await expect(
+        page.getByRole('button', { name: 'Save privately' })
+      ).toBeEnabled();
+    } else {
+      await expect(
+        page.getByText("Today's reading is not available yet.")
+      ).toBeVisible();
+      await page.getByRole('textbox').fill('Fictional new draft.');
+      await expect(
+        page.getByRole('button', { name: 'Save privately' })
+      ).toBeDisabled();
+      await expect(
+        page.getByText(fictionalReading(date).title, { exact: true })
+      ).toHaveCount(0);
+    }
+  });
+}

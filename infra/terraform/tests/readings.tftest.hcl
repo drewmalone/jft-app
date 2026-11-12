@@ -54,3 +54,9 @@ run "duplicate_dates" {
   variables { readings_yaml_path = "tests/fixtures/duplicate-readings.yaml" }
   expect_failures = [aws_s3_object.readings]
 }
+
+run "missing_attribution" {
+  command = plan
+  variables { readings_yaml_path = "tests/fixtures/missing-attribution.yaml" }
+  expect_failures = [aws_s3_object.readings]
+}

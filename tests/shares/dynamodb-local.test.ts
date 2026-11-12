@@ -1,3 +1,4 @@
+import { useReadingFixture } from '../fixtures/reading-service';
 import { reflection } from '../fixtures/sample-reading';
 import '@hono/zod-openapi';
 import assert from 'node:assert/strict';
@@ -135,6 +136,7 @@ test(
     await t.test(
       'HTTP save, owner isolation, public expiry and private retention use the database adapter',
       async (t) => {
+        useReadingFixture(t);
         let clock = Date.now();
         t.mock.method(Date, 'now', () => clock);
         for (const method of [

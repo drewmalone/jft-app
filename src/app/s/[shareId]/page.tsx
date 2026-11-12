@@ -1,3 +1,4 @@
+import { ReadingQuotation } from '../../../readings/reading-quotation';
 import type { Metadata } from 'next';
 import Image from 'next/image';
 import Link from 'next/link';
@@ -42,11 +43,12 @@ export default async function SharedReflection({
           <>
             <p className="eyebrow text-center">Shared with you</p>
             <p className="mt-2 text-center text-xs leading-relaxed text-[var(--muted)]">
-              Sample reading · {readingDateLabel(share.reflection.date)}
+              Reading · {readingDateLabel(share.reflection.date)}
             </p>
             <h1 className="mt-6 text-center font-serif text-4xl leading-snug">
               {share.reflection.title}
             </h1>
+            <ReadingQuotation reading={share.reflection} />
             <div className="divider" />
             <p className="reading-body whitespace-pre-wrap break-words">
               {share.reflection.body}

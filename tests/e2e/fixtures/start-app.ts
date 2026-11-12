@@ -10,15 +10,14 @@ async function main() {
   const path = join(directory, 'readings.yaml');
   await writeFile(
     path,
-    JSON.stringify({
-      sample: true,
-      readings: Array.from({ length: 9 }, (_, index) => ({
+    JSON.stringify(
+      Array.from({ length: 9 }, (_, index) => ({
         ...reflection,
         date: new Date(Date.now() + (index - 4) * 86400_000)
           .toISOString()
           .slice(0, 10)
       }))
-    })
+    )
   );
   const child = spawn(
     process.execPath,
@@ -35,6 +34,7 @@ async function main() {
       env: {
         ...process.env,
         READINGS_SOURCE: 'local',
+        READINGS_SAMPLE: 'true',
         READINGS_LOCAL_PATH: path
       }
     }

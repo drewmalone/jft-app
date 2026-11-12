@@ -13,12 +13,13 @@ export function useDailyReading(initial: DailyReading) {
   const [daily, setDaily] = useState(initial);
   const [loading, setLoading] = useState(false);
   const [failed, setFailed] = useState(false);
-  const loadedDate = useRef(initial.date);
+  const loadedDate = useRef<string | null>(initial.date);
   const requestId = useRef(0);
   const requestedDate = useRef<string | null>(null);
   const refresh = useRef<(force?: boolean) => Promise<void>>(async () => {});
   useEffect(() => {
     let active = true;
+    let controller: AbortController | undefined;
     const timeZone = readingTimeZone(
       Intl.DateTimeFormat().resolvedOptions().timeZone
     );
@@ -30,13 +31,25 @@ export function useDailyReading(initial: DailyReading) {
         requestedDate.current === date
       )
         return;
+      controller?.abort();
+      controller = new AbortController();
+      const signal = AbortSignal.any([
+        controller.signal,
+        AbortSignal.timeout(15_000)
+      ]);
       const id = ++requestId.current;
+      // An empty composer must not attach a new draft to the previous day's reading.
+      if (date !== loadedDate.current) {
+        loadedDate.current = null;
+        setDaily({ date, reading: null, sample: false });
+      }
       requestedDate.current = date;
       setLoading(true);
       try {
         const next = dailyReadingSchema.parse(
           await requestJson(
-            `/api/readings/today?timeZone=${encodeURIComponent(timeZone)}`
+            `/api/readings/today?timeZone=${encodeURIComponent(timeZone)}`,
+            { signal }
           )
         );
         if (!active || requestId.current !== id) return;
@@ -60,6 +73,7 @@ export function useDailyReading(initial: DailyReading) {
     const timer = window.setInterval(check, 60_000);
     return () => {
       active = false;
+      controller?.abort();
       requestedDate.current = null;
       window.removeEventListener('focus', check);
       clearInterval(timer);

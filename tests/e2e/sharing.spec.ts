@@ -5,6 +5,12 @@ const fictionalText =
   'A fictional thought for a fellow alcoholic.\nOne day at a time.';
 async function save(page: Page) {
   await page.goto('/');
+  await expect(
+    page.getByText(reflection.quote!, { exact: true })
+  ).toBeVisible();
+  await expect(
+    page.getByText(reflection.source!, { exact: true })
+  ).toBeVisible();
   await page.getByRole('textbox').fill(fictionalText);
   const response = page.waitForResponse(
     (r) => r.url().endsWith('/api/shares') && r.request().method() === 'POST'
@@ -35,6 +41,12 @@ test('share icon uses the saved URL directly for native sharing and session-free
     if (/\/api\/shares\/[^/]+\/link$/.test(request.url())) linkRequests++;
   });
   const saved = await save(page);
+  await expect(
+    page.getByText(reflection.quote!, { exact: true })
+  ).toBeVisible();
+  await expect(
+    page.getByText(reflection.source!, { exact: true })
+  ).toBeVisible();
   const link = new URL(saved.shareUrl, baseURL).href;
   expect(new URL(link).pathname).toBe(`/s/${saved.id}`);
   expect(new URL(link).search).toBe('');
@@ -70,6 +82,12 @@ test('share icon uses the saved URL directly for native sharing and session-free
     ).toBeVisible();
     await expect(
       reader.getByText(reflection.body, { exact: true })
+    ).toBeVisible();
+    await expect(
+      reader.getByText(reflection.quote!, { exact: true })
+    ).toBeVisible();
+    await expect(
+      reader.getByText(reflection.source!, { exact: true })
     ).toBeVisible();
     await expect(reader.getByLabel('Shared thoughts')).toContainText(
       fictionalText

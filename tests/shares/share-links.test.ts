@@ -1,3 +1,4 @@
+import { useReadingFixture } from '../fixtures/reading-service';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
@@ -69,6 +70,7 @@ test('public service validates UUIDs before lookup and expires public links with
 });
 
 test('saving creates one reusable UUID URL; public reads have no session side effects', async (t) => {
+  useReadingFixture(t);
   let currentTime = now * 1000;
   t.mock.method(Date, 'now', () => currentTime);
   const { share, cookie } = await create();

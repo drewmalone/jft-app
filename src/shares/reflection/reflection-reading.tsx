@@ -1,3 +1,4 @@
+import { ReadingQuotation } from '../../readings/reading-quotation';
 import type { DailyReading } from '../../readings/model';
 import { readingDateLabel } from '../dates';
 
@@ -24,6 +25,7 @@ export function ReflectionReading({
           <p className="mt-6 font-serif text-[27px] leading-snug sm:text-3xl">
             {reading.title}
           </p>
+          <ReadingQuotation reading={reading} />
           <div className="divider" />
           <p className="reading-body whitespace-pre-line">{reading.body}</p>
         </>

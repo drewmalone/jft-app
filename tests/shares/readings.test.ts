@@ -1,6 +1,9 @@
 import '@hono/zod-openapi';
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
+import { parse } from 'yaml';
+import { readFile } from 'node:fs/promises';
+import { readingSchema } from '../../src/readings/model';
 import { parseCatalog } from '../../src/readings/server/catalog';
 import { ReadingCache } from '../../src/readings/server/cache';
 import { readingDate, readingTimeZone } from '../../src/readings/calendar';
@@ -12,6 +15,8 @@ const reading = {
   id: 'jft-2026-11-11',
   date: '2026-11-11',
   title: 'Fictional daily reading',
+  quote: 'A fictional quotation.',
+  source: 'Fictional collection, p. 1',
   body: 'A fictional first paragraph.\n\nA fictional second paragraph.'
 };
 
@@ -38,7 +43,7 @@ test('calendar selection follows reader timezone, DST, leap days, and Central fa
 test('catalog refresh coalesces callers across dates, preserves last-good data and retries initial failures', async () => {
   let now = 0,
     calls = 0;
-  let content = JSON.stringify({ readings: [reading] });
+  let content = JSON.stringify([reading]);
   let fail = true;
   const cache = new ReadingCache(
     async () => {
@@ -46,8 +51,7 @@ test('catalog refresh coalesces callers across dates, preserves last-good data a
       if (fail) throw new Error('Fictional outage');
       return { content, etag: 'revision-one' };
     },
-    () => now,
-    100
+    { now: () => now, lifetimeMs: 100 }
   );
   await assert.rejects(cache.get(reading.date));
   fail = false;
@@ -66,9 +70,7 @@ test('catalog refresh coalesces callers across dates, preserves last-good data a
   await cache.get('2026-11-12');
   assert.equal(calls, 3);
   now = 200;
-  content = JSON.stringify({
-    readings: [{ ...reading, body: 'Fictional correction' }]
-  });
+  content = JSON.stringify([{ ...reading, body: 'Fictional correction' }]);
   const corrected = (await cache.get(reading.date)).reading!;
   assert.notEqual(corrected.id, first.reading!.id);
   assert.equal(corrected.body, 'Fictional correction');
@@ -83,15 +85,14 @@ test('unchanged catalogs reuse validated content and send only the last validate
       if (calls++ === 0) {
         assert.equal(etag, undefined);
         return {
-          content: JSON.stringify({ readings: [reading] }),
+          content: JSON.stringify([reading]),
           etag: 'one'
         };
       }
       assert.equal(etag, 'one');
       return { notModified: true };
     },
-    () => now,
-    100
+    { now: () => now, lifetimeMs: 100 }
   );
   const first = await cache.get(reading.date);
   now = 100;
@@ -101,14 +102,14 @@ test('unchanged catalogs reuse validated content and send only the last validate
 
 test('catalog validation rejects duplicates, invalid dates, blank bodies and malformed YAML', () => {
   for (const content of [
-    JSON.stringify({ readings: [reading, reading] }),
-    JSON.stringify({ readings: [{ ...reading, date: '2026-02-30' }] }),
-    JSON.stringify({ readings: [{ ...reading, body: '  ' }] }),
+    JSON.stringify([reading, reading]),
+    JSON.stringify([{ ...reading, date: '2026-02-30' }]),
+    JSON.stringify([{ ...reading, body: '  ' }]),
     'readings: []\nreadings: []',
     'readings: ['
   ])
     assert.throws(() => parseCatalog(content));
-  assert.equal(parseCatalog(JSON.stringify({ readings: [] })).byDate.size, 0);
+  assert.equal(parseCatalog(JSON.stringify([])).byDate.size, 0);
 });
 
 test('reading configuration selects local or S3 independently of share persistence', () => {
@@ -117,12 +118,14 @@ test('reading configuration selects local or S3 independently of share persisten
   assert.throws(() => parseReadingsConfig({ READINGS_SOURCE: 's3' }));
   assert.deepEqual(
     parseReadingsConfig({
+      READINGS_SAMPLE: 'false',
       READINGS_SOURCE: 's3',
       READINGS_S3_BUCKET: 'fictional-readings',
       AWS_REGION: 'us-east-2',
       DYNAMODB_REGION: 'us-west-2'
     }),
     {
+      READINGS_SAMPLE: 'false',
       READINGS_SOURCE: 's3',
       READINGS_S3_BUCKET: 'fictional-readings',
       READINGS_S3_KEY: 'just-for-today.yaml',
@@ -269,4 +272,41 @@ test('changed reading revisions fail before writing rather than silently changin
   assert.equal(result.status, 409);
   assert.equal((await result.json()).error.code, 'READING_CHANGED');
   assert.equal(write.mock.callCount(), 0);
+});
+
+test('bare-list YAML preserves quotations and sources, hashes revisions, and accepts legacy saved snapshots', async () => {
+  const content = await readFile(
+    'infra/terraform/readings.example.yaml',
+    'utf8'
+  );
+  assert.ok(Array.isArray(parse(content)));
+  const first = parseCatalog(content).byDate.values().next().value!;
+  assert.ok(first.quote);
+  assert.ok(first.source);
+  const rows = parse(content);
+  rows[0].quote += ' Fictional correction.';
+  assert.notEqual(
+    parseCatalog(JSON.stringify(rows)).byDate.get(first.date)!.id,
+    first.id
+  );
+  rows[0].quote = first.quote;
+  rows[0].source += ' Fictional correction.';
+  assert.notEqual(
+    parseCatalog(JSON.stringify(rows)).byDate.get(first.date)!.id,
+    first.id
+  );
+  for (const field of ['quote', 'source']) {
+    const invalid = { ...reading, [field]: '' };
+    assert.throws(() => parseCatalog(JSON.stringify([invalid])));
+    delete invalid[field as keyof typeof invalid];
+    assert.throws(() => parseCatalog(JSON.stringify([invalid])));
+  }
+  const legacy = {
+    id: reading.id,
+    date: reading.date,
+    title: reading.title,
+    body: reading.body
+  };
+  assert.deepEqual(readingSchema.parse(legacy), legacy);
+  assert.throws(() => parseCatalog(JSON.stringify({ readings: [reading] })));
 });

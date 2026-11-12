@@ -9,11 +9,21 @@ export class ReadingCache {
   private etag?: string;
   private expiresAt = 0;
   private pending?: Promise<void>;
+  private readonly now: () => number;
+  private readonly lifetimeMs: number;
+  private readonly sample: boolean;
   constructor(
     private readonly load: CatalogLoad,
-    private readonly now = () => Date.now(),
-    private readonly lifetimeMs = 5 * 60_000
-  ) {}
+    {
+      now = () => Date.now(),
+      lifetimeMs = 5 * 60_000,
+      sample = false
+    }: { now?: () => number; lifetimeMs?: number; sample?: boolean } = {}
+  ) {
+    this.now = now;
+    this.lifetimeMs = lifetimeMs;
+    this.sample = sample;
+  }
   private async refresh() {
     try {
       const loaded = await this.load(this.etag);
@@ -43,7 +53,7 @@ export class ReadingCache {
     return {
       date,
       reading: structuredClone(this.catalog!.byDate.get(date) ?? null),
-      sample: this.catalog!.sample
+      sample: this.sample
     };
   }
 }

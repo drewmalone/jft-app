@@ -18,7 +18,8 @@ function current() {
             config.READINGS_S3_BUCKET,
             config.READINGS_S3_KEY,
             new S3Client({ region: config.READINGS_REGION })
-          )
+          ),
+      { sample: config.READINGS_SAMPLE === 'true' }
     );
   }
   return processState.dailyReadings;

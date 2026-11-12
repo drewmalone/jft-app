@@ -1,3 +1,4 @@
+import { useReadingFixture } from '../fixtures/reading-service';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
@@ -32,7 +33,8 @@ async function detail(id: string, cookie?: string) {
   );
 }
 
-test('creates validated shares with server metadata and retrieves them across requests', async () => {
+test('creates validated shares with server metadata and retrieves them across requests', async (t) => {
+  useReadingFixture(t);
   const before = Date.now();
   const response = await POST(
     request('POST', undefined, { text: '  A fictional thought.  ' })
@@ -93,7 +95,8 @@ test('rejects empty input, malformed JSON, wrong types and authoritative client 
   assert.equal((await POST(wrongType)).status, 415);
 });
 
-test('returns 404 for nonexistent and other owners shares; isolates anonymous sessions', async () => {
+test('returns 404 for nonexistent and other owners shares; isolates anonymous sessions', async (t) => {
+  useReadingFixture(t);
   const first = await session();
   const second = await session();
   assert.notEqual(first, second);
@@ -109,7 +112,8 @@ test('returns 404 for nonexistent and other owners shares; isolates anonymous se
   assert.equal((await detail(created.id)).status, 404);
 });
 
-test('replaces unusable session cookies with isolated fresh owners', async () => {
+test('replaces unusable session cookies with isolated fresh owners', async (t) => {
+  useReadingFixture(t);
   const valid = await session();
   const credential = decodeURIComponent(valid.slice(valid.indexOf('=') + 1));
   for (const forged of [
@@ -196,7 +200,8 @@ test('production cookies are Secure and an expired cookie starts a fresh owner',
   assert.equal((await GET(request())).status, 500);
 });
 
-test('accepts same-origin requests when the listening hostname differs from Host', async () => {
+test('accepts same-origin requests when the listening hostname differs from Host', async (t) => {
+  useReadingFixture(t);
   const req = new NextRequest('http://0.0.0.0:3100/api/shares', {
     method: 'POST',
     headers: {

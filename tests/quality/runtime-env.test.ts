@@ -104,6 +104,7 @@ test('generated configuration round-trips through Next environment loading and m
     assert.equal(readFileSync(file, 'utf8'), generated);
     assert.deepEqual(load(), {
       ...settings,
+      READINGS_SAMPLE: 'false',
       READINGS_TABLE_NAME: '',
       READINGS_LOCAL_PATH: '',
       SESSION_SECRET: 'fictional-stable-signing-secret-at-least-32-bytes',

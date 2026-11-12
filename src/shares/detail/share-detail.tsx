@@ -1,3 +1,4 @@
+import { ReadingQuotation } from '../../readings/reading-quotation';
 import type { Share } from '../model';
 import { ExpandableThoughts } from './expandable-thoughts';
 import { dateLabel, readingDateLabel } from '../dates';
@@ -15,12 +16,13 @@ export function ShareDetail({ share }: { share: Share }) {
           })}
         </p>
         <p className="mt-4 text-xs leading-relaxed text-[var(--muted)]">
-          Sample reading · {readingDateLabel(share.reflection.date)}
+          Reading · {readingDateLabel(share.reflection.date)}
         </p>
         <h2 className="mt-2 font-serif text-2xl leading-snug">
           {share.reflection.title}
         </h2>
-        <p className="mt-4 text-sm leading-relaxed text-[var(--muted)]">
+        <ReadingQuotation reading={share.reflection} />
+        <p className="mt-4 whitespace-pre-line text-sm leading-relaxed text-[var(--muted)]">
           {share.reflection.body}
         </p>
         <div className="my-6 border-t border-[var(--line)]" />

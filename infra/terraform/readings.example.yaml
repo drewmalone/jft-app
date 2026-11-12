@@ -1,14 +1,17 @@
-sample: true
-# Fictional examples, not published Just for Today material.
-# Use full ISO dates and quote them. Supply your own authorized editorial text.
-readings:
-  - date: '2026-11-11'
-    title: A small beginning
-    body: |
-      Just for today, I can take one useful step without solving everything.
-      A pause gives me room to choose how I respond.
-  - date: '2026-11-12'
-    title: Room to listen
-    body: |
-      Just for today, I can listen before deciding what comes next.
-      I can make space for another person's experience and still honor my own.
+# Fictional examples only; supply your own authorized editorial text.
+- date: '2026-11-11'
+  title: A small beginning
+  quote: A fictional reminder to take one useful step.
+  source: Fictional collection, p. 1
+  body: |-
+    Just for today, I can take one useful step without solving everything.
+
+    A pause gives me room to choose how I respond.
+- date: '2026-11-12'
+  title: Room to listen
+  quote: A fictional reminder to make room for another person's experience.
+  source: Fictional collection, p. 2
+  body: |-
+    Just for today, I can listen before deciding what comes next.
+
+    I can make space for another person's experience and still honor my own.

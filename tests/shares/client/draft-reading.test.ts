@@ -1,9 +1,9 @@
-import { dom } from '../../transcription/client/dom';
+import { dom } from '../transcription/client/dom';
 import assert from 'node:assert/strict';
 import { after, afterEach, test } from 'node:test';
 import { act, cleanup, renderHook } from '@testing-library/react';
-import { useShareApplication } from '../../../../src/shares/use-share-application';
-import type { DailyReading } from '../../../../src/readings/model';
+import { useShareApplication } from '../../../src/shares/use-share-application';
+import type { DailyReading } from '../../../src/readings/model';
 
 afterEach(cleanup);
 after(() => dom.window.close());
@@ -58,4 +58,35 @@ test('typed and recording drafts retain their reading across rollover and naviga
     hook.result.current.displayedReading.reading?.id,
     first.reading!.id
   );
+});
+
+test('draft review and confirmed save reset are explicit transitions', async () => {
+  const { useShareDraft } = await import('../../../src/shares/use-share-draft');
+  const initial = daily('2028-12-03'),
+    revised = {
+      ...initial,
+      reading: { ...initial.reading!, id: 'revision-two' }
+    };
+  const hook = renderHook(({ value }) => useShareDraft(value), {
+    initialProps: { value: initial }
+  });
+  act(() => hook.result.current.edit('Fictional words to retain.'));
+  act(() => hook.result.current.conflict());
+  hook.rerender({ value: revised });
+  assert.equal(hook.result.current.needsReview, true);
+  assert.equal(
+    hook.result.current.displayedReading.reading?.id,
+    initial.reading!.id
+  );
+  act(() => hook.result.current.review());
+  assert.equal(hook.result.current.needsReview, false);
+  assert.equal(
+    hook.result.current.displayedReading.reading?.id,
+    revised.reading!.id
+  );
+  assert.equal(hook.result.current.text, 'Fictional words to retain.');
+  act(() => hook.result.current.reset());
+  assert.equal(hook.result.current.text, '');
+  assert.equal(hook.result.current.pinned, null);
+  assert.equal(hook.result.current.recording, false);
 });

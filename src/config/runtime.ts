@@ -33,14 +33,21 @@ const readingSource = z.discriminatedUnion('READINGS_SOURCE', [
 ]);
 /** Select a complete YAML catalog. Invalid deployment settings never fall back to local content. */
 export function parseReadingsConfig(env: Environment) {
-  return readingSource.parse({
-    READINGS_SOURCE: env.READINGS_SOURCE ?? 'local',
-    READINGS_LOCAL_PATH:
-      env.READINGS_LOCAL_PATH ?? 'infra/terraform/readings.example.yaml',
-    READINGS_S3_BUCKET: env.READINGS_S3_BUCKET,
-    READINGS_S3_KEY: env.READINGS_S3_KEY ?? 'just-for-today.yaml',
-    READINGS_REGION: env.READINGS_REGION ?? env.AWS_REGION
-  });
+  return {
+    ...readingSource.parse({
+      READINGS_SOURCE: env.READINGS_SOURCE ?? 'local',
+      READINGS_LOCAL_PATH:
+        env.READINGS_LOCAL_PATH ?? 'infra/terraform/readings.example.yaml',
+      READINGS_S3_BUCKET: env.READINGS_S3_BUCKET,
+      READINGS_S3_KEY: env.READINGS_S3_KEY ?? 'just-for-today.yaml',
+      READINGS_REGION: env.READINGS_REGION ?? env.AWS_REGION
+    }),
+    READINGS_SAMPLE: z
+      .enum(['true', 'false'])
+      .parse(
+        env.READINGS_SAMPLE ?? (env.READINGS_SOURCE === 's3' ? 'false' : 'true')
+      )
+  };
 }
 const secretArn = z.string().refine((value) => {
   if (!value) return true;

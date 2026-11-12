@@ -1,3 +1,4 @@
+import { useReadingFixture } from '../fixtures/reading-service';
 import { reflection } from '../fixtures/sample-reading';
 import '@hono/zod-openapi';
 import assert from 'node:assert/strict';
@@ -64,6 +65,7 @@ test('shared contract tolerates delayed GSI history without weakening detail ass
 });
 
 test('history HTTP rejects invalid queries before storage and advertises an explicit next cursor', async (t) => {
+  useReadingFixture(t);
   const store = new InMemoryShareRepository();
   t.mock.method(shareRepository, 'create', store.create.bind(store));
   const list = t.mock.method(

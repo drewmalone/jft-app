@@ -34,7 +34,7 @@ test(
         lookups++;
         return localCatalog(path)();
       },
-      () => now
+      { now: () => now }
     );
     t.mock.method(
       readings,
@@ -48,10 +48,12 @@ test(
     const item = {
       date: '2026-11-11',
       title: 'Fictional imported daily text',
+      quote: 'A fictional quotation.',
+      source: 'Fictional collection, p. 1',
       body: 'Fictional first paragraph.\n\nFictional second paragraph.'
     };
     const put = (value: typeof item) =>
-      writeFile(path, JSON.stringify({ readings: [value] }));
+      writeFile(path, JSON.stringify([value]));
     await put(item);
     const request = () =>
       dispatch(

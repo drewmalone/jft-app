@@ -1,3 +1,4 @@
+import { useReadingFixture } from '../fixtures/reading-service';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import SwaggerParser from '@apidevtools/swagger-parser';
@@ -108,7 +109,8 @@ test('OpenAPI 3.1 is valid and exposes the same contract over HTTP without issui
   assert.deepEqual(await response.json(), JSON.parse(JSON.stringify(document)));
 });
 
-test('actual create/list/detail and error responses conform to OpenAPI, including required headers', async () => {
+test('actual create/list/detail and error responses conform to OpenAPI, including required headers', async (t) => {
+  useReadingFixture(t);
   const session = await request();
   const cookie = cookieFrom(session);
   await contract(session);
@@ -168,7 +170,8 @@ test('actual create/list/detail and error responses conform to OpenAPI, includin
   await contract(invalid);
 });
 
-test('text and raw-body limits accept boundaries and reject oversized bytes without writing', async () => {
+test('text and raw-body limits accept boundaries and reject oversized bytes without writing', async (t) => {
+  useReadingFixture(t);
   const cookie = cookieFrom(await request());
   const max = await request(
     'POST',
@@ -222,7 +225,8 @@ test('text and raw-body limits accept boundaries and reject oversized bytes with
   );
 });
 
-test('HEAD enforces ownership/session rules with no bodies; OPTIONS and 405 advertise Allow', async () => {
+test('HEAD enforces ownership/session rules with no bodies; OPTIONS and 405 advertise Allow', async (t) => {
+  useReadingFixture(t);
   const cookie = cookieFrom(await request());
   const created = await (
     await request(
@@ -276,7 +280,8 @@ test('HEAD enforces ownership/session rules with no bodies; OPTIONS and 405 adve
   assert.equal(wrongPost.headers.get('Allow'), detailAllow);
 });
 
-test('the text limit counts Unicode code points consistently with OpenAPI maxLength', async () => {
+test('the text limit counts Unicode code points consistently with OpenAPI maxLength', async (t) => {
+  useReadingFixture(t);
   const cookie = cookieFrom(await request());
   const text = '🌱'.repeat(MAX_SHARE_TEXT_LENGTH);
   const accepted = await request(
@@ -329,7 +334,8 @@ test('error contracts reject codes belonging to a different HTTP status', async 
   );
 });
 
-test('save-time link and public responses conform to generated contracts', async () => {
+test('save-time link and public responses conform to generated contracts', async (t) => {
+  useReadingFixture(t);
   const created = await request(
     'POST',
     '/api/shares',

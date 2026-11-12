@@ -10,6 +10,7 @@ output "compute_role_arn" {
 
 output "runtime_environment" {
   value = {
+    READINGS_SAMPLE     = "false"
     READINGS_SOURCE     = "s3"
     READINGS_S3_BUCKET  = aws_s3_bucket.readings.id
     READINGS_S3_KEY     = aws_s3_object.readings.key

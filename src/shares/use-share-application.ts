@@ -1,12 +1,7 @@
+import { useShareDraft } from './use-share-draft';
 import type { DailyReading } from '../readings/model';
 import { ApiRequestError } from './http-client';
-import {
-  useCallback,
-  useEffect,
-  useRef,
-  useState,
-  type FormEvent
-} from 'react';
+import { useEffect, useRef, useState, type FormEvent } from 'react';
 import type { Share } from './model';
 import { readShare, saveShare } from './api';
 import { useShareCleanup } from './cleanup/use-share-cleanup';
@@ -25,43 +20,11 @@ export function useShareApplication(
   refreshReading: () => void
 ) {
   const [screen, setScreen] = useState<Screen>({ view: 'today' });
-  const [draft, setDraft] = useState<{
-    text: string;
-    pinned: DailyReading | null;
-    recording: boolean;
-  }>({ text: '', pinned: null, recording: false });
-  const { text } = draft;
-  const [needsReview, setNeedsReview] = useState(false);
-  const setText = (value: string) => {
-    setDraft((current) => ({
-      ...current,
-      text: value,
-      pinned:
-        value.trim() || current.recording
-          ? (current.pinned ?? (daily.reading ? daily : null))
-          : null
-    }));
-    if (!value.trim()) setNeedsReview(false);
-  };
-  const recordingChanged = useCallback(
-    (recording: boolean) => {
-      setDraft((current) => {
-        if (current.recording === recording) return current;
-        return {
-          ...current,
-          recording,
-          pinned:
-            recording || current.text.trim()
-              ? (current.pinned ?? (daily.reading ? daily : null))
-              : null
-        };
-      });
-    },
-    [daily]
-  );
-  const displayedReading = draft.pinned ?? daily;
+  const draft = useShareDraft(daily);
+  const { text, needsReview, displayedReading, recordingChanged, canReview } =
+    draft;
   const reading = displayedReading.reading;
-  const cleanup = useShareCleanup(text, setText);
+  const cleanup = useShareCleanup(text, draft.edit);
   const {
     history,
     sessionReady,
@@ -124,9 +87,8 @@ export function useShareApplication(
     try {
       const share = await saveShare(text, reading.date, reading.id);
       if (!mounted.current) return;
-      cleanup.edit('');
-      setDraft({ text: '', pinned: null, recording: false });
-      setNeedsReview(false);
+      cleanup.cancel();
+      draft.reset();
       navigate({ view: 'saved', share });
     } catch (cause) {
       if (!mounted.current) return;
@@ -134,7 +96,7 @@ export function useShareApplication(
         cause instanceof ApiRequestError &&
         cause.code === 'READING_CHANGED'
       ) {
-        setNeedsReview(true);
+        draft.conflict();
         refreshReading();
       }
       setSaveError(
@@ -150,11 +112,10 @@ export function useShareApplication(
     pinned: !!draft.pinned,
     recordingChanged,
     needsReview,
-    canReview: !!daily.reading && daily.reading.id !== reading?.id,
+    canReview,
     reviewReading() {
       if (!daily.reading || daily.reading.id === reading?.id) return;
-      setDraft((current) => ({ ...current, pinned: daily }));
-      setNeedsReview(false);
+      draft.review();
       setSaveError('');
     },
     screen,
