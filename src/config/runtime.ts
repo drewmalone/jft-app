@@ -19,6 +19,36 @@ export function parsePersistenceConfig(env: Environment) {
     DYNAMODB_REGION: env.DYNAMODB_REGION ?? env.AWS_REGION
   });
 }
+const readingSource = z.discriminatedUnion('READINGS_SOURCE', [
+  z.object({
+    READINGS_SOURCE: z.literal('local'),
+    READINGS_LOCAL_PATH: z.string().trim().min(1)
+  }),
+  z.object({
+    READINGS_SOURCE: z.literal('s3'),
+    READINGS_S3_BUCKET: z.string().trim().min(3),
+    READINGS_S3_KEY: z.string().trim().min(1),
+    READINGS_REGION: z.string().trim().min(1)
+  })
+]);
+/** Select a complete YAML catalog. Invalid deployment settings never fall back to local content. */
+export function parseReadingsConfig(env: Environment) {
+  return {
+    ...readingSource.parse({
+      READINGS_SOURCE: env.READINGS_SOURCE ?? 'local',
+      READINGS_LOCAL_PATH:
+        env.READINGS_LOCAL_PATH ?? 'infra/terraform/readings.example.yaml',
+      READINGS_S3_BUCKET: env.READINGS_S3_BUCKET,
+      READINGS_S3_KEY: env.READINGS_S3_KEY ?? 'just-for-today.yaml',
+      READINGS_REGION: env.READINGS_REGION ?? env.AWS_REGION
+    }),
+    READINGS_SAMPLE: z
+      .enum(['true', 'false'])
+      .parse(
+        env.READINGS_SAMPLE ?? (env.READINGS_SOURCE === 's3' ? 'false' : 'true')
+      )
+  };
+}
 const secretArn = z.string().refine((value) => {
   if (!value) return true;
   try {
@@ -38,6 +68,7 @@ const speech = z.object({
 export function parseRuntimeConfig(env: Environment) {
   return {
     ...parsePersistenceConfig(env),
+    ...parseReadingsConfig(env),
     ...speech.parse({
       STT_ENABLED: env.STT_ENABLED ?? 'false',
       STT_PROVIDER: env.STT_PROVIDER,

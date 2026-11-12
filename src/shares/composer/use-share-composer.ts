@@ -1,4 +1,4 @@
-import type { FormEvent } from 'react';
+import { useEffect, useRef, type FormEvent } from 'react';
 import type { CleanupStatus } from '../cleanup/model';
 import { useTranscription } from '../transcription/use-transcription';
 
@@ -9,8 +9,11 @@ export interface ShareComposerOptions {
   isCleanupPending: () => boolean;
   onCleanup: (text: string) => Promise<void>;
   sessionReady: boolean;
+  /** Missing/loading readings block saving without blocking drafting or recording. */
+  readingReady?: boolean;
   saving: boolean;
   onTextChange: (text: string) => void;
+  onRecordingChange?: (active: boolean) => void;
   onSave: (event: FormEvent<HTMLFormElement>) => void;
 }
 
@@ -21,8 +24,10 @@ export function useShareComposer({
   isCleanupPending,
   onCleanup,
   sessionReady,
+  readingReady = true,
   saving,
   onTextChange,
+  onRecordingChange,
   onSave
 }: ShareComposerOptions) {
   const voice = useTranscription(text, onTextChange, {
@@ -30,18 +35,33 @@ export function useShareComposer({
       void onCleanup(value);
     }
   });
+  useEffect(() => {
+    onRecordingChange?.(voice.active);
+  }, [voice.active, voice.state, onRecordingChange]);
+  const recordingCallback = useRef(onRecordingChange);
+  useEffect(() => {
+    recordingCallback.current = onRecordingChange;
+  }, [onRecordingChange]);
+  useEffect(() => () => recordingCallback.current?.(false), []);
   return {
     voice,
     recordingDisabled: !sessionReady || saving || cleanupStatus === 'pending',
     saveDisabled:
       !sessionReady ||
+      !readingReady ||
       saving ||
       voice.active ||
       cleanupStatus === 'pending' ||
       !text.trim(),
     retryDisabled: voice.active || saving,
     submit(event: FormEvent<HTMLFormElement>) {
-      if (!sessionReady || saving || voice.active || isCleanupPending()) {
+      if (
+        !sessionReady ||
+        !readingReady ||
+        saving ||
+        voice.active ||
+        isCleanupPending()
+      ) {
         event.preventDefault();
         return;
       }
@@ -50,7 +70,10 @@ export function useShareComposer({
     toggleRecording() {
       if (!sessionReady || saving || isCleanupPending()) return;
       if (voice.active) voice.stop();
-      else voice.start();
+      else {
+        onRecordingChange?.(true);
+        voice.start();
+      }
     },
     retryCleanup() {
       if (!voice.active && !saving && !isCleanupPending()) void onCleanup(text);

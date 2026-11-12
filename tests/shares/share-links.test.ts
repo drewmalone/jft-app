@@ -1,10 +1,11 @@
+import { useReadingFixture } from '../fixtures/reading-service';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
 import { readPublicShare } from '../../src/shares/server/application/read-public-share';
 import { InMemoryShareRepository } from '../../src/shares/server/storage/memory-repository';
 import { dispatch } from '../../src/shares/server/app';
-import { reflection } from '../../src/shares/reflection/reflection-fixture';
+import { reflection } from '../fixtures/sample-reading';
 
 const now = 1_800_000_000;
 function request(
@@ -41,7 +42,8 @@ test('public service validates UUIDs before lookup and expires public links with
   const store = new InMemoryShareRepository();
   const saved = await store.create(
     randomUUID(),
-    'Fictional public service text.'
+    'Fictional public service text.',
+    reflection
   );
   const lookup = t.mock.method(store, 'findById');
   assert.equal(await readPublicShare('invalid', store), null);
@@ -68,6 +70,7 @@ test('public service validates UUIDs before lookup and expires public links with
 });
 
 test('saving creates one reusable UUID URL; public reads have no session side effects', async (t) => {
+  useReadingFixture(t);
   let currentTime = now * 1000;
   t.mock.method(Date, 'now', () => currentTime);
   const { share, cookie } = await create();

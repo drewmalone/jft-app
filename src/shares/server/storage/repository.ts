@@ -1,3 +1,4 @@
+import type { Reflection } from '../../model';
 import type { HistoryOptions, HistoryPage } from './history-page';
 import type { StoredShare } from './create-stored-share';
 
@@ -7,7 +8,11 @@ import type { StoredShare } from './create-stored-share';
  */
 export interface ShareRepository {
   /** Validate input and capture a reading snapshot; reject validation or storage failures. */
-  create(ownerId: string, text: string): Promise<StoredShare>;
+  create(
+    ownerId: string,
+    text: string,
+    reading: Reflection
+  ): Promise<StoredShare>;
   /** One bounded page, newest first; history may be eventually consistent. */
   listByOwner(ownerId: string, options?: HistoryOptions): Promise<HistoryPage>;
   /** Missing shares and shares owned by someone else both return null. */

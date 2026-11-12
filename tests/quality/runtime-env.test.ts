@@ -54,6 +54,10 @@ test('generated configuration round-trips through Next environment loading and m
   writeFileSync(file, initial);
   const settings = {
     SHARE_PERSISTENCE: 'dynamodb',
+    READINGS_SOURCE: 's3',
+    READINGS_S3_BUCKET: 'fictional-readings',
+    READINGS_S3_KEY: 'just-for-today.yaml',
+    READINGS_REGION: 'us-east-2',
     DYNAMODB_TABLE_NAME: 'fictional-shares',
     DYNAMODB_REGION: 'us-west-2',
     STT_PROVIDER: 'soniox',
@@ -100,21 +104,33 @@ test('generated configuration round-trips through Next environment loading and m
     assert.equal(readFileSync(file, 'utf8'), generated);
     assert.deepEqual(load(), {
       ...settings,
+      READINGS_SAMPLE: 'false',
+      READINGS_TABLE_NAME: '',
+      READINGS_LOCAL_PATH: '',
       SESSION_SECRET: 'fictional-stable-signing-secret-at-least-32-bytes',
       QUOTED: 'a value with spaces # literal',
       MULTILINE: 'first\nSTT_PROVIDER=inside\nlast'
     });
     assert.equal(prepare({ DYNAMODB_TABLE_NAME: '' }).status, 1);
     assert.equal(readFileSync(file, 'utf8'), generated);
+    assert.equal(prepare({ SHARE_PERSISTENCE: 'memory' }).status, 0);
+    assert.equal(load().DYNAMODB_REGION, '');
+    assert.equal(load().READINGS_REGION, 'us-east-2');
+    assert.equal(load().READINGS_S3_BUCKET, 'fictional-readings');
     assert.equal(
       prepare({
         SHARE_PERSISTENCE: 'memory',
+        READINGS_SOURCE: 'local',
         STT_PROVIDER: 'openai',
         STT_ENABLED: 'false'
       }).status,
       0
     );
     assert.equal(load().DYNAMODB_TABLE_NAME, '');
+    assert.equal(load().READINGS_TABLE_NAME, '');
+    assert.equal(load().READINGS_S3_BUCKET, '');
+    assert.equal(load().READINGS_REGION, '');
+    assert.equal(load().READINGS_SOURCE, 'local');
     assert.equal(load().DYNAMODB_REGION, '');
     assert.equal(load().STT_PROVIDER, 'openai');
     assert.equal(

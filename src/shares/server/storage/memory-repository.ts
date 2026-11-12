@@ -1,3 +1,4 @@
+import type { Reflection } from '../../model';
 import 'server-only';
 import { createStoredShare, type StoredShare } from './create-stored-share';
 import {
@@ -12,8 +13,12 @@ import type { ShareRepository } from './repository';
 export class InMemoryShareRepository implements ShareRepository {
   #shares = new Map<string, StoredShare>();
 
-  async create(ownerId: string, text: string): Promise<StoredShare> {
-    const share = createStoredShare(ownerId, text);
+  async create(
+    ownerId: string,
+    text: string,
+    reading: Reflection
+  ): Promise<StoredShare> {
+    const share = createStoredShare(ownerId, text, reading);
     this.#shares.set(share.id, share);
     return structuredClone(share);
   }

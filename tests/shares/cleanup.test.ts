@@ -83,6 +83,7 @@ test('cleanup validates text and bytes before calling OpenAI', async (t) => {
     '{"text":" "}',
     '{"text":7}',
     '{"text":"a","extra":true}',
+    '{"text":"a","readingDate":"2026-11-11"}',
     JSON.stringify({ text: '🌱'.repeat(10_001) })
   ]) {
     assert.equal((await request(session, body)).status, 400);

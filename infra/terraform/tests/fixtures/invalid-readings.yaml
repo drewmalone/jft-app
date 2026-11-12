@@ -1,0 +1,6 @@
+# Fictional examples only.
+- date: '02-30'
+  title: Fictional invalid date
+  body: This fictional test must never be uploaded.
+  quote: A fictional quotation for today.
+  source: Fictional collection, p. 1

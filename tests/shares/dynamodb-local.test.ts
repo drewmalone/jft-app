@@ -1,13 +1,10 @@
+import { useReadingFixture } from '../fixtures/reading-service';
+import { reflection } from '../fixtures/sample-reading';
 import '@hono/zod-openapi';
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
-import {
-  CreateTableCommand,
-  DeleteTableCommand,
-  DynamoDBClient,
-  waitUntilTableExists
-} from '@aws-sdk/client-dynamodb';
-import { DynamoDBDocumentClient, PutCommand } from '@aws-sdk/lib-dynamodb';
+import { PutCommand } from '@aws-sdk/lib-dynamodb';
+import { dynamoTable } from './dynamodb-fixture';
 import { test } from 'node:test';
 import { dispatch } from '../../src/shares/server/app';
 import { shareRepository } from '../../src/shares/server/storage/configured-repository';
@@ -21,50 +18,7 @@ test(
   'DynamoDB Local applies repository contract, ordering, pagination, and conditional writes',
   { skip: !endpoint },
   async (t) => {
-    const client = new DynamoDBClient({
-      endpoint,
-      region: 'us-west-2',
-      credentials: {
-        accessKeyId: 'localtestaccesskey0001',
-        secretAccessKey: 'localtestsecretaccesskey000000000000000000000000'
-      }
-    });
-    const documentClient = DynamoDBDocumentClient.from(client);
-    const tableName = `shares-${randomUUID()}`;
-    await client.send(
-      new CreateTableCommand({
-        TableName: tableName,
-        BillingMode: 'PAY_PER_REQUEST',
-        KeySchema: [{ AttributeName: 'id', KeyType: 'HASH' }],
-        AttributeDefinitions: [
-          { AttributeName: 'id', AttributeType: 'S' },
-          { AttributeName: 'ownerId', AttributeType: 'S' },
-          { AttributeName: 'createdAt', AttributeType: 'S' }
-        ],
-        GlobalSecondaryIndexes: [
-          {
-            IndexName: 'owner-created-at',
-            KeySchema: [
-              { AttributeName: 'ownerId', KeyType: 'HASH' },
-              { AttributeName: 'createdAt', KeyType: 'RANGE' }
-            ],
-            Projection: { ProjectionType: 'ALL' }
-          }
-        ]
-      })
-    );
-    t.after(async () => {
-      try {
-        await client.send(new DeleteTableCommand({ TableName: tableName }));
-      } finally {
-        client.destroy();
-      }
-    });
-    await waitUntilTableExists(
-      { client, maxWaitTime: 30 },
-      { TableName: tableName }
-    );
-
+    const { documentClient, tableName } = await dynamoTable(t);
     const repository = new DynamoDbShareRepository(tableName, documentClient);
     await repositoryContract(repository);
     const ownerId = randomUUID();
@@ -85,31 +39,49 @@ test(
       );
     };
 
-    const older = createStoredShare(ownerId, 'Fictional older share.');
+    const older = createStoredShare(
+      ownerId,
+      'Fictional older share.',
+      reflection
+    );
     older.createdAt = new Date(now - 30_000).toISOString();
     await putShare(older);
 
-    const newer = createStoredShare(ownerId, 'Fictional newer share.');
+    const newer = createStoredShare(
+      ownerId,
+      'Fictional newer share.',
+      reflection
+    );
     newer.createdAt = new Date(now - 20_000).toISOString();
     await putShare(newer);
 
-    const future = createStoredShare(ownerId, 'Fictional future-dated share.');
+    const future = createStoredShare(
+      ownerId,
+      'Fictional future-dated share.',
+      reflection
+    );
     future.createdAt = new Date(now + 20_000).toISOString();
     await putShare(future);
 
     const inserted = await repository.create(
       ownerId,
-      'Fictional created share.'
+      'Fictional created share.',
+      reflection
     );
     const otherOwnerShare = createStoredShare(
       otherOwnerId,
-      'Fictional other owner.'
+      'Fictional other owner.',
+      reflection
     );
     await putShare(otherOwnerShare);
 
     const paddedIds: string[] = [];
     for (let index = 0; index < 5; index += 1) {
-      const padded = createStoredShare(ownerId, 'Fictional paginated share.');
+      const padded = createStoredShare(
+        ownerId,
+        'Fictional paginated share.',
+        reflection
+      );
       padded.createdAt = new Date(now + 60_000 + index * 1000).toISOString();
       await putShare(padded, 280_000);
       paddedIds.unshift(padded.id);
@@ -147,7 +119,11 @@ test(
     ]);
     assert.equal(await repository.findById(future.id).then(Boolean), true);
     // Old TTL metadata is ignored by private reads after the retention policy change.
-    const old = createStoredShare(ownerId, 'Fictional retained history.');
+    const old = createStoredShare(
+      ownerId,
+      'Fictional retained history.',
+      reflection
+    );
     old.createdAt = new Date(now - 8 * 86400_000).toISOString();
     await documentClient.send(
       new PutCommand({
@@ -160,6 +136,7 @@ test(
     await t.test(
       'HTTP save, owner isolation, public expiry and private retention use the database adapter',
       async (t) => {
+        useReadingFixture(t);
         let clock = Date.now();
         t.mock.method(Date, 'now', () => clock);
         for (const method of [

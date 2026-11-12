@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { readingSchema } from '../readings/model';
 
 /** Maximum raw text length in Unicode code points, before surrounding whitespace is trimmed. */
 export const MAX_SHARE_TEXT_LENGTH = 10_000;
@@ -6,15 +7,10 @@ export const MAX_SHARE_TEXT_LENGTH = 10_000;
 const nonblankText = z.string().refine((value) => value.trim().length > 0, {
   message: 'Text must not be blank'
 });
-const reflectionSchema = z.object({
-  id: nonblankText,
-  date: z.iso.date(),
-  title: nonblankText,
-  body: nonblankText
-});
-
-/** Accept text only; the server supplies ownership, metadata, and the reading snapshot. */
+/** Accept text and optional reading date/revision selectors; the server supplies the authoritative snapshot. */
 export const createShareSchema = z.strictObject({
+  readingDate: z.iso.date().optional(),
+  readingId: z.string().min(1).max(500).optional(),
   text: z
     .string()
     .refine(
@@ -35,7 +31,7 @@ export const shareSchema = z.object({
   id: z.uuid(),
   createdAt: z.iso.datetime({ offset: true }),
   kind: z.literal('text'),
-  reflection: reflectionSchema,
+  reflection: readingSchema,
   text: nonblankText,
   shareUrl: z
     .string()
@@ -45,7 +41,7 @@ export const shareSchema = z.object({
 });
 
 /** Reading snapshot with an ISO calendar date; saved snapshots do not follow later edits. */
-export type Reflection = z.infer<typeof reflectionSchema>;
+export type Reflection = z.infer<typeof readingSchema>;
 
 export type Share = z.infer<typeof shareSchema>;
 

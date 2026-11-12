@@ -1,10 +1,16 @@
 import { expect, test, type Page } from './fixtures/test';
-import { reflection } from '../../src/shares/reflection/reflection-fixture';
+import { reflection } from '../fixtures/sample-reading';
 
 const fictionalText =
   'A fictional thought for a fellow alcoholic.\nOne day at a time.';
 async function save(page: Page) {
   await page.goto('/');
+  await expect(
+    page.getByText(reflection.quote!, { exact: true })
+  ).toBeVisible();
+  await expect(
+    page.getByText(reflection.source!, { exact: true })
+  ).toBeVisible();
   await page.getByRole('textbox').fill(fictionalText);
   const response = page.waitForResponse(
     (r) => r.url().endsWith('/api/shares') && r.request().method() === 'POST'
@@ -35,6 +41,12 @@ test('share icon uses the saved URL directly for native sharing and session-free
     if (/\/api\/shares\/[^/]+\/link$/.test(request.url())) linkRequests++;
   });
   const saved = await save(page);
+  await expect(
+    page.getByText(reflection.quote!, { exact: true })
+  ).toBeVisible();
+  await expect(
+    page.getByText(reflection.source!, { exact: true })
+  ).toBeVisible();
   const link = new URL(saved.shareUrl, baseURL).href;
   expect(new URL(link).pathname).toBe(`/s/${saved.id}`);
   expect(new URL(link).search).toBe('');
@@ -71,17 +83,31 @@ test('share icon uses the saved URL directly for native sharing and session-free
     await expect(
       reader.getByText(reflection.body, { exact: true })
     ).toBeVisible();
+    await expect(
+      reader.getByText(reflection.quote!, { exact: true })
+    ).toBeVisible();
+    await expect(
+      reader.getByText(reflection.source!, { exact: true })
+    ).toBeVisible();
     await expect(reader.getByLabel('Shared thoughts')).toContainText(
       fictionalText
     );
     await expect(
-      reader.getByText('April 23, 2025', { exact: false })
+      reader.getByText(
+        new Intl.DateTimeFormat('en-US', {
+          month: 'long',
+          day: 'numeric',
+          year: 'numeric',
+          timeZone: 'UTC'
+        }).format(new Date(saved.reflection.date + 'T12:00:00Z')),
+        { exact: false }
+      )
     ).toBeVisible();
     expect(await recipient.cookies()).toEqual([]);
     const publicPath = `/api/public/shares/${saved.id}`;
     const publicResponse = await recipient.request.get(publicPath);
     expect(await publicResponse.json()).toEqual({
-      reflection,
+      reflection: saved.reflection,
       text: fictionalText
     });
     expect(publicResponse.headers()['set-cookie']).toBeUndefined();

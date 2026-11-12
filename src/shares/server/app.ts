@@ -1,3 +1,4 @@
+import { registerDailyReading } from './http/operations/read-daily-reading';
 import 'server-only';
 import { OpenAPIHono } from '@hono/zod-openapi';
 import type { SessionEnvironment } from './http/middleware';
@@ -34,6 +35,7 @@ const app = new OpenAPIHono<SessionEnvironment>({
 }).basePath('/api');
 
 app.onError(handleApiError);
+registerDailyReading(app);
 app.openapi(listSharesRoute, listShares);
 app.openapi(createShareRoute, createShare);
 

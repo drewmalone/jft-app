@@ -3,13 +3,17 @@ import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
 import { InMemoryShareRepository } from '../../src/shares/server/storage/memory-repository';
 import { createStoredShare } from '../../src/shares/server/storage/create-stored-share';
-import { reflection } from '../../src/shares/reflection/reflection-fixture';
+import { reflection } from '../fixtures/sample-reading';
 
 test('memory repository instances isolate records', async () => {
   const owner = randomUUID();
   const first = new InMemoryShareRepository();
   const second = new InMemoryShareRepository();
-  const saved = await first.create(owner, 'Fictional isolated record.');
+  const saved = await first.create(
+    owner,
+    'Fictional isolated record.',
+    reflection
+  );
   assert.deepEqual((await second.listByOwner(owner)).shares, []);
   assert.equal(await second.findByOwner(saved.id, owner), null);
 });
@@ -19,7 +23,8 @@ test('share construction validates metadata and captures a detached reading with
   const start = Date.now();
   const share = createStoredShare(
     owner,
-    '  A fictional constructed thought.  '
+    '  A fictional constructed thought.  ',
+    reflection
   );
   assert.equal(share.ownerId, owner);
   assert.equal(share.text, 'A fictional constructed thought.');
@@ -28,7 +33,7 @@ test('share construction validates metadata and captures a detached reading with
   assert.deepEqual(share.reflection, reflection);
   share.reflection.title = 'Changed constructed snapshot';
   assert.notEqual(share.reflection.title, reflection.title);
-  assert.throws(() => createStoredShare(owner, '  '));
+  assert.throws(() => createStoredShare(owner, '  ', reflection));
 });
 
 import { repositoryContract } from './repository-contract';

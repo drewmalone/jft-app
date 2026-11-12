@@ -1,7 +1,13 @@
+import { getCookie } from 'hono/cookie';
+import { createShareForReading } from '../../application/create-share';
+import {
+  readingTimeZone,
+  READING_TIME_ZONE_COOKIE
+} from '../../../../readings/calendar';
+import { errorBody } from '../errors';
 import 'server-only';
 import { createRoute, type RouteHandler } from '@hono/zod-openapi';
 import { shareSchema } from '../../../model';
-import { shareRepository } from '../../storage/configured-repository';
 import type { SessionEnvironment } from '../middleware';
 import {
   share,
@@ -27,7 +33,7 @@ export const createShareRoute = createRoute({
   request: {
     body: {
       required: true,
-      description: `Only text is accepted: at most ${MAX_SHARE_TEXT_LENGTH} Unicode code points before trimming, then at least one non-whitespace character. Raw JSON is limited to ${MAX_SHARE_REQUEST_BYTES} bytes. JSON media types are case-insensitive; valid parameters are accepted.`,
+      description: `Text plus an optional ISO readingDate is accepted: at most ${MAX_SHARE_TEXT_LENGTH} Unicode code points before trimming, then at least one non-whitespace character. Raw JSON is limited to ${MAX_SHARE_REQUEST_BYTES} bytes. JSON media types are case-insensitive; valid parameters are accepted.`,
       content: {
         'application/json': {
           schema: createShareSchema.openapi('CreateShare', {
@@ -56,17 +62,27 @@ export const createShareRoute = createRoute({
     403: failed(['CROSS_ORIGIN_REQUEST']),
     413: failed(['PAYLOAD_TOO_LARGE']),
     415: failed(['UNSUPPORTED_MEDIA_TYPE']),
+    409: failed(['READING_CHANGED']),
+    503: failed(['READING_UNAVAILABLE']),
     ...commonFailures
   }
 });
 
-/** Ownership comes from the session; client input supplies only text. */
+/** Ownership comes from the session; client input selects a date, never the reading text. */
 export const createShare: RouteHandler<
   typeof createShareRoute,
   SessionEnvironment
 > = async (c) => {
-  const { text } = c.req.valid('json');
-  const share = await shareRepository.create(c.get('ownerId'), text);
+  const result = await createShareForReading(
+    c.get('ownerId'),
+    c.req.valid('json'),
+    readingTimeZone(getCookie(c, READING_TIME_ZONE_COOKIE))
+  );
+  if (result.error === 'READING_UNAVAILABLE')
+    return c.json(errorBody(result.error), 503);
+  if (result.error === 'READING_CHANGED')
+    return c.json(errorBody(result.error), 409);
+  const { share } = result;
   c.header('Location', `/api/shares/${share.id}`);
   return c.json(shareSchema.parse(share), 201);
 };

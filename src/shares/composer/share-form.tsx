@@ -18,8 +18,10 @@ export function ShareForm({
   isCleanupPending,
   onCleanup,
   sessionReady,
+  readingReady,
   saving,
   error,
+  onRecordingChange,
   onTextChange,
   onSave
 }: ShareFormProps) {
@@ -29,7 +31,9 @@ export function ShareForm({
     isCleanupPending,
     onCleanup,
     sessionReady,
+    readingReady,
     saving,
+    onRecordingChange,
     onTextChange,
     onSave
   });

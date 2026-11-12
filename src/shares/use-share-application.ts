@@ -1,3 +1,6 @@
+import { useShareDraft } from './use-share-draft';
+import type { DailyReading } from '../readings/model';
+import { ApiRequestError } from './http-client';
 import { useEffect, useRef, useState, type FormEvent } from 'react';
 import type { Share } from './model';
 import { readShare, saveShare } from './api';
@@ -12,10 +15,16 @@ type DetailState =
   | { status: 'failed'; message: string };
 
 /** Mounted application owns the draft and async transitions across screens; never persists draft text. */
-export function useShareApplication() {
+export function useShareApplication(
+  daily: DailyReading,
+  refreshReading: () => void
+) {
   const [screen, setScreen] = useState<Screen>({ view: 'today' });
-  const [text, setText] = useState('');
-  const cleanup = useShareCleanup(text, setText);
+  const draft = useShareDraft(daily);
+  const { text, needsReview, displayedReading, recordingChanged, canReview } =
+    draft;
+  const reading = displayedReading.reading;
+  const cleanup = useShareCleanup(text, draft.edit);
   const {
     history,
     sessionReady,
@@ -61,7 +70,13 @@ export function useShareApplication() {
   }
   async function save(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (savePending.current || !sessionReady) return;
+    if (savePending.current || !sessionReady || needsReview) return;
+    if (!reading) {
+      setSaveError(
+        'The daily reading is unavailable. Your words are still here.'
+      );
+      return;
+    }
     if (!text.trim()) {
       setSaveError('Write a few words before saving your share.');
       return;
@@ -70,12 +85,20 @@ export function useShareApplication() {
     setSaving(true);
     setSaveError('');
     try {
-      const share = await saveShare(text);
+      const share = await saveShare(text, reading.date, reading.id);
       if (!mounted.current) return;
-      cleanup.edit('');
+      cleanup.cancel();
+      draft.reset();
       navigate({ view: 'saved', share });
     } catch (cause) {
       if (!mounted.current) return;
+      if (
+        cause instanceof ApiRequestError &&
+        cause.code === 'READING_CHANGED'
+      ) {
+        draft.conflict();
+        refreshReading();
+      }
       setSaveError(
         `Your share could not be saved. Your words are still here. ${cause instanceof Error ? cause.message : 'Check your connection and try again.'}`
       );
@@ -85,6 +108,16 @@ export function useShareApplication() {
     }
   }
   return {
+    displayedReading,
+    pinned: !!draft.pinned,
+    recordingChanged,
+    needsReview,
+    canReview,
+    reviewReading() {
+      if (!daily.reading || daily.reading.id === reading?.id) return;
+      draft.review();
+      setSaveError('');
+    },
     screen,
     text,
     cleanup,

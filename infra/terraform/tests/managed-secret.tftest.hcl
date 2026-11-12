@@ -14,6 +14,7 @@ mock_provider "aws" {
 }
 
 variables {
+  readings_yaml_path   = "readings.example.yaml"
   project_name         = "review"
   environment          = "dev"
   create_soniox_secret = true

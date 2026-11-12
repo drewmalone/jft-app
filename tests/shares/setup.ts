@@ -1,2 +1,2 @@
-// Explicit synthetic selection for server tests; keep OpenAI contract fixtures independent of the Soniox production default.
+// Provider choice is explicit; reading fixtures are scoped to individual tests.
 process.env.STT_PROVIDER = 'openai';

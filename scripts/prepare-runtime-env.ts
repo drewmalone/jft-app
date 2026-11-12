@@ -10,12 +10,21 @@ function main() {
     config = parseRuntimeConfig(process.env);
   } catch {
     throw new Error(
-      'Invalid runtime configuration. Check persistence and speech settings.'
+      'Invalid runtime configuration. Check storage, readings and speech settings.'
     );
   }
   const file = '.env.production';
   let content = existsSync(file) ? readFileSync(file, 'utf8') : '';
-  const settings = { DYNAMODB_TABLE_NAME: '', DYNAMODB_REGION: '', ...config };
+  const settings = {
+    DYNAMODB_TABLE_NAME: '',
+    DYNAMODB_REGION: '',
+    READINGS_TABLE_NAME: '', // Clear obsolete deployment setting.
+    READINGS_LOCAL_PATH: '',
+    READINGS_S3_BUCKET: '',
+    READINGS_S3_KEY: '',
+    READINGS_REGION: '',
+    ...config
+  };
   for (const [key, value] of Object.entries(settings))
     content = dotenvSource.upsert(content, key, value);
   writeFileSync(file, content, { mode: 0o600 });

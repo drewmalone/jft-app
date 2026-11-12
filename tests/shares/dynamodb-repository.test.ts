@@ -1,3 +1,4 @@
+import { reflection } from '../fixtures/sample-reading';
 // Initialize the existing Zod OpenAPI extension before loading shared schemas.
 import '@hono/zod-openapi';
 import assert from 'node:assert/strict';
@@ -36,7 +37,7 @@ test('DynamoDB failures propagate and HTTP responses redact raw errors', async (
   const owner = randomUUID();
   const id = randomUUID();
   await assert.rejects(
-    repository.create(owner, 'Fictional failure.'),
+    repository.create(owner, 'Fictional failure.', reflection),
     /Fictional database failure/
   );
   await assert.rejects(repository.findById(id), /Fictional database failure/);

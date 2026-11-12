@@ -20,12 +20,20 @@ export type ShareHistoryPage = Awaited<ReturnType<typeof readShares>>;
  * A rejected save may still have committed if its response was lost.
  * Leave draft clearing and retry decisions to the caller.
  */
-export async function saveShare(text: string) {
+export async function saveShare(
+  text: string,
+  readingDate?: string,
+  readingId?: string
+) {
   return shareSchema.parse(
     await requestJson('/api/shares', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ text })
+      body: JSON.stringify({
+        text,
+        ...(readingDate ? { readingDate } : {}),
+        ...(readingId ? { readingId } : {})
+      })
     })
   );
 }
