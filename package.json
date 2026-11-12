@@ -3,6 +3,7 @@
   "version": "0.3.0",
   "private": true,
   "scripts": {
+    "readings:validate": "node --env-file-if-exists=.env.local --conditions=react-server --import tsx scripts/validate-readings.ts",
     "dev": "next dev --hostname 0.0.0.0",
     "build": "next build",
     "start": "next start --hostname 0.0.0.0",

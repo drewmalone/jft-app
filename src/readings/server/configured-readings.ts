@@ -1,5 +1,5 @@
 import 'server-only';
-import { ZodError } from 'zod';
+import { readingFailureMessage } from './diagnostics';
 import { S3Client } from '@aws-sdk/client-s3';
 import { parseReadingsConfig } from '../../config/runtime';
 import { readingDate } from '../calendar';
@@ -30,38 +30,7 @@ async function getReading(date: string) {
   try {
     return await current().get(date);
   } catch (cause) {
-    if (cause instanceof ZodError) {
-      console.error(
-        '[readings] Invalid configuration or catalog. Expected a YAML list with MM-DD date, title, quote, source and body.',
-        {
-          issues: cause.issues.slice(0, 10).map((issue) => ({
-            field: issue.path.join('.') || '(root)',
-            code: issue.code
-          }))
-        }
-      );
-    } else {
-      const code =
-        typeof cause === 'object' && cause !== null && 'code' in cause
-          ? cause.code
-          : undefined;
-      const message = cause instanceof Error ? cause.message : '';
-      const reason =
-        code === 'ENOENT'
-          ? 'File not found: check READINGS_LOCAL_PATH relative to the app working directory.'
-          : code === 'EACCES'
-            ? 'The configured readings file is not readable.'
-            : code === 'EISDIR'
-              ? 'READINGS_LOCAL_PATH points to a directory, not a YAML file.'
-              : message === 'Invalid reading YAML.'
-                ? 'Malformed YAML or duplicate YAML keys.'
-                : message === 'Duplicate reading date.'
-                  ? 'Duplicate reading date in the catalog.'
-                  : message === 'Reading catalog exceeds the size limit.'
-                    ? 'Catalog exceeds the 10 MiB limit.'
-                    : 'Source request failed: check local file access or S3 bucket, key, region and role permissions.';
-      console.error('[readings] Catalog load failed.', { reason });
-    }
+    console.error(`[readings] ${readingFailureMessage(cause)}`);
     throw cause;
   }
 }
