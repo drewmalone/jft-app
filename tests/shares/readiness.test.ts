@@ -7,10 +7,10 @@ import { validateSigningSecret } from '../../src/config/deployment';
 import { securityHeaders } from '../../src/config/security-headers';
 import { parseCatalog } from '../../src/readings/server/catalog';
 import { ReadingCache } from '../../src/readings/server/cache';
-import { createShareForReading } from '../../src/shares/server/application/create-share';
+import { createShareService } from '../../src/shares/server/application/create-share';
 import { InMemoryShareRepository } from '../../src/shares/server/storage/memory-repository';
 import { reflection } from '../fixtures/sample-reading';
-import { dispatch } from '../../src/server/app';
+import { dispatch } from '../fixtures/application';
 import { useReadingFixture } from '../fixtures/reading-service';
 
 test('hosted profiles require durable isolated storage, distributed quotas and runtime signing', () => {
@@ -119,29 +119,27 @@ test('completed replay bypasses changed catalog and quota reservation', async ()
       sample: true
     })
   };
-  const first = await createShareForReading(
-    owner,
+  const request = {
+    ownerId: owner,
     input,
-    'America/Chicago',
-    source,
+    timeZone: 'America/Chicago',
+    submissionKey: key
+  };
+  const first = await createShareService({
     repository,
-    key,
-    authorize
-  );
-  const replay = await createShareForReading(
-    owner,
-    input,
-    'America/Chicago',
-    {
+    readings: source,
+    reserveCreate: authorize
+  }).save(request);
+  const replay = await createShareService({
+    repository,
+    readings: {
       ...source,
       findByDate: async () => {
         throw new Error('Fictional outage');
       }
     },
-    repository,
-    key,
-    authorize
-  );
+    reserveCreate: authorize
+  }).save(request);
   assert.deepEqual(replay, first);
   assert.equal(reservations, 1);
 });

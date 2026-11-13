@@ -96,7 +96,7 @@ test('DynamoDB adapter writes all counters in one conditional transaction and di
 });
 
 test('HTTP quota rejection and backend outage never invoke a provider; private reads fail open', async (t) => {
-  const { dispatch } = await import('../../src/server/app');
+  const { dispatch } = await import('../fixtures/application');
   t.mock.property(process, 'env', { ...process.env, STT_ENABLED: 'true' });
   const session = await dispatch(new Request('http://localhost/api/shares'));
   const cookie = session.headers.get('set-cookie')!.split(';')[0];
@@ -135,7 +135,7 @@ test('HTTP quota rejection and backend outage never invoke a provider; private r
 
 test('share creation rejects malformed drafts before quota use and stops writes at owner allowance', async (t) => {
   useReadingFixture(t);
-  const { dispatch } = await import('../../src/server/app');
+  const { dispatch } = await import('../fixtures/application');
   const session = await dispatch(new Request('http://localhost/api/shares'));
   const cookie = session.headers.get('set-cookie')!.split(';')[0];
   const save = (body: unknown) =>
@@ -167,7 +167,7 @@ test('share creation rejects malformed drafts before quota use and stops writes 
 });
 
 test('untrusted forwarding and owner headers do not change verified quota ownership', async (t) => {
-  const { dispatch } = await import('../../src/server/app');
+  const { dispatch } = await import('../fixtures/application');
   const session = await dispatch(new Request('http://localhost/api/shares'));
   const cookie = session.headers.get('set-cookie')!.split(';')[0];
   const owners: (string | undefined)[] = [];

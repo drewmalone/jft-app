@@ -4,10 +4,10 @@ import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
 import { serializeSigned } from 'hono/utils/cookie';
 import { NextRequest } from 'next/server';
-import { GET, POST } from '../../src/app/api/shares/route';
-import { GET as getDetail } from '../../src/app/api/shares/[id]/route';
+import { dispatch as GET, dispatch as POST } from '../fixtures/application';
+import { dispatch as getDetail } from '../fixtures/application';
 import { reflection } from '../fixtures/sample-reading';
-import { shareRepository } from '../../src/shares/server/storage/configured-repository';
+import { shareRepository } from '../fixtures/application';
 
 function request(method = 'GET', cookie?: string, body?: unknown) {
   return new NextRequest('http://localhost/api/shares', {

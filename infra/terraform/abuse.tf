@@ -108,7 +108,7 @@ output "launch_security" {
     waf_mode                             = var.waf_block ? "BLOCK" : "COUNT"
     amplify_app_id                       = var.amplify_app_id
     budget_names                         = [for budget in aws_budgets_budget.security : budget.name]
-    csp_requests_per_ip_per_five_minutes = var.waf_rate_limits["csp"]
+    csp_requests_per_ip_per_five_minutes = local.waf_limits["csp"]
   }
   description = "Declared plan configuration only. Complete docs/PRELAUNCH.md against live AWS before launch."
 }

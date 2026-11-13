@@ -1,6 +1,6 @@
 # Application architecture
 
-Doorknob is a single Next.js application. Next.js hosts pages and thin Route Handler adapters; a shared Hono/OpenAPI application dispatches the HTTP operations. AWS and AI providers are accessed through explicit adapters, without a separate backend deployment.
+Doorknob is a single Next.js application. Next.js hosts pages and one catch-all API Route Handler adapter; a shared Hono/OpenAPI application dispatches the HTTP operations. AWS and AI providers are accessed through explicit adapters, without a separate backend deployment.
 
 ## Feature boundaries
 
@@ -24,7 +24,7 @@ Shared code lives outside feature directories. Readings use `http/client.ts` and
 
 `config/runtime.ts` validates storage, readings, feature flags, provider names, secret ARN metadata and quota overrides without accessing external services. `config/features.ts` separates transcription and cleanup enablement; `config/quotas.ts` owns the supported per-owner windows. Startup and build preparation use the same validators. Invalid settings fail with sanitized configuration errors.
 
-`server/services.ts` is the wiring boundary. Its factory can receive explicit settings and isolated state in tests. Production getters lazily construct the chosen repository, reading cache and quota backend. Catalogs, AWS data and provider secrets are not fetched during construction or build. Feature facades preserve a narrow repository/readings interface; they do not select their own infrastructure. Speech provider selection remains fixed on first initialization. Dynamic emergency control records are checked at request time separately from deployment configuration.
+`server/services.ts` snapshots and validates nonsecret configuration once, deeply freezes it, and lazily constructs repositories, reading services and quota backends. `getServerServices()` retains one process-local runtime across development reloads. There are no forwarding feature facades. `createHttpApplication(services)` binds explicit services into the Hono request context; tests can construct independent applications with different repositories and configurations. Catalog data, AWS data and provider secrets are not fetched during construction or build. Private signing/provider credentials retain their dedicated runtime loaders. Dynamic emergency control records are checked at request time separately from immutable deployment configuration.
 
 ## Session and startup
 
@@ -52,7 +52,7 @@ The session operation only signs/verifies the existing cookie format. It returns
 - `useShareApplication` coordinates navigation, explicit saves, session readiness, on-demand history and detail requests.
 - `useShareDraft` owns draft text and the pinned reading/revision. Its reducer handles editing, recording, reading conflicts, review and confirmed-save reset.
 - `useShareComposer` coordinates editor actions with recording and cleanup readiness.
-- `useTranscription` owns the mounted recording lifecycle; each provider engine owns capture/transport details behind `TranscriptionEngine`.
+- `useTranscription` owns the mounted recording lifecycle and dispatches explicit recording-state reducer events; each provider engine owns capture/transport details behind `TranscriptionEngine`.
 - `useShareCleanup` owns one cancellable draft transformation. It applies a result only while its request and source text remain current.
 - `useShareHistory` owns page loading, pagination and stale-response suppression. It has no session-bootstrap responsibility.
 
@@ -83,3 +83,13 @@ Transcription credentials are issued server-side, then audio streams directly fr
 `server/http/openapi.ts` provides shared schemas/headers and API metadata; feature operations own their route contracts and validation. Schemas are cloned before OpenAPI decoration so importing domain models before the HTTP app does not change behavior. Generated YAML is an ignored artifact, not a second contract source.
 
 The test suite combines pure policy/reducer tests, mocked provider tests, shared repository contracts, DynamoDB Local transactions, OpenAPI response validation and browser flows. [Contributing](../CONTRIBUTING.md) owns commands and test conventions. [The Terraform guide](../infra/terraform/README.md) owns infrastructure construction and deployment; application builds never apply Terraform.
+
+## Application and API composition
+
+`src/app/api/[[...path]]/route.ts` forwards all supported methods to the single Hono application. Hono owns path validation, GET/HEAD/OPTIONS behavior, method rejection and OpenAPI contracts. Unknown API paths receive a session-free 404 with API privacy headers.
+
+`createShareService({ repository, readings, reserveCreate })` binds required dependencies once and accepts a named save request. No caller can omit quota authorization through a default no-op. Completed idempotent replays still skip reservation and catalog access. HTTP quota translation is bound at the application's composition boundary; the save service imports no HTTP code.
+
+`application-state.ts` owns atomic screen/save/detail transitions; `recording-state.ts` owns visible recording transitions. Hooks retain imperative resource ownership, request generations and synchronous duplicate guards. Late callback protection, draft pinning and submission keys remain separate from UI state. Server-state fetching is unchanged; a query-library migration belongs in its own PR.
+
+WAF path, method, priority and default threshold are defined together in `local.waf_rules`. Override maps may change a subset of thresholds and reject unknown names; no separate rule-name lists or method-name conditionals are required. [Decisions](DECISIONS.md) records provider support and compatibility retirement.

@@ -1,7 +1,7 @@
 import '@hono/zod-openapi';
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { dispatch, getOpenApiDocument } from '../../src/server/app';
+import { dispatch, getOpenApiDocument } from '../fixtures/application';
 import { securityHeaders } from '../../src/config/security-headers';
 
 test('report-only CSP has a real same-origin destination and discards sensitive reports without logging', async (t) => {

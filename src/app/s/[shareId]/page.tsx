@@ -1,3 +1,4 @@
+import { getServerServices } from '../../../server/services';
 import { ReadingQuotation } from '../../../readings/reading-quotation';
 import type { Metadata } from 'next';
 import Image from 'next/image';
@@ -25,7 +26,7 @@ export default async function SharedReflection({
   const { shareId } = await params;
   let share;
   try {
-    share = await readPublicShare(shareId);
+    share = await readPublicShare(shareId, getServerServices().shares);
   } catch {
     // Let Next handle unexpected failures, with no request, content, or raw cause in diagnostics.
     throw new Error('The shared reflection could not be loaded.');

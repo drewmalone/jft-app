@@ -5,6 +5,7 @@ type Environment = Readonly<Record<string, string | undefined>>;
 const flag = z.enum(['true', 'false']).transform((value) => value === 'true');
 /** Deployment feature choices are independent; emergency records are checked separately at request time. */
 export function parseFeatureConfig(env: Environment) {
+  // Pre-0.4 deployment compatibility; removal requires the migration in docs/DECISIONS.md.
   const legacy = flag.parse(env.STT_ENABLED ?? 'false');
   return {
     transcription: {

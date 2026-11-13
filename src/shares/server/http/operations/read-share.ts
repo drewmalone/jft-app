@@ -4,8 +4,7 @@ import { enforceQuota } from '../../../../server/http/enforce-quota';
 import 'server-only';
 import { createRoute, type RouteHandler, z } from '@hono/zod-openapi';
 import { shareSchema } from '../../../model';
-import { shareRepository } from '../../storage/configured-repository';
-import type { SessionEnvironment } from '../../../../server/http/middleware';
+import type { ApiEnvironment } from '../../../../server/http/middleware';
 import {
   privateHeaders,
   sessionSecurity,
@@ -54,11 +53,13 @@ export const readShareRoute = createRoute({
 /** Missing records and ownership mismatches deliberately return the same 404. */
 export const readShare: RouteHandler<
   typeof readShareRoute,
-  SessionEnvironment
+  ApiEnvironment
 > = async (c) => {
-  await enforceQuota('private', c.get('ownerId'));
+  await enforceQuota('private', c.get('ownerId'), c.get('services').quotas);
   const { id } = c.req.valid('param');
-  const share = await shareRepository.findByOwner(id, c.get('ownerId'));
+  const share = await c
+    .get('services')
+    .shares.findByOwner(id, c.get('ownerId'));
   if (!share) return c.json(errorBody('SHARE_NOT_FOUND'), 404);
   return c.json(shareSchema.parse(share), 200);
 };

@@ -6,10 +6,10 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { localCatalog } from '../../src/readings/server/sources';
 import { ReadingCache } from '../../src/readings/server/cache';
-import { readings } from '../../src/readings/server/configured-readings';
+import { readings } from '../fixtures/application';
 import { readingDate } from '../../src/readings/calendar';
-import { dispatch } from '../../src/server/app';
-import { shareRepository } from '../../src/shares/server/storage/configured-repository';
+import { dispatch } from '../fixtures/application';
+import { shareRepository } from '../fixtures/application';
 import { DynamoDbShareRepository } from '../../src/shares/server/storage/dynamodb-repository';
 import { dynamoTable } from './dynamodb-fixture';
 

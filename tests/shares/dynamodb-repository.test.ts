@@ -10,10 +10,10 @@ import {
   QueryCommand,
   type DynamoDBDocumentClient
 } from '@aws-sdk/lib-dynamodb';
-import { shareRepository } from '../../src/shares/server/storage/configured-repository';
+import { shareRepository } from '../fixtures/application';
 import { DynamoDbShareRepository } from '../../src/shares/server/storage/dynamodb-repository';
 import { readPublicShare } from '../../src/shares/server/application/read-public-share';
-import { dispatch } from '../../src/server/app';
+import { dispatch } from '../fixtures/application';
 
 /** Injected failure fake; DynamoDB Local covers successful SDK behavior. */
 class FailingDynamo {

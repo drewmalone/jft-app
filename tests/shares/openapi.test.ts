@@ -5,7 +5,7 @@ import SwaggerParser from '@apidevtools/swagger-parser';
 import type { OpenAPIV3_1 } from 'openapi-types';
 import Ajv2020, { type AnySchema } from 'ajv/dist/2020';
 import addFormats from 'ajv-formats';
-import { dispatch, getOpenApiDocument } from '../../src/server/app';
+import { dispatch, getOpenApiDocument } from '../fixtures/application';
 import { MAX_SHARE_TEXT_LENGTH } from '../../src/shares/model';
 import { MAX_SHARE_REQUEST_BYTES } from '../../src/server/http/errors';
 import {
@@ -365,7 +365,8 @@ test('save-time link and public responses conform to generated contracts', async
 test('paid operations share documented errors, origin requirements, expiry and retry headers', async (t) => {
   t.mock.property(process, 'env', {
     ...process.env,
-    STT_ENABLED: 'true',
+    TRANSCRIPTION_ENABLED: 'true',
+    CLEANUP_ENABLED: 'true',
     STT_OPENAI_API_KEY: 'fictional-key'
   });
   t.mock.method(console, 'warn', () => {});
@@ -460,7 +461,8 @@ test('paid operations share documented errors, origin requirements, expiry and r
   );
   assert.equal(cleanupLimited.status, 429);
   await contract(cleanupLimited, '/api/shares/cleanup', 'post');
-  process.env.STT_ENABLED = 'false';
+  process.env.TRANSCRIPTION_ENABLED = 'false';
+  process.env.CLEANUP_ENABLED = 'false';
   for (const path of ['/api/transcription/session', '/api/shares/cleanup']) {
     const unavailable = await request('POST', path, cookie, undefined, {
       origin: 'http://localhost'

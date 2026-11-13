@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { transcriptionEngineFactory } from '../../src/shares/transcription/provider';
 import { parseTranscriptionProvider } from '../../src/shares/transcription/config';
-import { transcriptionProvider } from '../../src/shares/server/transcription-config';
+import { createServerServices } from '../../src/server/services';
 import { issueTranscriptionCredential } from '../../src/shares/server/transcription-provider';
 
 test('startup provider names default to Soniox and reject invalid values safely', () => {
@@ -20,10 +20,12 @@ test('startup provider names default to Soniox and reject invalid values safely'
     );
 });
 
-test('server selection remains fixed after initialization and stale clients cannot issue credentials', async (t) => {
-  t.mock.property(process, 'env', { ...process.env, STT_PROVIDER: 'openai' });
+test('server selection remains fixed after initialization and stale clients cannot issue credentials', async () => {
+  const environment = { STT_PROVIDER: 'openai' };
+  const services = createServerServices(environment);
+  const transcriptionProvider = () => services.features.transcription.provider;
   assert.equal(transcriptionProvider(), 'openai');
-  process.env.STT_PROVIDER = 'soniox';
+  environment.STT_PROVIDER = 'soniox';
   assert.equal(transcriptionProvider(), 'openai');
   await assert.rejects(
     issueTranscriptionCredential(

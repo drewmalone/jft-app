@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test, type TestContext } from 'node:test';
-import { dispatch } from '../../src/server/app';
+import { dispatch } from '../fixtures/application';
 import { issueTranscriptionCredential } from '../../src/shares/server/providers/openai/session';
 import { SecretsManagerClient } from '@aws-sdk/client-secrets-manager';
 import { openAIKey } from '../../src/shares/server/providers/openai/key';
@@ -41,10 +41,10 @@ test('credential issuance requires exact origin and a previously signed session;
 });
 
 test('disabled and missing-key configurations fail closed without exposing details', async (t) => {
-  setEnv(t, 'STT_ENABLED', 'false');
+  setEnv(t, 'TRANSCRIPTION_ENABLED', 'false');
   const headers = { origin: 'http://localhost', cookie: await cookie() };
   assert.equal((await request(headers)).status, 503);
-  setEnv(t, 'STT_ENABLED', 'true');
+  setEnv(t, 'TRANSCRIPTION_ENABLED', 'true');
   setEnv(t, 'STT_OPENAI_API_KEY', '');
   setEnv(t, 'STT_OPENAI_SECRET_ARN', '');
   const response = await request(headers);
@@ -53,7 +53,7 @@ test('disabled and missing-key configurations fail closed without exposing detai
 });
 
 test('OpenAI SDK requests fixed transcription settings and returns only ephemeral fields', async (t) => {
-  setEnv(t, 'STT_ENABLED', 'true');
+  setEnv(t, 'TRANSCRIPTION_ENABLED', 'true');
   setEnv(t, 'STT_OPENAI_API_KEY', 'fictional-permanent-key');
   const calls: Request[] = [];
   t.mock.method(
@@ -101,7 +101,7 @@ test('OpenAI SDK requests fixed transcription settings and returns only ephemera
 });
 
 test('provider failure is sanitized, method handling does not mint credentials, and local key binding is reused', async (t) => {
-  setEnv(t, 'STT_ENABLED', 'true');
+  setEnv(t, 'TRANSCRIPTION_ENABLED', 'true');
   setEnv(t, 'STT_OPENAI_API_KEY', 'fictional-key');
   assert.equal(await openAIKey(), 'fictional-key');
   t.mock.method(globalThis, 'fetch', async () => {
@@ -159,7 +159,7 @@ test('Amplify runtime secrets are cached after success and failed reads can reco
 });
 
 test('credential origin checks use the public Host when the internal listener differs', async (t) => {
-  setEnv(t, 'STT_ENABLED', 'false');
+  setEnv(t, 'TRANSCRIPTION_ENABLED', 'false');
   const headers = {
     origin: 'https://preview.example',
     host: 'preview.example',
@@ -210,7 +210,7 @@ test('browser policy precedes identity checks; authentication configuration fail
 });
 
 test('invalid credential shape never crosses the browser boundary', async (t) => {
-  setEnv(t, 'STT_ENABLED', 'true');
+  setEnv(t, 'TRANSCRIPTION_ENABLED', 'true');
   setEnv(t, 'STT_OPENAI_API_KEY', 'fictional-key');
   t.mock.method(console, 'warn', () => {});
   for (const token of [

@@ -111,3 +111,17 @@ run "reviewed_production_blocking_configuration" {
     error_message = "A reviewed launch must select BLOCK and the explicit monthly budget."
   }
 }
+
+run "partial_waf_override_keeps_other_defaults" {
+  command = plan
+  variables { waf_rate_limits = { csp = 100 } }
+  assert {
+    condition     = local.waf_limits["csp"] == 100 && local.waf_limits["paid"] == 300 && local.waf_rules["paid"].method == "POST" && local.waf_rules["api"].method == "GET"
+    error_message = "A single override must not erase another rule's default or method."
+  }
+}
+run "unknown_waf_override_is_rejected" {
+  command = plan
+  variables { waf_rate_limits = { misspelled = 100 } }
+  expect_failures = [var.waf_rate_limits]
+}

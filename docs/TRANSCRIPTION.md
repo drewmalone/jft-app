@@ -1,6 +1,6 @@
 # Live transcription and cleanup
 
-Soniox (`stt-rt-v6`) is the default speech provider. `STT_PROVIDER=openai` selects the supported WebRTC adapter. The server fixes that choice at startup and passes its nonsecret name to the browser, which needs the matching transport for direct audio streaming. Unknown, empty or whitespace-padded names fail configuration; there is no automatic fallback.
+Both Soniox and OpenAI remain explicitly supported speech providers; this is an intentional product choice, recorded in [Decisions](DECISIONS.md#speech-provider-support). Soniox (`stt-rt-v6`) is the default speech provider. `STT_PROVIDER=openai` selects the supported WebRTC adapter. The server fixes that choice at startup and passes its nonsecret name to the browser, which needs the matching transport for direct audio streaming. Unknown, empty or whitespace-padded names fail configuration; there is no automatic fallback.
 
 ## Runtime configuration
 
@@ -13,7 +13,7 @@ Soniox (`stt-rt-v6`) is the default speech provider. `STT_PROVIDER=openai` selec
 | `STT_SONIOX_SECRET_ARN`                        | Deployed Soniox plain-string secret metadata; value read by the compute role.                          |
 | `STT_OPENAI_API_KEY` / `STT_OPENAI_SECRET_ARN` | OpenAI credentials for cleanup and optional OpenAI speech; existing direct-key precedence is retained. |
 
-Migration: when a canonical feature enable flag is absent, the old `STT_ENABLED` value supplies its default. An explicit `TRANSCRIPTION_ENABLED` or `CLEANUP_ENABLED` wins independently. Prefer the canonical flags in new configuration. All enable/disable flags accept only `true` or `false`; invalid values fail validation. [Security operations](SECURITY_OPERATIONS.md#runtime-configuration) owns emergency switches and quota settings.
+Migration: when a canonical feature enable flag is absent, the old `STT_ENABLED` value supplies its default. An explicit `TRANSCRIPTION_ENABLED` or `CLEANUP_ENABLED` wins independently. Prefer the canonical flags in new configuration. The legacy fallback is scheduled for retirement in 0.4 after hosted deployments have migrated; see [the compatibility decision](DECISIONS.md#feature-flag-compatibility-retirement). All enable/disable flags accept only `true` or `false`; invalid values fail validation. [Security operations](SECURITY_OPERATIONS.md#runtime-configuration) owns emergency switches and quota settings.
 
 ## Run locally
 

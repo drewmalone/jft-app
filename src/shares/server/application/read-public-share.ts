@@ -1,6 +1,5 @@
 import 'server-only';
 import { publicShareSchema } from '../../model';
-import { shareRepository } from '../storage/configured-repository';
 import { type ShareRepository } from '../storage/repository';
 import { z } from 'zod';
 
@@ -14,7 +13,7 @@ const shareId = z.uuid({ version: 'v4' });
  */
 export async function readPublicShare(
   id: string,
-  repository: ShareRepository = shareRepository
+  repository: Pick<ShareRepository, 'findById'>
 ) {
   if (!shareId.safeParse(id).success) return null;
   const stored = await repository.findById(id);

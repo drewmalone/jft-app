@@ -1,5 +1,4 @@
 import { draftText } from '../schemas';
-import { serverServices } from '../../../../server/services';
 import { enforceQuota } from '../../../../server/http/enforce-quota';
 import 'server-only';
 import { createRoute, type RouteHandler } from '@hono/zod-openapi';
@@ -9,7 +8,7 @@ import {
   exactSameOrigin,
   existingSession,
   jsonBody,
-  type SessionEnvironment
+  type ApiEnvironment
 } from '../../../../server/http/middleware';
 import {
   commonFailures,
@@ -23,10 +22,10 @@ import {
   reportTranscriptionFailure
 } from '../../cleanup-provider';
 
-const access: MiddlewareHandler<SessionEnvironment> = async (c, next) => {
+const access: MiddlewareHandler<ApiEnvironment> = async (c, next) => {
   if (
-    !serverServices.features.cleanup.enabled ||
-    serverServices.features.cleanup.disabled
+    !c.get('services').features.cleanup.enabled ||
+    c.get('services').features.cleanup.disabled
   )
     return error('CLEANUP_UNAVAILABLE');
   await next();
@@ -71,9 +70,9 @@ export const cleanShareRoute = createRoute({
 /** Preserve the original in the browser on any failure; never write draft/provider content to logs or the repository. */
 export const cleanShare: RouteHandler<
   typeof cleanShareRoute,
-  SessionEnvironment
+  ApiEnvironment
 > = async (c) => {
-  await enforceQuota('cleanup', c.get('ownerId'));
+  await enforceQuota('cleanup', c.get('ownerId'), c.get('services').quotas);
   try {
     const text = await cleanShareText(
       c.req.valid('json').text,

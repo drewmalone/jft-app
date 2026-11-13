@@ -9,7 +9,7 @@ import { publicShareSchema } from '../../../model';
 import { readPublicShare } from '../../application/read-public-share';
 import { failed, privateHeaders } from '../../../../server/http/openapi';
 import { errorBody } from '../../../../server/http/errors';
-import type { SessionEnvironment } from '../../../../server/http/middleware';
+import type { ApiEnvironment } from '../../../../server/http/middleware';
 
 export const publicHeaders = {
   'Cache-Control': privateHeaders['Cache-Control'],
@@ -58,13 +58,16 @@ export const readPublicShareRoute = createRoute({
 
 export const getPublicShare: RouteHandler<
   typeof readPublicShareRoute,
-  SessionEnvironment
+  ApiEnvironment
 > = async (c) => {
-  const share = await readPublicShare(c.req.valid('param').id);
+  const share = await readPublicShare(
+    c.req.valid('param').id,
+    c.get('services').shares
+  );
   return share ? c.json(share, 200) : c.json(errorBody('SHARE_NOT_FOUND'), 404);
 };
 
 /** Malformed public IDs get the same 404 as missing or expired records. */
 export const publicShareValidation = ((result, c) => {
   if (!result.success) return c.json(errorBody('SHARE_NOT_FOUND'), 404);
-}) satisfies RouteHook<typeof readPublicShareRoute, SessionEnvironment>;
+}) satisfies RouteHook<typeof readPublicShareRoute, ApiEnvironment>;

@@ -52,13 +52,13 @@ test('known quota windows validate before deployment and ignore removed global s
 test('service factories isolate state and leave unrelated dependencies lazy', () => {
   const a = createServerServices({
     SHARE_PERSISTENCE: 'memory',
-    CLEANUP_ENABLED: 'true',
-    READINGS_SOURCE: 'invalid'
+    CLEANUP_ENABLED: 'true'
   });
   const b = createServerServices({ SHARE_PERSISTENCE: 'memory' });
   assert.equal(a.features.cleanup.enabled, true);
   assert.equal(a.shares, a.shares);
   assert.notEqual(a.shares, b.shares);
-  assert.throws(() => a.readings);
+  assert.equal(a.readings, a.readings);
+  assert.throws(() => createServerServices({ READINGS_SOURCE: 'invalid' }));
   assert.equal(a.quotas, a.quotas);
 });

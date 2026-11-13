@@ -1,9 +1,7 @@
 import { SubmissionConflict } from '../../storage/submission';
 import { share } from '../schemas';
 import { retryAfterHeaders } from '../../../../server/http/openapi';
-import { enforceQuota } from '../../../../server/http/enforce-quota';
 import { getCookie } from 'hono/cookie';
-import { createShareForReading } from '../../application/create-share';
 import {
   readingTimeZone,
   READING_TIME_ZONE_COOKIE
@@ -12,7 +10,7 @@ import { errorBody } from '../../../../server/http/errors';
 import 'server-only';
 import { createRoute, z, type RouteHandler } from '@hono/zod-openapi';
 import { shareSchema } from '../../../model';
-import type { SessionEnvironment } from '../../../../server/http/middleware';
+import type { ApiEnvironment } from '../../../../server/http/middleware';
 import {
   privateHeaders,
   sessionSecurity,
@@ -87,18 +85,15 @@ export const createShareRoute = createRoute({
 /** Ownership comes from the session; client input selects a date, never the reading text. */
 export const createShare: RouteHandler<
   typeof createShareRoute,
-  SessionEnvironment
+  ApiEnvironment
 > = async (c) => {
   try {
-    const result = await createShareForReading(
-      c.get('ownerId'),
-      c.req.valid('json'),
-      readingTimeZone(getCookie(c, READING_TIME_ZONE_COOKIE)),
-      undefined,
-      undefined,
-      c.req.valid('header')['idempotency-key'],
-      () => enforceQuota('create', c.get('ownerId'))
-    );
+    const result = await c.get('saveShares').save({
+      ownerId: c.get('ownerId'),
+      input: c.req.valid('json'),
+      timeZone: readingTimeZone(getCookie(c, READING_TIME_ZONE_COOKIE)),
+      submissionKey: c.req.valid('header')['idempotency-key']
+    });
     if (result.error === 'READING_UNAVAILABLE')
       return c.json(errorBody(result.error), 503);
     if (result.error === 'READING_CHANGED')

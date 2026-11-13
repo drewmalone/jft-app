@@ -7,8 +7,8 @@ import { readingSchema } from '../../src/readings/model';
 import { parseCatalog } from '../../src/readings/server/catalog';
 import { ReadingCache } from '../../src/readings/server/cache';
 import { readingDate, readingTimeZone } from '../../src/readings/calendar';
-import { readings } from '../../src/readings/server/configured-readings';
-import { dispatch } from '../../src/server/app';
+import { readings } from '../fixtures/application';
+import { dispatch } from '../fixtures/application';
 import { parseReadingsConfig } from '../../src/config/runtime';
 
 const reading = {
@@ -262,8 +262,7 @@ test('changed reading revisions fail before writing rather than silently changin
     ...reading,
     id: `${reading.id}-revision-2`
   }));
-  const { shareRepository } =
-    await import('../../src/shares/server/storage/configured-repository');
+  const { shareRepository } = await import('../fixtures/application');
   const write = t.mock.method(shareRepository, 'create');
   const result = await dispatch(
     new Request('http://localhost/api/shares', {

@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { dispatch } from '../../src/server/app';
-import { shareRepository } from '../../src/shares/server/storage/configured-repository';
+import { dispatch } from '../fixtures/application';
+import { shareRepository } from '../fixtures/application';
 import { getSession } from '../../src/session/server/session';
 
 const post = (headers: HeadersInit = {}) =>

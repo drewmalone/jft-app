@@ -21,16 +21,24 @@ variable "waf_block" {
   type        = bool
   default     = false
 }
-variable "waf_rate_limits" {
-  description = "Requests per source IP per five minutes; allow shared meeting networks."
-  type        = map(number)
-  default = {
-    api = 5000, paid = 300, create = 500, public = 3000, csp = 300
+# Every scoped rate rule is described once; thresholds may be overridden independently.
+locals {
+  waf_rules = {
+    api    = { priority = 10, method = "GET", pattern = "^/api/", default_limit = 5000 }
+    paid   = { priority = 20, method = "POST", pattern = "^/api/(transcription/session|shares/cleanup)$", default_limit = 300 }
+    create = { priority = 30, method = "POST", pattern = "^/api/(shares|session)$", default_limit = 500 }
+    public = { priority = 40, method = "GET", pattern = "^/(s/|api/public/shares/)", default_limit = 3000 }
+    csp    = { priority = 45, method = "POST", pattern = "^/api/csp-report$", default_limit = 300 }
   }
+  waf_limits = merge({ for name, rule in local.waf_rules : name => rule.default_limit }, var.waf_rate_limits)
+}
+variable "waf_rate_limits" {
+  description = "Optional per-rule overrides, per source IP per five minutes; omitted rules keep their declared defaults."
+  type        = map(number)
+  default     = {}
   validation {
-    condition     = alltrue([for key in ["api", "paid", "create", "public", "csp"] : try(var.waf_rate_limits[key] >= 10, false)])
-    error_message = "Supply all five rate thresholds, at least 10 each."
-
+    condition     = alltrue([for name, limit in var.waf_rate_limits : contains(keys(local.waf_rules), name) && limit >= 10 && limit <= 2000000000 && floor(limit) == limit])
+    error_message = "Override only known WAF rule names with whole-number thresholds from 10 to 2000000000."
   }
 }
 data "aws_caller_identity" "waf" {}
@@ -51,19 +59,7 @@ resource "aws_wafv2_web_acl" "security" {
 
   }
   dynamic "rule" {
-    for_each = {
-      api = {
-        priority = 10, pattern = "^/api/"
-        }, paid = {
-        priority = 20, pattern = "^/api/(transcription/session|shares/cleanup)$"
-        }, create = {
-        priority = 30, pattern = "^/api/(shares|session)$"
-        }, public = {
-        priority = 40, pattern = "^/(s/|api/public/shares/)"
-        }, csp = {
-        priority = 45, pattern = "^/api/csp-report$"
-      }
-    }
+    for_each = local.waf_rules
     content {
       name     = rule.key
       priority = rule.value.priority
@@ -80,7 +76,7 @@ resource "aws_wafv2_web_acl" "security" {
       }
       statement {
         rate_based_statement {
-          limit              = var.waf_rate_limits[rule.key]
+          limit              = local.waf_limits[rule.key]
           aggregate_key_type = "IP"
           scope_down_statement {
             and_statement {
@@ -101,7 +97,7 @@ resource "aws_wafv2_web_acl" "security" {
               statement {
                 byte_match_statement {
                   positional_constraint = "EXACTLY"
-                  search_string         = contains(["paid", "create", "csp"], rule.key) ? "POST" : "GET"
+                  search_string         = rule.value.method
                   field_to_match {
                     method {}
                   }

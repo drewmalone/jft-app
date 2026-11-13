@@ -2,7 +2,7 @@ import 'server-only';
 import { requestLimits } from '../../config/request-limits';
 import { createRoute, type OpenAPIHono } from '@hono/zod-openapi';
 import type { MiddlewareHandler } from 'hono';
-import { sameOrigin, type SessionEnvironment } from './middleware';
+import { sameOrigin, type ApiEnvironment } from './middleware';
 import { error } from './errors';
 import {
   commonFailures,
@@ -40,7 +40,7 @@ const discardReport: MiddlewareHandler = async (c, next) => {
   }
   await next();
 };
-export function registerCspReports(app: OpenAPIHono<SessionEnvironment>) {
+export function registerCspReports(app: OpenAPIHono<ApiEnvironment>) {
   app.openapi(
     createRoute({
       method: 'post',
