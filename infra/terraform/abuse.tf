@@ -30,9 +30,10 @@ output "quota_table_name" { value = aws_dynamodb_table.quotas.name }
 variable "budget_emails" {
   type    = set(string)
   default = []
+  # AWS Budgets validates address syntax; Terraform has no built-in email validator.
   validation {
-    condition     = length(var.budget_emails) <= 10 && alltrue([for email in var.budget_emails : can(regex("^[^@[:space:]]+@[^@[:space:]]+[.][^@[:space:]]+$", email))])
-    error_message = "Supply at most ten valid budget recipient email addresses."
+    condition     = length(var.budget_emails) <= 10 && alltrue([for email in var.budget_emails : length(trimspace(email)) > 0])
+    error_message = "Supply at most ten nonempty budget recipients. AWS Budgets validates email addresses."
   }
 }
 variable "monthly_budget_usd" {

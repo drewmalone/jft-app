@@ -2,7 +2,13 @@
 import { createServer } from 'node:https';
 import { request as forward } from 'node:http';
 import { execFileSync } from 'node:child_process';
-import { mkdtempSync, readFileSync, rmSync } from 'node:fs';
+import {
+  mkdtempSync,
+  readFileSync,
+  rmSync,
+  mkdirSync,
+  writeFileSync
+} from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
@@ -30,6 +36,13 @@ try {
       'subjectAltName=DNS:localhost,IP:127.0.0.1'
     ],
     { stdio: 'ignore' }
+  );
+  // Share only the public certificate with Node test clients for normal CA/hostname verification.
+  const trustDirectory = join(process.cwd(), '.tmp');
+  mkdirSync(trustDirectory, { recursive: true });
+  writeFileSync(
+    join(trustDirectory, 'playwright-tls-cert.pem'),
+    readFileSync(cert)
   );
   const server = createServer(
     { key: readFileSync(key), cert: readFileSync(cert) },

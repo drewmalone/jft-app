@@ -40,7 +40,7 @@ test('Amplify transcription preparation validates configuration and copies only 
         `LITERAL_QUOTES='"quoted"'`,
         'export EXISTING_SETTING="keep # a literal hash"',
         'QUOTED_SETTING="a value with spaces"',
-        'MULTILINE_SETTING="first\nSTT_PROVIDER=inside a multiline value\nsecond"',
+        'MULTILINE_SETTING="first\nSTT_PROVIDER=inside a multiline value\nSTT_ENABLED=false\nTRANSCRIPTION_ENABLED=false\nsecond"',
         'STT_PROVIDER=openai',
         ''
       ].join('\n')
@@ -52,7 +52,7 @@ test('Amplify transcription preparation validates configuration and copies only 
     assert.equal(parsed.QUOTED_SETTING, 'a value with spaces');
     assert.equal(
       parsed.MULTILINE_SETTING,
-      'first\nSTT_PROVIDER=inside a multiline value\nsecond'
+      'first\nSTT_PROVIDER=inside a multiline value\nSTT_ENABLED=false\nTRANSCRIPTION_ENABLED=false\nsecond'
     );
     assert.equal(parsed.LITERAL_QUOTES, '"quoted"');
     assert.ok(
@@ -83,7 +83,8 @@ test('Amplify transcription preparation validates configuration and copies only 
     );
     const cleared = parse(readFileSync(file, 'utf8'));
     assert.equal(cleared.STT_PROVIDER, 'soniox');
-    assert.equal(cleared.STT_ENABLED, 'false');
+    assert.equal(cleared.STT_ENABLED, undefined);
+    assert.equal(cleared.TRANSCRIPTION_ENABLED, undefined);
     assert.equal(cleared.STT_SONIOX_SECRET_ARN, '');
     assert.equal(cleared.LITERAL_QUOTES, '"quoted"');
   } finally {

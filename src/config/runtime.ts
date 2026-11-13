@@ -1,3 +1,4 @@
+import { basename } from 'node:path';
 import { deploymentEnvironment } from './deployment';
 import { z } from 'zod';
 import { parseSecretArn } from './secret-arn';
@@ -91,9 +92,8 @@ export function validateRuntimeConfig(env: Environment) {
     if (
       deployment === 'prod' &&
       config.readings.READINGS_SOURCE === 'local' &&
-      /(?:^|[/\\])readings\.example\.yaml$/.test(
-        config.readings.READINGS_LOCAL_PATH
-      )
+      basename(config.readings.READINGS_LOCAL_PATH.replaceAll('\\', '/')) ===
+        'readings.example.yaml'
     )
       throw new Error('The example catalog cannot be used in production');
   }
@@ -115,9 +115,7 @@ export function parseRuntimeConfig(env: Environment) {
     ...config.readings,
     ...quotaSettings,
     QUOTA_TABLE_NAME: config.quotas.tableName,
-    STT_ENABLED: env.STT_ENABLED ?? 'false', // Migration fallback; feature flags below are authoritative.
     STT_PROVIDER: config.features.transcription.provider,
-    TRANSCRIPTION_ENABLED: String(config.features.transcription.enabled),
     CLEANUP_ENABLED: String(config.features.cleanup.enabled),
     TRANSCRIPTION_DISABLED: String(config.features.transcription.disabled),
     CLEANUP_DISABLED: String(config.features.cleanup.disabled),

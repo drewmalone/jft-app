@@ -365,7 +365,6 @@ test('save-time link and public responses conform to generated contracts', async
 test('paid operations share documented errors, origin requirements, expiry and retry headers', async (t) => {
   t.mock.property(process, 'env', {
     ...process.env,
-    TRANSCRIPTION_ENABLED: 'true',
     CLEANUP_ENABLED: 'true',
     STT_OPENAI_API_KEY: 'fictional-key'
   });
@@ -461,7 +460,7 @@ test('paid operations share documented errors, origin requirements, expiry and r
   );
   assert.equal(cleanupLimited.status, 429);
   await contract(cleanupLimited, '/api/shares/cleanup', 'post');
-  process.env.TRANSCRIPTION_ENABLED = 'false';
+  process.env.TRANSCRIPTION_DISABLED = 'true';
   process.env.CLEANUP_ENABLED = 'false';
   for (const path of ['/api/transcription/session', '/api/shares/cleanup']) {
     const unavailable = await request('POST', path, cookie, undefined, {

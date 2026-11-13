@@ -44,7 +44,7 @@ export function submissionId(owner: string, submission: Submission) {
     .digest('hex')}`;
 }
 export const submissionRecordSchema = z.strictObject({
-  id: z.string().regex(/^submission:[a-f0-9]{64}$/),
-  requestHash: z.string().regex(/^[a-f0-9]{64}$/),
+  id: z.templateLiteral(['submission:', z.hash('sha256')]),
+  requestHash: z.hash('sha256'),
   shareId: z.uuid({ version: 'v4' })
 });

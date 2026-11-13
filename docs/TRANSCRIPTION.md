@@ -6,21 +6,19 @@ Both Soniox and OpenAI remain explicitly supported speech providers; this is an 
 
 | Variable                                       | Purpose                                                                                                |
 | ---------------------------------------------- | ------------------------------------------------------------------------------------------------------ |
-| `TRANSCRIPTION_ENABLED`                        | Exact `true` enables credential issuance; defaults to false.                                           |
 | `CLEANUP_ENABLED`                              | Exact `true` independently enables OpenAI text cleanup; defaults to false.                             |
 | `STT_PROVIDER`                                 | `soniox` by default, or `openai`; restart to change.                                                   |
 | `STT_SONIOX_API_KEY`                           | Local development key; ignored in production.                                                          |
 | `STT_SONIOX_SECRET_ARN`                        | Deployed Soniox plain-string secret metadata; value read by the compute role.                          |
 | `STT_OPENAI_API_KEY` / `STT_OPENAI_SECRET_ARN` | OpenAI credentials for cleanup and optional OpenAI speech; existing direct-key precedence is retained. |
 
-Migration: when a canonical feature enable flag is absent, the old `STT_ENABLED` value supplies its default. An explicit `TRANSCRIPTION_ENABLED` or `CLEANUP_ENABLED` wins independently. Prefer the canonical flags in new configuration. The legacy fallback is scheduled for retirement in 0.4 after hosted deployments have migrated; see [the compatibility decision](DECISIONS.md#feature-flag-compatibility-retirement). All enable/disable flags accept only `true` or `false`; invalid values fail validation. [Security operations](SECURITY_OPERATIONS.md#runtime-configuration) owns emergency switches and quota settings.
+Speech credential issuance is available by default when credentials are configured. `STT_ENABLED` and `TRANSCRIPTION_ENABLED` have been removed and are ignored; runtime preparation no longer emits them. Stale assignments in an existing artifact are inert. Cleanup remains independently opt-in with `CLEANUP_ENABLED=true` and defaults to false. Emergency environment flags, distributed control records, origin/session checks and owner quotas still apply. [Security operations](SECURITY_OPERATIONS.md#runtime-configuration) owns shutdown controls. Supported remaining flags accept only `true` or `false`.
 
 ## Run locally
 
 Use Node 24, run `npm ci`, and create an ignored `.env.local`:
 
 ```dotenv
-TRANSCRIPTION_ENABLED=true
 CLEANUP_ENABLED=true
 STT_PROVIDER=soniox
 STT_SONIOX_API_KEY=replace-with-your-soniox-key
@@ -31,7 +29,7 @@ Then run `npm run dev`. No AWS credentials are required for local memory/YAML mo
 
 The Soniox key needs **Temporary API keys** and **Speech-to-text, real-time** permissions. Cleanup needs an OpenAI key with Responses access for `gpt-5.4-mini`; optional OpenAI speech also needs Realtime access. Missing cleanup credentials preserve the original draft. Never use `NEXT_PUBLIC_*` for credentials or run the Amplify preparation script for ordinary local development.
 
-To type and save without paid services, leave both feature enable flags false. To keep cleanup available while stopping speech issuance, set `TRANSCRIPTION_ENABLED=false` and `CLEANUP_ENABLED=true`.
+To type and save without paid services, set `TRANSCRIPTION_DISABLED=true` and leave `CLEANUP_ENABLED=false`. To keep cleanup available during an emergency speech shutdown, use `TRANSCRIPTION_DISABLED=true` with `CLEANUP_ENABLED=true`.
 
 ## Recording and text ownership
 

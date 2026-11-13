@@ -227,7 +227,7 @@ test('shared HTTP handling forwards cleanup cancellation without retrying or swa
 test('cleanup can remain enabled when transcription is disabled, and its own emergency flag wins', async (t) => {
   enable(t);
   process.env.CLEANUP_ENABLED = 'false';
-  process.env.TRANSCRIPTION_ENABLED = 'false';
+  process.env.TRANSCRIPTION_DISABLED = 'true';
   process.env.CLEANUP_ENABLED = 'true';
   const provider = t.mock.method(globalThis, 'fetch', async () =>
     response('Fictional cleaned words.')

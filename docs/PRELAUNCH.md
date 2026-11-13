@@ -12,7 +12,7 @@ Merging code does not associate WAF, enable blocking, deliver alerts or deploy A
 Supply real values in the reviewed deployment configuration, for example an ignored `infra/terraform/environments/prod-security.local.tfvars` override:
 
 ```hcl
-# Replace placeholders; Terraform rejects them.
+# Replace placeholders before planning; AWS validates actual resource/address values.
 amplify_app_id = "<existing-production-app-id>"
 budget_emails = ["<reviewed-budget-recipient>"]
 monthly_budget_usd = { total = 100 }

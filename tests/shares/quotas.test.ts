@@ -97,7 +97,6 @@ test('DynamoDB adapter writes all counters in one conditional transaction and di
 
 test('HTTP quota rejection and backend outage never invoke a provider; private reads fail open', async (t) => {
   const { dispatch } = await import('../fixtures/application');
-  t.mock.property(process, 'env', { ...process.env, STT_ENABLED: 'true' });
   const session = await dispatch(new Request('http://localhost/api/shares'));
   const cookie = session.headers.get('set-cookie')!.split(';')[0];
   const provider = t.mock.method(globalThis, 'fetch', async () => {

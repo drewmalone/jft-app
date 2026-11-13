@@ -53,8 +53,7 @@ export default defineConfig({
         READINGS_SOURCE: 'local',
         SESSION_SECRET: 'fictional-playwright-session-secret-at-least-32-bytes',
         // Never issue real credentials, even when local/provider environment settings are enabled.
-        STT_ENABLED: 'false',
-        TRANSCRIPTION_ENABLED: 'false',
+        TRANSCRIPTION_DISABLED: 'true', // Keep real credential issuance off; provider flows are page-mocked.
         CLEANUP_ENABLED: 'true', // Exercise cleanup UI through page mocks; real server credentials are blank.
         STT_OPENAI_API_KEY: '',
         STT_OPENAI_SECRET_ARN: '',

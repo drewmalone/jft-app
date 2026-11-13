@@ -75,7 +75,7 @@ run "no_opt_in_costs" {
 run "csp_post_rate_rule" {
   command = plan
   assert {
-    condition     = length([for rule in aws_wafv2_web_acl.security[0].rule : rule if rule.name == "csp" && rule.statement[0].rate_based_statement[0].limit == 300 && anytrue([for statement in rule.statement[0].rate_based_statement[0].scope_down_statement[0].and_statement[0].statement : try(statement.regex_match_statement[0].regex_string == "^/api/csp-report$", false)]) && anytrue([for statement in rule.statement[0].rate_based_statement[0].scope_down_statement[0].and_statement[0].statement : try(statement.byte_match_statement[0].search_string == "POST", false)])]) == 1
+    condition     = length([for rule in aws_wafv2_web_acl.security[0].rule : rule if rule.name == "csp" && rule.statement[0].rate_based_statement[0].limit == 300 && anytrue([for statement in rule.statement[0].rate_based_statement[0].scope_down_statement[0].and_statement[0].statement : try(statement.byte_match_statement[0].search_string == "/api/csp-report" && statement.byte_match_statement[0].positional_constraint == "EXACTLY", false)]) && anytrue([for statement in rule.statement[0].rate_based_statement[0].scope_down_statement[0].and_statement[0].statement : try(statement.byte_match_statement[0].search_string == "POST", false)])]) == 1
     error_message = "CSP POSTs need their own per-IP rate rule."
   }
 }
@@ -124,4 +124,16 @@ run "unknown_waf_override_is_rejected" {
   command = plan
   variables { waf_rate_limits = { misspelled = 100 } }
   expect_failures = [var.waf_rate_limits]
+}
+
+run "literal_multi_path_scope" {
+  command = plan
+  assert {
+    condition = anytrue([for rule in aws_wafv2_web_acl.security[0].rule : anytrue([
+      for term in rule.statement[0].rate_based_statement[0].scope_down_statement[0].and_statement[0].statement : try(
+        toset([for child in term.or_statement[0].statement : child.byte_match_statement[0].search_string]) == toset(["/api/transcription/session", "/api/shares/cleanup"]) &&
+      alltrue([for child in term.or_statement[0].statement : child.byte_match_statement[0].positional_constraint == "EXACTLY" && length(child.byte_match_statement[0].field_to_match[0].uri_path) == 1]), false)
+    ]) if rule.name == "paid"])
+    error_message = "The paid POST scope must retain the two exact URI paths through a literal OR group."
+  }
 }

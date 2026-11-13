@@ -11,7 +11,12 @@ test('report-only CSP has a real same-origin destination and discards sensitive 
   const policy = securityHeaders(false).find(
     (header) => header.key === 'Content-Security-Policy-Report-Only'
   )!.value;
-  assert.match(policy, /report-uri \/api\/csp-report(?:;|$)/);
+  assert.ok(
+    policy
+      .split(';')
+      .map((value) => value.trim())
+      .includes('report-uri /api/csp-report')
+  );
   const submit = (body: string, headers: HeadersInit = {}) =>
     dispatch(
       new Request('http://localhost/api/csp-report', {

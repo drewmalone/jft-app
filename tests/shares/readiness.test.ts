@@ -184,12 +184,26 @@ test('headers preserve microphone access and separate enforcement from CSP trial
   );
   assert.equal(local.get('X-Frame-Options'), 'DENY');
   assert.equal(local.get('X-Content-Type-Options'), 'nosniff');
-  assert.match(local.get('Permissions-Policy')!, /microphone=\(self\)/);
-  assert.match(local.get('Content-Security-Policy')!, /frame-ancestors 'none'/);
-  assert.match(
-    local.get('Content-Security-Policy-Report-Only')!,
-    /api.openai.com/
+  assert.ok(
+    local
+      .get('Permissions-Policy')!
+      .split(',')
+      .map((value) => value.trim())
+      .includes('microphone=(self)')
   );
+  assert.ok(
+    local
+      .get('Content-Security-Policy')!
+      .split(';')
+      .map((value) => value.trim())
+      .includes("frame-ancestors 'none'")
+  );
+  const connect = local
+    .get('Content-Security-Policy-Report-Only')!
+    .split(';')
+    .map((value) => value.trim().split(' '))
+    .find(([name]) => name === 'connect-src');
+  assert.ok(connect?.slice(1).includes('https://api.openai.com'));
   assert.equal(local.has('Strict-Transport-Security'), false);
   assert.ok(
     securityHeaders(true).some(

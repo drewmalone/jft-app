@@ -33,10 +33,27 @@ export function browserErrorCategory(
     return 'hydration mismatch';
   // Browsers log HTTP failures for the intentionally exercised API/error-page paths.
   // Endpoint tests assert those statuses; missing scripts/styles and other console errors still fail.
+  const httpFailurePrefix =
+    'Failed to load resource: the server responded with a status of ';
+  const expectedStatuses = new Set([
+    '400',
+    '403',
+    '404',
+    '405',
+    '408',
+    '409',
+    '413',
+    '415',
+    '429',
+    '500',
+    '502',
+    '503'
+  ]);
   if (
     observedHttpFailure &&
-    /^Failed to load resource: the server responded with a status of (400|403|404|405|408|409|413|415|429|500|502|503)\b/.test(
-      message
+    message.startsWith(httpFailurePrefix) &&
+    expectedStatuses.has(
+      message.slice(httpFailurePrefix.length).split(' ', 1)[0]
     )
   )
     return undefined;

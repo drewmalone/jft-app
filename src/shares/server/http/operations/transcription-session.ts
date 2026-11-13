@@ -30,7 +30,7 @@ export const transcriptionSessionRoute = createRoute({
   tags: ['Transcription'],
   summary: 'Issue a short-lived live transcription credential',
   description:
-    'Requires an existing signed session and an exact same-origin Origin header. No audio or transcript body is accepted. Requires transcription to be enabled in deployment configuration. Credentials are never cached.',
+    'Requires an existing signed session and an exact same-origin Origin header. No audio or transcript body is accepted. Transcription is available by default; emergency shutdown controls and quotas still apply. Credentials are never cached.',
   security: [{ AnonymousSession: [] }],
   request: {
     headers: browserOriginHeaders.extend({
@@ -62,10 +62,7 @@ export const createTranscriptionSession: RouteHandler<
   ApiEnvironment
 > = async (c) => {
   try {
-    if (
-      !c.get('services').features.transcription.enabled ||
-      c.get('services').features.transcription.disabled
-    ) {
+    if (c.get('services').features.transcription.disabled) {
       reportTranscriptionConfiguration('disabled');
       return c.json(errorBody('TRANSCRIPTION_UNAVAILABLE'), 503);
     }

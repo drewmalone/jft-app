@@ -14,7 +14,7 @@ npm run dev
 
 Open http://localhost:3000. Local development uses disposable memory storage and a fictional local reading catalog. Configure a complete catalog if today's date is missing; see [daily readings](docs/READINGS.md). Typing needs no provider credentials. Never commit secrets or personal recovery text.
 
-To enable voice locally, follow [transcription setup](docs/TRANSCRIPTION.md#run-locally). Soniox is the default speech provider; OpenAI is the supported alternative and also provides optional text cleanup. Transcription and cleanup can be enabled independently.
+To enable voice locally, follow [transcription setup](docs/TRANSCRIPTION.md#run-locally). Soniox is the default speech provider; OpenAI is the supported alternative and also provides optional text cleanup. Speech is available once credentials are configured; text cleanup is independently opt-in.
 
 For production, follow the [Terraform and Amplify deployment guide](infra/terraform/README.md). It covers durable storage, the stable signing secret, runtime settings and role permissions. Merging application code does not provision infrastructure.
 

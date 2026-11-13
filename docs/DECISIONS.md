@@ -6,10 +6,10 @@ Both Soniox and OpenAI live transcription are supported by product choice. Sonio
 
 Revisit this decision when product requirements change; adding a provider entails credential restrictions, lifecycle/cancellation behavior, diagnostics and browser compatibility commitments.
 
-## Feature flag compatibility retirement
+## Speech availability and cleanup configuration
 
-`TRANSCRIPTION_ENABLED` and `CLEANUP_ENABLED` are canonical. `STT_ENABLED` is deprecated compatibility for pre-0.4 configuration, with removal scheduled for 0.4. This refactor preserves the existing fallback and strict validation; it does not silently change existing deployments.
+Speech is available by default without an opt-in feature flag. `STT_ENABLED` and `TRANSCRIPTION_ENABLED` are removed; obsolete deployment values no longer control speech or implicitly enable cleanup, and runtime preparation no longer emits them. Stale assignments in an existing artifact are inert; unrelated source and multiline values are preserved. Cleanup remains explicitly opt-in through `CLEANUP_ENABLED=true`.
 
-Before removal, operators must run runtime preparation for every hosted branch, verify both canonical flags are explicitly delivered, remove `STT_ENABLED` from the deployment source, redeploy and verify independent feature behavior. The preparation script already emits both canonical flags. Keep a dedicated fallback regression until removal; new application scenarios use canonical flags. If migration is incomplete, move the removal release explicitly rather than silently dropping support.
+Keep origin/session verification, provider credential requirements, per-owner quotas, `TRANSCRIPTION_DISABLED` and distributed emergency shutdown records. Always-available speech does not bypass those controls. Operators who previously used an enable flag to shut down speech must use the emergency control instead.
 
 The missing-provider-header OpenAI compatibility path is a separate API decision and remains unchanged. Both current browser adapters send their selected provider. Removing that path requires a separate contract migration.

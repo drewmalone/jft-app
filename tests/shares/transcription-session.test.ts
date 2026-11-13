@@ -41,10 +41,10 @@ test('credential issuance requires exact origin and a previously signed session;
 });
 
 test('disabled and missing-key configurations fail closed without exposing details', async (t) => {
-  setEnv(t, 'TRANSCRIPTION_ENABLED', 'false');
+  setEnv(t, 'TRANSCRIPTION_DISABLED', 'true');
   const headers = { origin: 'http://localhost', cookie: await cookie() };
   assert.equal((await request(headers)).status, 503);
-  setEnv(t, 'TRANSCRIPTION_ENABLED', 'true');
+  setEnv(t, 'TRANSCRIPTION_DISABLED', 'false');
   setEnv(t, 'STT_OPENAI_API_KEY', '');
   setEnv(t, 'STT_OPENAI_SECRET_ARN', '');
   const response = await request(headers);
@@ -53,7 +53,6 @@ test('disabled and missing-key configurations fail closed without exposing detai
 });
 
 test('OpenAI SDK requests fixed transcription settings and returns only ephemeral fields', async (t) => {
-  setEnv(t, 'TRANSCRIPTION_ENABLED', 'true');
   setEnv(t, 'STT_OPENAI_API_KEY', 'fictional-permanent-key');
   const calls: Request[] = [];
   t.mock.method(
@@ -101,7 +100,6 @@ test('OpenAI SDK requests fixed transcription settings and returns only ephemera
 });
 
 test('provider failure is sanitized, method handling does not mint credentials, and local key binding is reused', async (t) => {
-  setEnv(t, 'TRANSCRIPTION_ENABLED', 'true');
   setEnv(t, 'STT_OPENAI_API_KEY', 'fictional-key');
   assert.equal(await openAIKey(), 'fictional-key');
   t.mock.method(globalThis, 'fetch', async () => {
@@ -159,7 +157,7 @@ test('Amplify runtime secrets are cached after success and failed reads can reco
 });
 
 test('credential origin checks use the public Host when the internal listener differs', async (t) => {
-  setEnv(t, 'TRANSCRIPTION_ENABLED', 'false');
+  setEnv(t, 'TRANSCRIPTION_DISABLED', 'true');
   const headers = {
     origin: 'https://preview.example',
     host: 'preview.example',
@@ -210,7 +208,6 @@ test('browser policy precedes identity checks; authentication configuration fail
 });
 
 test('invalid credential shape never crosses the browser boundary', async (t) => {
-  setEnv(t, 'TRANSCRIPTION_ENABLED', 'true');
   setEnv(t, 'STT_OPENAI_API_KEY', 'fictional-key');
   t.mock.method(console, 'warn', () => {});
   for (const token of [
@@ -232,4 +229,19 @@ test('invalid credential shape never crosses the browser boundary', async (t) =>
       }
     });
   }
+});
+
+test('speech issuance needs no enable flag and obsolete false flags do not disable it', async (t) => {
+  setEnv(t, 'STT_ENABLED', 'false');
+  setEnv(t, 'TRANSCRIPTION_ENABLED', 'false');
+  setEnv(t, 'STT_OPENAI_API_KEY', 'fictional-key');
+  const provider = t.mock.method(globalThis, 'fetch', async () =>
+    Response.json({ value: 'fictional-ephemeral', expires_at: 123 })
+  );
+  const headers = { origin: 'http://localhost', cookie: await cookie() };
+  assert.equal((await request(headers)).status, 200);
+  assert.equal(provider.mock.callCount(), 1);
+  setEnv(t, 'TRANSCRIPTION_DISABLED', 'true');
+  assert.equal((await request(headers)).status, 503);
+  assert.equal(provider.mock.callCount(), 1);
 });
