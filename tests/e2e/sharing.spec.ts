@@ -41,6 +41,8 @@ test('share icon uses the saved URL directly for native sharing and session-free
     if (/\/api\/shares\/[^/]+\/link$/.test(request.url())) linkRequests++;
   });
   const saved = await save(page);
+  await page.locator('details summary').focus();
+  await page.keyboard.press('Enter');
   await expect(
     page.getByText(reflection.quote!, { exact: true })
   ).toBeVisible();

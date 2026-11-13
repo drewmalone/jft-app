@@ -182,7 +182,10 @@ test('prevents duplicate submissions and waits for server confirmation', async (
     await route.continue();
   });
   await page.locator('button.primary[type="submit"]').click();
-  await expect(page.getByRole('button', { name: 'Saving…' })).toBeDisabled();
+  await expect(page.locator('button.primary[type="submit"]')).toBeDisabled();
+  await expect(page.locator('button.primary[type="submit"]')).toHaveText(
+    'Saving…'
+  );
   await expect(page.getByRole('textbox')).toHaveValue(
     'A fictional pending thought.'
   );

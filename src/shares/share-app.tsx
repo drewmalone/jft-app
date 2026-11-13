@@ -88,7 +88,7 @@ export function ShareApp({ initialReading }: { initialReading: DailyReading }) {
         )}
         {view === 'saved' && (
           <div
-            className="check mx-auto mb-5 flex h-12 w-12 items-center justify-center rounded-full text-2xl"
+            className="check mx-auto mb-2 flex h-8 w-8 items-center justify-center rounded-full text-lg"
             aria-hidden="true"
           >
             ✓
@@ -97,7 +97,7 @@ export function ShareApp({ initialReading }: { initialReading: DailyReading }) {
         <h1
           ref={heading}
           tabIndex={-1}
-          className={`font-serif leading-[1.1] tracking-[-0.035em] outline-none ${view === 'today' ? 'text-center text-[36px] sm:text-5xl' : view === 'saved' ? 'text-center text-3xl sm:text-4xl' : 'text-[36px] sm:text-5xl'} ${view === 'today' ? 'mt-8 sm:mt-12' : ''}`}
+          className={`font-serif leading-[1.1] tracking-[-0.035em] outline-none ${view === 'today' ? 'text-center text-[36px] sm:text-5xl' : view === 'saved' ? 'text-center text-2xl sm:text-3xl' : 'text-[36px] sm:text-5xl'} ${view === 'today' ? 'mt-8 sm:mt-12' : ''}`}
         >
           {title}
         </h1>
