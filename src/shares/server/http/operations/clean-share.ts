@@ -1,29 +1,34 @@
-import { enforceQuota } from '../../auth/quotas';
+import { draftText } from '../schemas';
+import { serverServices } from '../../../../server/services';
+import { enforceQuota } from '../../../../server/http/enforce-quota';
 import 'server-only';
 import { createRoute, type RouteHandler } from '@hono/zod-openapi';
 import type { MiddlewareHandler } from 'hono';
-import { error, errorBody } from '../errors';
+import { error, errorBody } from '../../../../server/http/errors';
 import {
   exactSameOrigin,
   existingSession,
   jsonBody,
   type SessionEnvironment
-} from '../middleware';
+} from '../../../../server/http/middleware';
 import {
   commonFailures,
   failed,
   privateHeaders,
-  draftText,
   retryAfterHeaders,
   browserOriginHeaders
-} from '../openapi';
+} from '../../../../server/http/openapi';
 import {
   cleanShareText,
   reportTranscriptionFailure
 } from '../../cleanup-provider';
 
 const access: MiddlewareHandler<SessionEnvironment> = async (c, next) => {
-  if (process.env.STT_ENABLED !== 'true') return error('CLEANUP_UNAVAILABLE');
+  if (
+    !serverServices.features.cleanup.enabled ||
+    serverServices.features.cleanup.disabled
+  )
+    return error('CLEANUP_UNAVAILABLE');
   await next();
 };
 
@@ -34,7 +39,7 @@ export const cleanShareRoute = createRoute({
   tags: ['Shares'],
   summary: 'Tidy an unsaved draft without saving it',
   description:
-    'Requires an exact same-origin Origin, existing signed session, and STT_ENABLED=true. Sends draft text to OpenAI for light copyediting with store:false; returns a suggestion without writing a share.',
+    'Requires an exact same-origin Origin, existing signed session, and cleanup enabled in deployment configuration. Sends draft text to OpenAI for light copyediting with store:false; returns a suggestion without writing a share.',
   security: [{ AnonymousSession: [] }],
   middleware: [exactSameOrigin, existingSession, access, jsonBody] as const,
   request: {

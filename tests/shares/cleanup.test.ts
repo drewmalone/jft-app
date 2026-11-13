@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test, type TestContext } from 'node:test';
-import { dispatch } from '../../src/shares/server/app';
+import { dispatch } from '../../src/server/app';
 import { cleanDraft } from '../../src/shares/cleanup/api';
 
 function enable(t: TestContext) {
@@ -222,4 +222,20 @@ test('shared HTTP handling forwards cleanup cancellation without retrying or swa
   await assert.rejects(request, { name: 'AbortError' });
   assert.equal(received, controller.signal);
   assert.equal(calls.mock.callCount(), 1);
+});
+
+test('cleanup can remain enabled when transcription is disabled, and its own emergency flag wins', async (t) => {
+  enable(t);
+  process.env.STT_ENABLED = 'false';
+  process.env.TRANSCRIPTION_ENABLED = 'false';
+  process.env.CLEANUP_ENABLED = 'true';
+  const provider = t.mock.method(globalThis, 'fetch', async () =>
+    response('Fictional cleaned words.')
+  );
+  const owner = await cookie();
+  assert.equal((await request(owner)).status, 200);
+  assert.equal(provider.mock.callCount(), 1);
+  process.env.CLEANUP_DISABLED = 'true';
+  assert.equal((await request(owner)).status, 503);
+  assert.equal(provider.mock.callCount(), 1);
 });

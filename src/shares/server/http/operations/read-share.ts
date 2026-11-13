@@ -1,19 +1,19 @@
-import { retryAfterHeaders } from '../openapi';
-import { enforceQuota } from '../../auth/quotas';
+import { share } from '../schemas';
+import { retryAfterHeaders } from '../../../../server/http/openapi';
+import { enforceQuota } from '../../../../server/http/enforce-quota';
 import 'server-only';
 import { createRoute, type RouteHandler, z } from '@hono/zod-openapi';
 import { shareSchema } from '../../../model';
 import { shareRepository } from '../../storage/configured-repository';
-import type { SessionEnvironment } from '../middleware';
+import type { SessionEnvironment } from '../../../../server/http/middleware';
 import {
-  share,
   privateHeaders,
   sessionSecurity,
   commonFailures,
   failed
-} from '../openapi';
-import { errorBody } from '../errors';
-import { anonymousSession } from '../middleware';
+} from '../../../../server/http/openapi';
+import { errorBody } from '../../../../server/http/errors';
+import { anonymousSession } from '../../../../server/http/middleware';
 
 const idParams = z.object({
   id: z

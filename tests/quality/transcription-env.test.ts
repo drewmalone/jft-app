@@ -90,3 +90,48 @@ test('Amplify transcription preparation validates configuration and copies only 
     rmSync(directory, { recursive: true, force: true });
   }
 });
+
+test('runtime preparation replaces removed feature and quota overrides with validated defaults', () => {
+  const directory = mkdtempSync(path.join(tmpdir(), 'runtime-feature-reset-'));
+  const script = path.resolve('scripts/prepare-runtime-env.ts');
+  const file = path.join(directory, '.env.production');
+  const run = (extra: Record<string, string>) =>
+    spawnSync(
+      process.execPath,
+      ['--import', path.resolve('node_modules/tsx/dist/loader.mjs'), script],
+      {
+        cwd: directory,
+        env: {
+          ...process.env,
+          SHARE_PERSISTENCE: 'memory',
+          READINGS_SOURCE: 'local',
+          STT_ENABLED: 'false',
+          ...extra
+        },
+        encoding: 'utf8'
+      }
+    );
+  try {
+    assert.equal(
+      run({
+        CLEANUP_ENABLED: 'true',
+        QUOTA_CREATE_OWNER_3600: '2',
+        CLEANUP_DISABLED: 'true'
+      }).status,
+      0
+    );
+    const first = parse(readFileSync(file, 'utf8'));
+    assert.equal(first.CLEANUP_ENABLED, 'true');
+    assert.equal(first.CLEANUP_DISABLED, 'true');
+    assert.equal(first.QUOTA_CREATE_OWNER_3600, '2');
+    assert.equal(run({}).status, 0);
+    const reset = parse(readFileSync(file, 'utf8'));
+    assert.equal(reset.CLEANUP_ENABLED, 'false');
+    assert.equal(reset.CLEANUP_DISABLED, 'false');
+    assert.equal(reset.QUOTA_CREATE_OWNER_3600, '10');
+    assert.equal(run({ CLEANUP_ENABLED: 'typo' }).status, 1);
+    assert.equal(parse(readFileSync(file, 'utf8')).CLEANUP_ENABLED, 'false');
+  } finally {
+    rmSync(directory, { recursive: true, force: true });
+  }
+});

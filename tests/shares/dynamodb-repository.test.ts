@@ -13,7 +13,7 @@ import {
 import { shareRepository } from '../../src/shares/server/storage/configured-repository';
 import { DynamoDbShareRepository } from '../../src/shares/server/storage/dynamodb-repository';
 import { readPublicShare } from '../../src/shares/server/application/read-public-share';
-import { dispatch } from '../../src/shares/server/app';
+import { dispatch } from '../../src/server/app';
 
 /** Injected failure fake; DynamoDB Local covers successful SDK behavior. */
 class FailingDynamo {

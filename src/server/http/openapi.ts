@@ -1,16 +1,9 @@
 import 'server-only';
 import { createRoute, type RouteConfig, z } from '@hono/zod-openapi';
 import type { HeadersObject } from 'openapi3-ts/oas31';
-import type { ApiErrorCode } from '../../errors';
-import { shareSchema } from '../../model';
-import { apiErrorSchema } from '../../errors';
-import { cleanupTextSchema } from '../../cleanup/model';
-import { transcriptionCredentialSchema } from '../../transcription/model';
+import type { ApiErrorCode } from '../../http/errors';
+import { apiErrorSchema } from '../../http/errors';
 import { apiFailures } from './errors';
-
-export const share = shareSchema.openapi('Share', {
-  additionalProperties: false
-});
 
 export const browserOriginHeaders = z.object({
   origin: z
@@ -20,11 +13,7 @@ export const browserOriginHeaders = z.object({
     )
 });
 
-export const draftText = cleanupTextSchema.openapi('DraftText');
-export const transcriptionCredential = transcriptionCredentialSchema.openapi(
-  'TranscriptionCredential'
-);
-const apiError = apiErrorSchema.openapi('ApiError');
+const apiError = apiErrorSchema.clone().openapi('ApiError');
 
 export const retryAfterHeaders = {
   'Retry-After': {
@@ -99,7 +88,7 @@ export function optionsRoute(
   path: string,
   allow: string,
   operationId: string,
-  tag: 'Shares' | 'Transcription' | 'Readings' = 'Shares'
+  tag: 'Shares' | 'Transcription' | 'Readings' | 'Session' = 'Shares'
 ) {
   return createRoute({
     method: 'options',
@@ -125,7 +114,7 @@ export function optionsRoute(
 export const openApiConfiguration = {
   openapi: '3.1.0' as const,
   info: {
-    title: 'Doorknob share BFF',
+    title: 'Doorknob API',
     version: '0.3.0',
     contact: { url: 'https://github.com/drewmalone/jft-app/issues' },
     description:
@@ -133,6 +122,11 @@ export const openApiConfiguration = {
   },
   servers: [{ url: '/', description: 'Same origin as the application.' }],
   tags: [
+    {
+      name: 'Session',
+      description:
+        'Signed anonymous browser session preparation; independent of storage and providers.'
+    },
     {
       name: 'Readings',
       description:

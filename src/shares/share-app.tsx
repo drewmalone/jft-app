@@ -31,7 +31,13 @@ const screenCopy = {
 };
 
 /** Drafts live only in this mounted app; a fresh page starts a fresh share. */
-export function ShareApp({ initialReading }: { initialReading: DailyReading }) {
+export function ShareApp({
+  initialReading,
+  cleanupEnabled
+}: {
+  initialReading: DailyReading;
+  cleanupEnabled: boolean;
+}) {
   const reading = useDailyReading(initialReading);
   const {
     displayedReading,
@@ -44,6 +50,7 @@ export function ShareApp({ initialReading }: { initialReading: DailyReading }) {
     text,
     cleanup,
     history,
+    session,
     sessionReady,
     loadHistory,
     loadMore,
@@ -116,17 +123,14 @@ export function ShareApp({ initialReading }: { initialReading: DailyReading }) {
             {history.message}
           </p>
         )}
-        {view === 'today' &&
+        {(view === 'today' || view === 'past') &&
           !sessionReady &&
-          (history.status === 'failed' ? (
+          (session.state.status === 'failed' ? (
             <div className="mt-6">
-              <p role="alert">
-                Your private session could not be prepared. Your words are still
-                here. {history.message}
-              </p>
+              <p role="alert">{session.state.message}</p>
               <button
                 className="secondary mt-4 w-full"
-                onClick={() => void loadHistory()}
+                onClick={() => void session.retry()}
               >
                 Try again
               </button>
@@ -169,13 +173,14 @@ export function ShareApp({ initialReading }: { initialReading: DailyReading }) {
             saving={saving}
             error={saveError}
             onTextChange={cleanup.edit}
+            cleanupEnabled={cleanupEnabled}
             cleanupStatus={cleanup.state.status}
             isCleanupPending={cleanup.isPending}
             onCleanup={cleanup.run}
             onSave={save}
           />
         )}
-        {view === 'past' && (
+        {view === 'past' && sessionReady && (
           <ShareHistory
             history={history}
             onLoadMore={() => void loadMore()}

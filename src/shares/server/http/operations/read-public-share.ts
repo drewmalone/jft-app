@@ -7,9 +7,9 @@ import {
 } from '@hono/zod-openapi';
 import { publicShareSchema } from '../../../model';
 import { readPublicShare } from '../../application/read-public-share';
-import { failed, privateHeaders } from '../openapi';
-import { errorBody } from '../errors';
-import type { SessionEnvironment } from '../middleware';
+import { failed, privateHeaders } from '../../../../server/http/openapi';
+import { errorBody } from '../../../../server/http/errors';
+import type { SessionEnvironment } from '../../../../server/http/middleware';
 
 export const publicHeaders = {
   'Cache-Control': privateHeaders['Cache-Control'],
@@ -45,7 +45,7 @@ export const readPublicShareRoute = createRoute({
       headers: publicHeaders,
       content: {
         'application/json': {
-          schema: publicShareSchema.openapi('PublicShare', {
+          schema: publicShareSchema.clone().openapi('PublicShare', {
             additionalProperties: false
           })
         }

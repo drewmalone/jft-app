@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import { shareSchema } from './model';
-import { requestJson, requestJsonWithHeaders } from './http-client';
+import { requestJson, requestJsonWithHeaders } from '../http/client';
 
 /** Return one bounded history page; absence of a continuation cursor means history is complete. */
 export async function readShares(cursor?: string) {

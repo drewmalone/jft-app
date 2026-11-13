@@ -8,7 +8,7 @@ import { parseCatalog } from '../../src/readings/server/catalog';
 import { ReadingCache } from '../../src/readings/server/cache';
 import { readingDate, readingTimeZone } from '../../src/readings/calendar';
 import { readings } from '../../src/readings/server/configured-readings';
-import { dispatch } from '../../src/shares/server/app';
+import { dispatch } from '../../src/server/app';
 import { parseReadingsConfig } from '../../src/config/runtime';
 
 const reading = {

@@ -1,6 +1,7 @@
+import { useSession } from '../session/use-session';
 import { useShareDraft } from './use-share-draft';
 import type { DailyReading } from '../readings/model';
-import { ApiRequestError } from './http-client';
+import { ApiRequestError } from '../http/client';
 import { useEffect, useRef, useState, type FormEvent } from 'react';
 import type { Share } from './model';
 import { readShare, saveShare } from './api';
@@ -25,12 +26,9 @@ export function useShareApplication(
     draft;
   const reading = displayedReading.reading;
   const cleanup = useShareCleanup(text, draft.edit);
-  const {
-    history,
-    sessionReady,
-    refresh: loadHistory,
-    loadMore
-  } = useShareHistory();
+  const session = useSession();
+  const sessionReady = session.ready;
+  const { history, refresh: loadHistory, loadMore } = useShareHistory();
   const [saveError, setSaveError] = useState('');
   const [saving, setSaving] = useState(false);
   const savePending = useRef(false);
@@ -46,12 +44,14 @@ export function useShareApplication(
       mounted.current = false;
     };
   }, []);
+  useEffect(() => {
+    if (screen.view === 'past' && sessionReady) void loadHistory();
+  }, [screen.view, sessionReady, loadHistory]);
   function navigate(next: Screen) {
     cleanup.cancel();
     detailRequest.current++;
     setDetailState({ status: 'idle' });
     setScreen(next);
-    if (next.view === 'past' && sessionReady) void loadHistory();
   }
   async function openShare(id: string) {
     const requestId = ++detailRequest.current;
@@ -122,6 +122,7 @@ export function useShareApplication(
     text,
     cleanup,
     history,
+    session,
     sessionReady,
     loadHistory,
     loadMore,

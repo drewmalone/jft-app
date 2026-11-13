@@ -1,26 +1,39 @@
-import { registerDailyReading } from './http/operations/read-daily-reading';
+import { registerSession } from '../session/server/bootstrap';
+import { registerDailyReading } from '../readings/server/http/read-daily-reading';
 import 'server-only';
 import { OpenAPIHono } from '@hono/zod-openapi';
 import type { SessionEnvironment } from './http/middleware';
 import { error, handleApiError } from './http/errors';
-import { createShareRoute, createShare } from './http/operations/create-share';
-import { listSharesRoute, listShares } from './http/operations/list-shares';
-import { readShareRoute, readShare } from './http/operations/read-share';
-import { registerResourceMethods } from './http/resource-methods';
+import {
+  createShareRoute,
+  createShare
+} from '../shares/server/http/operations/create-share';
+import {
+  listSharesRoute,
+  listShares
+} from '../shares/server/http/operations/list-shares';
+import {
+  readShareRoute,
+  readShare
+} from '../shares/server/http/operations/read-share';
+import { registerResourceMethods } from '../shares/server/http/resource-methods';
 import { openApiConfiguration } from './http/openapi';
 
 import {
   readPublicShareRoute,
   getPublicShare,
   publicShareValidation
-} from './http/operations/read-public-share';
+} from '../shares/server/http/operations/read-public-share';
 
 import {
   transcriptionSessionRoute,
   createTranscriptionSession
-} from './http/operations/transcription-session';
+} from '../shares/server/http/operations/transcription-session';
 
-import { cleanShareRoute, cleanShare } from './http/operations/clean-share';
+import {
+  cleanShareRoute,
+  cleanShare
+} from '../shares/server/http/operations/clean-share';
 import { optionsRoute } from './http/openapi';
 
 const specificationAllow = 'GET, HEAD, OPTIONS';
@@ -36,6 +49,7 @@ const app = new OpenAPIHono<SessionEnvironment>({
 
 app.onError(handleApiError);
 registerDailyReading(app);
+registerSession(app);
 app.openapi(listSharesRoute, listShares);
 app.openapi(createShareRoute, createShare);
 

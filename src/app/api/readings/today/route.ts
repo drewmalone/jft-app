@@ -1,4 +1,4 @@
-import { dispatch } from '../../../../shares/server/app';
+import { dispatch } from '../../../../server/app';
 export const runtime = 'nodejs';
 /** Public reading requests do not create a private session. */
 export const GET = dispatch;

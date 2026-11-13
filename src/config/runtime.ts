@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import { parseSecretArn } from './secret-arn';
-import { transcriptionProviderSchema } from '../shares/transcription/config';
+import { parseFeatureConfig } from './features';
+import { parseQuotaConfig, quotaSetting, type QuotaOperation } from './quotas';
 
 type Environment = Readonly<Record<string, string | undefined>>;
 const persistence = z.discriminatedUnion('SHARE_PERSISTENCE', [
@@ -58,34 +59,39 @@ const secretArn = z.string().refine((value) => {
     return false;
   }
 }, 'Expected a regional Secrets Manager secret ARN.');
-const speech = z.object({
-  STT_ENABLED: z.enum(['true', 'false']),
-  STT_PROVIDER: transcriptionProviderSchema,
-  STT_SONIOX_SECRET_ARN: secretArn,
-  STT_OPENAI_SECRET_ARN: secretArn
-});
-/** Return only allowlisted nonsecret runtime settings. Secret values are never copied. */
-export function parseRuntimeConfig(env: Environment) {
+/** Validate deployment settings without reading secrets, catalogs or AWS data. */
+export function validateRuntimeConfig(env: Environment) {
   return {
-    ...parsePersistenceConfig(env),
-    ...parseReadingsConfig(env),
-    ...(Object.fromEntries(
-      Object.entries(env).filter(
-        ([key, value]) =>
-          value !== undefined &&
-          (key === 'QUOTA_TABLE_NAME' ||
-            key === 'TRANSCRIPTION_DISABLED' ||
-            key === 'CLEANUP_DISABLED' ||
-            /^QUOTA_(TRANSCRIPTION|CLEANUP|CREATE|PRIVATE)_OWNER_\d+$/.test(
-              key
-            ))
-      )
-    ) as Record<string, string>),
-    ...speech.parse({
-      STT_ENABLED: env.STT_ENABLED ?? 'false',
-      STT_PROVIDER: env.STT_PROVIDER,
-      STT_SONIOX_SECRET_ARN: env.STT_SONIOX_SECRET_ARN ?? '',
-      STT_OPENAI_SECRET_ARN: env.STT_OPENAI_SECRET_ARN ?? ''
-    })
+    storage: parsePersistenceConfig(env),
+    readings: parseReadingsConfig(env),
+    features: parseFeatureConfig(env),
+    quotas: parseQuotaConfig(env),
+    openAISecretArn: secretArn.parse(env.STT_OPENAI_SECRET_ARN ?? ''),
+    sonioxSecretArn: secretArn.parse(env.STT_SONIOX_SECRET_ARN ?? '')
+  };
+}
+/** Flatten validated nonsecret settings for Amplify's SSR environment artifact. */
+export function parseRuntimeConfig(env: Environment) {
+  const config = validateRuntimeConfig(env);
+  const quotaSettings: Record<string, string> = {};
+  for (const [operation, rules] of Object.entries(config.quotas.policy)) {
+    for (const rule of rules) {
+      const key = quotaSetting(operation as QuotaOperation, rule.seconds);
+      quotaSettings[key] = String(rule.limit);
+    }
+  }
+  return {
+    ...config.storage,
+    ...config.readings,
+    ...quotaSettings,
+    QUOTA_TABLE_NAME: config.quotas.tableName,
+    STT_ENABLED: env.STT_ENABLED ?? 'false', // Migration fallback; feature flags below are authoritative.
+    STT_PROVIDER: config.features.transcription.provider,
+    TRANSCRIPTION_ENABLED: String(config.features.transcription.enabled),
+    CLEANUP_ENABLED: String(config.features.cleanup.enabled),
+    TRANSCRIPTION_DISABLED: String(config.features.transcription.disabled),
+    CLEANUP_DISABLED: String(config.features.cleanup.disabled),
+    STT_OPENAI_SECRET_ARN: config.openAISecretArn,
+    STT_SONIOX_SECRET_ARN: config.sonioxSecretArn
   };
 }

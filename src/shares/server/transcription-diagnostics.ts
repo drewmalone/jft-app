@@ -1,5 +1,5 @@
 import 'server-only';
-import { securityMetric } from './auth/security-metrics';
+import { securityMetric } from '../../server/abuse/security-metrics';
 import OpenAI from 'openai';
 import { CleanupResultError } from './cleanup-result-error';
 import { SecretKeyError } from './secret-key';

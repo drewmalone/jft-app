@@ -1,10 +1,7 @@
 import { reflection } from '../fixtures/sample-reading';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import {
-  getSession,
-  setSessionCookie
-} from '../../src/shares/server/auth/session';
+import { getSession, setSessionCookie } from '../../src/session/server/session';
 
 test('typed new-session payloads round-trip through cookies without rolling renewal', async () => {
   const created = await getSession(new Request('http://localhost/api/shares'));

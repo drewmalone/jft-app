@@ -1,19 +1,19 @@
-import { retryAfterHeaders } from '../openapi';
-import { enforceQuota } from '../../auth/quotas';
+import { share } from '../schemas';
+import { retryAfterHeaders } from '../../../../server/http/openapi';
+import { enforceQuota } from '../../../../server/http/enforce-quota';
 import 'server-only';
 import { createRoute, type RouteHandler, z } from '@hono/zod-openapi';
 import { historyOptionsSchema } from '../../storage/history-page';
 import { shareSchema } from '../../../model';
 import { shareRepository } from '../../storage/configured-repository';
-import type { SessionEnvironment } from '../middleware';
+import type { SessionEnvironment } from '../../../../server/http/middleware';
 import {
-  share,
   privateHeaders,
   sessionSecurity,
   failed,
   commonFailures
-} from '../openapi';
-import { anonymousSession } from '../middleware';
+} from '../../../../server/http/openapi';
+import { anonymousSession } from '../../../../server/http/middleware';
 
 export const listSharesRoute = createRoute({
   middleware: [anonymousSession] as const,

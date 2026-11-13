@@ -6,7 +6,7 @@ import { randomUUID } from 'node:crypto';
 import { PutCommand } from '@aws-sdk/lib-dynamodb';
 import { dynamoTable } from './dynamodb-fixture';
 import { test } from 'node:test';
-import { dispatch } from '../../src/shares/server/app';
+import { dispatch } from '../../src/server/app';
 import { shareRepository } from '../../src/shares/server/storage/configured-repository';
 import { repositoryContract } from './repository-contract';
 import { DynamoDbShareRepository } from '../../src/shares/server/storage/dynamodb-repository';
@@ -221,19 +221,22 @@ test(
   'DynamoDB Local atomically enforces a shared final owner allowance across instances',
   { skip: !endpoint },
   async (t) => {
-    const { DynamoQuotaBackend, QuotaService } =
-      await import('../../src/shares/server/auth/quotas');
+    const { QuotaService, QuotaExceeded } =
+      await import('../../src/server/abuse/quotas');
+    const { DynamoQuotaBackend } =
+      await import('../../src/server/abuse/dynamodb-quotas');
+    const { parseQuotaPolicy } = await import('../../src/config/quotas');
     const { tableName: table, documentClient } = await dynamoTable(t);
     const env = { QUOTA_TRANSCRIPTION_OWNER_600: '1' };
     const a = new QuotaService(
       new DynamoQuotaBackend(table, documentClient),
       () => 0,
-      env
+      parseQuotaPolicy(env)
     );
     const b = new QuotaService(
       new DynamoQuotaBackend(table, documentClient),
       () => 0,
-      env
+      parseQuotaPolicy(env)
     );
     const owner = randomUUID();
     const results = await Promise.allSettled(
@@ -241,13 +244,10 @@ test(
         (i % 2 ? a : b).check('transcription', owner)
       )
     );
-    assert.equal(
-      results.filter((r) => r.status === 'fulfilled' && r.value === 0).length,
-      1
-    );
-    assert.ok((await b.check('transcription', owner)) > 0);
-    assert.equal(await b.check('transcription', randomUUID()), 0);
-    assert.equal(await b.check('cleanup', randomUUID()), 0);
+    assert.equal(results.filter((r) => r.status === 'fulfilled').length, 1);
+    await assert.rejects(b.check('transcription', owner), QuotaExceeded);
+    await assert.doesNotReject(b.check('transcription', randomUUID()));
+    await assert.doesNotReject(b.check('cleanup', randomUUID()));
     await documentClient.send(
       new PutCommand({
         TableName: table,

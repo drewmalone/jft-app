@@ -105,6 +105,11 @@ test('generated configuration round-trips through Next environment loading and m
     assert.deepEqual(load(), {
       ...settings,
       READINGS_SAMPLE: 'false',
+      TRANSCRIPTION_ENABLED: 'true',
+      CLEANUP_ENABLED: 'true',
+      TRANSCRIPTION_DISABLED: 'false',
+      CLEANUP_DISABLED: 'false',
+      QUOTA_TABLE_NAME: '',
       READINGS_TABLE_NAME: '',
       READINGS_LOCAL_PATH: '',
       SESSION_SECRET: 'fictional-stable-signing-secret-at-least-32-bytes',

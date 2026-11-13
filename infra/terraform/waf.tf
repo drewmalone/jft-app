@@ -53,7 +53,7 @@ resource "aws_wafv2_web_acl" "security" {
         }, paid = {
         priority = 20, pattern = "^/api/(transcription/session|shares/cleanup)$"
         }, create = {
-        priority = 30, pattern = "^/api/shares$"
+        priority = 30, pattern = "^/api/(shares|session)$"
         }, public = {
         priority = 40, pattern = "^/(s/|api/public/shares/)"
       }

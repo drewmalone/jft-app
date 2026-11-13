@@ -20,8 +20,8 @@ function daily(date: string): DailyReading {
   };
 }
 test('typed and recording drafts retain their reading across rollover and navigation, then release it when cleared', async (t) => {
-  t.mock.method(globalThis, 'fetch', async () =>
-    Response.json({ shares: [], nextCursor: null })
+  t.mock.method(globalThis, 'fetch', async (url: string | URL | Request) =>
+    Response.json(String(url) === '/api/session' ? { ready: true } : [])
   );
   const first = daily('2026-11-11'),
     next = daily('2026-11-12');
