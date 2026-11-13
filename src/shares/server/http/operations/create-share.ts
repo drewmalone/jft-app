@@ -1,4 +1,4 @@
-import { SubmissionConflict } from '../../storage/submission';
+import { isSubmissionConflict } from '../../storage/submission';
 import { share } from '../schemas';
 import { retryAfterHeaders } from '../../../../server/http/openapi';
 import { getCookie } from 'hono/cookie';
@@ -102,7 +102,7 @@ export const createShare: RouteHandler<
     c.header('Location', `/api/shares/${share.id}`);
     return c.json(shareSchema.parse(share), 201);
   } catch (cause) {
-    if (cause instanceof SubmissionConflict)
+    if (isSubmissionConflict(cause))
       return c.json(errorBody('IDEMPOTENCY_CONFLICT'), 409);
     throw cause;
   }

@@ -4,10 +4,18 @@ import { z } from 'zod';
 import type { createShareSchema } from '../../model';
 
 export type Submission = { key: string; requestHash: string };
+const conflictTag = Symbol.for('doorknob.submission-conflict');
 export class SubmissionConflict extends Error {
+  readonly [conflictTag] = true;
   constructor() {
     super('Submission already used for a different request');
   }
+}
+/** Shared runtime objects can originate in another Next bundle or development reload. */
+export function isSubmissionConflict(
+  cause: unknown
+): cause is SubmissionConflict {
+  return cause instanceof Error && Reflect.get(cause, conflictTag) === true;
 }
 /** Keys and payload fingerprints remain server-side metadata; never log them. */
 export function submissionFor(

@@ -1,6 +1,6 @@
 import 'server-only';
 import type { QuotaOperation } from '../../config/quotas';
-import { QuotaExceeded } from '../abuse/quotas';
+import { isQuotaExceeded } from '../abuse/quotas';
 import { securityMetric } from '../abuse/security-metrics';
 import type { QuotaService } from '../abuse/quotas';
 import { QuotaHttpError } from './quota-error';
@@ -16,7 +16,7 @@ export async function enforceQuota(
     await quotas.check(operation, owner);
     securityMetric(operation, 'allowed');
   } catch (cause) {
-    if (cause instanceof QuotaExceeded) {
+    if (isQuotaExceeded(cause)) {
       securityMetric(operation, 'limited');
       throw new QuotaHttpError(429, {
         res: error('RATE_LIMITED', { 'Retry-After': String(cause.retryAfter) })

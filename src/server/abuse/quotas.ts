@@ -12,10 +12,18 @@ export type Counter = {
   expiresAt: number;
   retryAfter?: number;
 };
+const quotaExceededTag = Symbol.for('doorknob.quota-exceeded');
 export class QuotaExceeded extends Error {
+  readonly [quotaExceededTag] = true;
   constructor(readonly retryAfter: number) {
     super('quota exceeded');
   }
+}
+/** Stable identity across shared Next runtime bundles; retry metadata stays on the error. */
+export function isQuotaExceeded(cause: unknown): cause is QuotaExceeded {
+  return (
+    cause instanceof Error && Reflect.get(cause, quotaExceededTag) === true
+  );
 }
 export interface QuotaBackend {
   consume(counters: readonly Counter[], signal?: AbortSignal): Promise<void>;
