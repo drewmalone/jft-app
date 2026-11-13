@@ -12,7 +12,7 @@ export function SaveShareButton({
         'Saving…'
       ) : (
         <>
-          Save privately <span aria-hidden="true">→</span>
+          Save <span aria-hidden="true">→</span>
         </>
       )}
     </button>

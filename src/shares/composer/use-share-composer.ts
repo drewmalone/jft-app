@@ -30,6 +30,7 @@ export function useShareComposer({
   onRecordingChange,
   onSave
 }: ShareComposerOptions) {
+  const pendingSave = useRef<HTMLFormElement | null>(null);
   const voice = useTranscription(text, onTextChange, {
     onStopped: (value) => {
       void onCleanup(value);
@@ -38,6 +39,26 @@ export function useShareComposer({
   useEffect(() => {
     onRecordingChange?.(voice.active);
   }, [voice.active, voice.state, onRecordingChange]);
+  useEffect(() => {
+    if (!pendingSave.current || voice.active) return;
+    if (voice.state === 'error' || !sessionReady || !readingReady) {
+      pendingSave.current = null;
+      return;
+    }
+    if (cleanupStatus === 'pending' || isCleanupPending()) return;
+    const form = pendingSave.current;
+    pendingSave.current = null;
+    // Submit again only after final words and cleanup have reached the draft.
+    if (text.trim()) form.requestSubmit();
+  }, [
+    voice.active,
+    voice.state,
+    cleanupStatus,
+    isCleanupPending,
+    text,
+    sessionReady,
+    readingReady
+  ]);
   const recordingCallback = useRef(onRecordingChange);
   useEffect(() => {
     recordingCallback.current = onRecordingChange;
@@ -50,19 +71,25 @@ export function useShareComposer({
       !sessionReady ||
       !readingReady ||
       saving ||
-      voice.active ||
+      voice.state === 'stopping' ||
       cleanupStatus === 'pending' ||
-      !text.trim(),
+      (!text.trim() && !voice.active),
     retryDisabled: voice.active || saving,
     submit(event: FormEvent<HTMLFormElement>) {
       if (
         !sessionReady ||
         !readingReady ||
         saving ||
-        voice.active ||
+        pendingSave.current ||
         isCleanupPending()
       ) {
         event.preventDefault();
+        return;
+      }
+      if (voice.active) {
+        event.preventDefault();
+        pendingSave.current = event.currentTarget;
+        voice.stop();
         return;
       }
       onSave(event);

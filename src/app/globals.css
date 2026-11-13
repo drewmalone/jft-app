@@ -435,7 +435,7 @@ button:disabled {
     line-height: 1.35;
   }
 
-  .dock-review-button {
+  .dock-save-button {
     align-self: flex-end;
     min-height: 44px;
     margin-top: 2px;
@@ -447,7 +447,7 @@ button:disabled {
     max-width: 100%;
   }
 
-  .dock-review-button:hover:not(:disabled) {
+  .dock-save-button:hover:not(:disabled) {
     background: #f1eee5;
   }
 

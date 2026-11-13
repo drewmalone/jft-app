@@ -38,9 +38,7 @@ export function ShareForm({
     onSave
   });
   const { voice } = composer;
-  const editor = useRef<HTMLDivElement>(null);
   const panel = useRef<HTMLDivElement>(null);
-  const reviewRequested = useRef(false);
   const [editing, setEditing] = useState(false);
   useEffect(() => {
     const element = panel.current;
@@ -64,27 +62,6 @@ export function ShareForm({
       else root.style.removeProperty('--recording-dock-height');
     };
   }, []);
-  useEffect(() => {
-    if (
-      !reviewRequested.current ||
-      voice.active ||
-      cleanupStatus === 'pending' ||
-      isCleanupPending()
-    )
-      return;
-    reviewRequested.current = false;
-    editor.current?.scrollIntoView({ block: 'center' });
-    editor.current?.querySelector('textarea')?.focus({ preventScroll: true });
-  }, [voice.active, cleanupStatus, isCleanupPending]);
-  function review() {
-    if (voice.active) {
-      reviewRequested.current = true;
-      voice.stop();
-    } else {
-      editor.current?.scrollIntoView({ block: 'center' });
-      editor.current?.querySelector('textarea')?.focus({ preventScroll: true });
-    }
-  }
   const inlineRecorder = useRef<HTMLDivElement>(null);
   const [docked, setDocked] = useState(true);
   useEffect(() => {
@@ -230,22 +207,16 @@ export function ShareForm({
             </div>
             {(voice.active || Boolean(text.trim())) && (
               <button
-                type="button"
-                className="dock-review-button"
-                disabled={
-                  saving ||
-                  voice.state === 'stopping' ||
-                  cleanupStatus === 'pending'
-                }
-                onClick={review}
+                type="submit"
+                className="dock-save-button"
+                disabled={composer.saveDisabled}
               >
-                {voice.active ? 'Finish & review' : 'Review'}{' '}
-                <span aria-hidden="true">→</span>
+                {saving ? 'Saving…' : 'Save'} <span aria-hidden="true">→</span>
               </button>
             )}
           </div>
         </div>
-        <div ref={editor} className="transcript-editor">
+        <div className="transcript-editor">
           <LiveTranscript
             text={text}
             interim={voice.interim}

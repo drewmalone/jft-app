@@ -1,11 +1,11 @@
 import { expect, test } from './fixtures/test';
 import { mockSpeech, emit } from './fixtures/openai-browser';
 
-for (const width of [320, 375, 390]) {
-  test(`compact dock at ${width}px reviews final words without saving or restarting capture`, async ({
+for (const target of ['dock', 'editor']) {
+  test(`${target} Save flushes recording, waits for cleanup, and saves exactly once`, async ({
     page
-  }, testInfo) => {
-    await page.setViewportSize({ width, height: 667 });
+  }) => {
+    await page.setViewportSize({ width: 320, height: 568 });
     await mockSpeech(page);
     let release!: () => void;
     const pending = new Promise<void>((resolve) => {
@@ -27,20 +27,13 @@ for (const width of [320, 375, 390]) {
     const preview = page.getByRole('region', {
       name: 'Latest recognized words'
     });
-    await expect(panel).toHaveAttribute('data-visible', 'true');
-    await expect(panel.getByRole('button')).toHaveCount(1);
-    await expect(preview).toHaveText('Your words will appear here.');
-    await expect(page.getByText('Tap to begin', { exact: true })).toBeVisible();
-    const idleHeight = (await panel.boundingBox())!.height;
-    expect(idleHeight).toBeGreaterThanOrEqual(110);
-    expect(idleHeight).toBeLessThanOrEqual(140);
-    if (width > 320)
-      await page.screenshot({
-        path: testInfo.outputPath(`dock-${width}-idle.png`)
-      });
-    await panel.getByRole('button', { name: 'Record your share' }).click();
+    await expect(panel).toBeInViewport();
+    expect((await panel.boundingBox())!.height).toBeLessThanOrEqual(125);
+    await expect(
+      panel.getByRole('button', { name: 'Save', exact: true })
+    ).toHaveCount(0);
+    await page.getByRole('button', { name: 'Record your share' }).click();
     await emit(page, 'speechStart');
-    await expect(page.getByText('Listening…', { exact: true })).toBeVisible();
     await emit(page, 'speechResult', [
       ['Earlier words. '.repeat(30), true],
       ['Latest provisional words', false]
@@ -49,63 +42,42 @@ for (const width of [320, 375, 390]) {
     await expect
       .poll(() => preview.evaluate((el) => el.scrollTop > 0))
       .toBe(true);
-    const height = (await panel.boundingBox())!.height;
-    expect(height).toBeLessThanOrEqual(140);
-    const review = panel.getByRole('button', { name: 'Finish & review' });
-    const previewBounds = (await preview.boundingBox())!;
-    const reviewBounds = (await review.boundingBox())!;
-    expect(reviewBounds.y).toBeGreaterThanOrEqual(
-      previewBounds.y + previewBounds.height
+    await page.evaluate(() => window.scrollTo(0, 0));
+    await expect(panel).toBeInViewport();
+    expect(
+      await page.evaluate(() => Reflect.get(window, 'microphoneRequests'))
+    ).toBe(1);
+    const button = page.locator(
+      target === 'dock' ? '.dock-save-button' : 'button.primary[type="submit"]'
     );
-    expect(reviewBounds.x + reviewBounds.width).toBeCloseTo(
-      previewBounds.x + previewBounds.width,
-      0
-    );
-    expect(reviewBounds.height).toBeGreaterThanOrEqual(44);
-    if (width > 320)
-      await page.screenshot({
-        path: testInfo.outputPath(`dock-${width}-recording.png`)
-      });
-    await emit(page, 'speechResult', [
-      ['Earlier words. '.repeat(30), true],
-      [' More provisional words', false]
-    ]);
-    expect((await panel.boundingBox())!.height).toBeCloseTo(height, 0);
-    await review.click();
+    await button.evaluate((el) => el.scrollIntoView({ block: 'center' }));
+    await button.click();
+    await expect(button).toBeDisabled();
     await emit(page, 'speechResult', [
       ['Earlier words. '.repeat(30), true],
       ['Corrected final words.', true]
     ]);
     await emit(page, 'speechEnd');
-    await expect(page.getByRole('textbox')).not.toBeFocused();
     await expect(page.getByRole('textbox')).toHaveValue(
       /Corrected final words\./
     );
+    await expect(page.getByRole('status')).toHaveText('Tidying!');
     expect(saves).toBe(0);
-    release();
-    await expect(page.getByRole('textbox')).toBeFocused();
-    await expect(page.getByRole('textbox')).toHaveValue(
-      'Earlier words. Corrected final words.'
-    );
-    await expect(panel).toHaveAttribute('data-visible', 'false');
-    expect(
-      await page.evaluate(() => Reflect.get(window, 'microphoneRequests'))
-    ).toBe(1);
-    await page.getByRole('textbox').fill('Edited privately before saving.');
     const saved = page.waitForResponse(
       (r) => r.request().method() === 'POST' && r.url().endsWith('/api/shares')
     );
-    await page.getByRole('button', { name: 'Save privately' }).click();
+    release();
     expect((await (await saved).json()).text).toBe(
-      'Edited privately before saving.'
+      'Earlier words. Corrected final words.'
     );
+    await expect(
+      page.getByRole('heading', { name: 'Your share is saved.' })
+    ).toBeVisible();
     expect(saves).toBe(1);
   });
 }
 
-test('paused Review retains text and larger text fits without obstructing the editor', async ({
-  page
-}, testInfo) => {
+test('dock Save saves a paused draft', async ({ page }) => {
   await page.setViewportSize({ width: 375, height: 667 });
   await mockSpeech(page);
   await page.goto('/');
@@ -113,54 +85,36 @@ test('paused Review retains text and larger text fits without obstructing the ed
   await emit(page, 'speechStart');
   await emit(page, 'speechResult', [['Paused final words.', true]]);
   await emit(page, 'speechEnd');
-  await expect(page.getByText('Paused', { exact: true })).toBeVisible();
-  await page.screenshot({
-    path: testInfo.outputPath('dock-375-paused.png')
+  const saved = page.waitForResponse(
+    (r) => r.request().method() === 'POST' && r.url().endsWith('/api/shares')
+  );
+  await page.locator('.dock-save-button').click();
+  expect((await (await saved).json()).text).toBe('Paused final words.');
+});
+
+test('an interrupted save retains the draft without saving incomplete speech', async ({
+  page
+}) => {
+  await page.setViewportSize({ width: 375, height: 667 });
+  await mockSpeech(page);
+  let saves = 0;
+  page.on('request', (request) => {
+    if (request.method() === 'POST' && request.url().endsWith('/api/shares'))
+      saves++;
   });
-  await page.setViewportSize({ width: 390, height: 667 });
-  await page.screenshot({
-    path: testInfo.outputPath('dock-390-paused.png')
-  });
-  await page.setViewportSize({ width: 320, height: 568 });
-  await page.addStyleTag({ content: 'html { font-size: 24px; }' });
-  const panel = page.locator('.recording-panel');
-  const review = page.getByRole('button', { name: 'Review', exact: true });
-  await expect(review).toBeVisible();
-  expect(
-    await page.evaluate(
-      () => document.documentElement.scrollWidth <= innerWidth
-    )
-  ).toBe(true);
-  await expect
-    .poll(() =>
-      panel.evaluate(
-        (el) =>
-          parseFloat(
-            document.documentElement.style.getPropertyValue(
-              '--recording-dock-height'
-            )
-          ) >= el.getBoundingClientRect().height
-      )
-    )
-    .toBe(true);
-  await review.click();
-  await expect(page.getByRole('textbox')).toBeFocused();
-  await expect(panel).toHaveAttribute('data-visible', 'false');
-  await expect(page.getByRole('textbox')).toHaveValue('Paused final words.');
-  await page.getByRole('heading', { name: 'Record your share' }).focus();
-  await page.evaluate(() => window.scrollTo(0, 0));
+  await page.goto('/');
   await page.getByRole('button', { name: 'Record your share' }).click();
   await emit(page, 'speechStart');
-  const finish = page.getByRole('button', { name: 'Finish & review' });
-  await expect(finish).toBeVisible();
-  const bounds = (await finish.boundingBox())!;
-  expect(bounds.x + bounds.width).toBeLessThanOrEqual(320);
-  expect(
-    await page.evaluate(
-      () => document.documentElement.scrollWidth <= innerWidth
-    )
-  ).toBe(true);
+  await emit(page, 'speechResult', [['Retained final words.', true]]);
+  await page.locator('.dock-save-button').click();
+  await emit(page, 'speechError', 'network');
+  await expect(
+    page.getByText('Recording interrupted', { exact: true })
+  ).toBeVisible();
+  await expect(page.getByRole('textbox')).toHaveValue('Retained final words.');
+  expect(saves).toBe(0);
 });
+
 test('inline microphone and dock hand off without restarting the recording', async ({
   page
 }) => {
