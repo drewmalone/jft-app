@@ -1,3 +1,5 @@
+import { retryAfterHeaders } from '../openapi';
+import { enforceQuota } from '../../auth/quotas';
 import 'server-only';
 import { createRoute, type RouteHandler, z } from '@hono/zod-openapi';
 import { historyOptionsSchema } from '../../storage/history-page';
@@ -26,6 +28,8 @@ export const listSharesRoute = createRoute({
   request: { query: historyOptionsSchema },
 
   responses: {
+    429: failed(['RATE_LIMITED'], retryAfterHeaders),
+    503: failed(['INTERNAL_ERROR']),
     200: {
       description:
         'Newest timestamp first; equal timestamp order is unspecified. At most 20 shares by default, maximum limit 50. X-Next-Cursor is present when another page may exist. Pass it as cursor on the next request; ownership always comes from the session.',
@@ -49,6 +53,7 @@ export const listShares: RouteHandler<
   typeof listSharesRoute,
   SessionEnvironment
 > = async (c) => {
+  await enforceQuota('private', c.get('ownerId'));
   const { shares, nextCursor } = await shareRepository.listByOwner(
     c.get('ownerId'),
     c.req.valid('query')

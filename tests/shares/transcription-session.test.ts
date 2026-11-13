@@ -92,12 +92,12 @@ test('OpenAI SDK requests fixed transcription settings and returns only ephemera
   );
   assert.equal(body.session.audio.input.turn_detection, null);
   assert.equal(body.expires_after.seconds, 60);
-  for (let i = 0; i < 4; i++)
+  for (let i = 0; i < 2; i++)
     assert.equal((await request(headers)).status, 200);
   const limited = await request(headers);
   assert.equal(limited.status, 429);
-  assert.equal(limited.headers.get('retry-after'), '60');
-  assert.equal(calls.length, 5);
+  assert.ok(Number(limited.headers.get('retry-after')) > 0);
+  assert.equal(calls.length, 3);
 });
 
 test('provider failure is sanitized, method handling does not mint credentials, and local key binding is reused', async (t) => {

@@ -29,9 +29,8 @@ const apiError = apiErrorSchema.openapi('ApiError');
 export const retryAfterHeaders = {
   'Retry-After': {
     required: true,
-    description:
-      'Seconds to wait before retrying; process-local burst window only, not a shared quota.',
-    schema: { type: 'string' as const, enum: ['60'] }
+    description: 'Seconds to wait before retrying the shared quota window.',
+    schema: { type: 'string' as const, pattern: '^[1-9][0-9]*$' }
   }
 };
 

@@ -60,7 +60,7 @@ Local mode loads the included fictional YAML catalog for its listed dates; deplo
 
 ## Persistence and privacy limitations
 
-Public links expire seven days after creation. Private history has no automatic expiration; access still requires the original anonymous session. The default local store is a process-local Map; restarting loses its contents. For deployed environments, explicitly select DynamoDB using `SHARE_PERSISTENCE=dynamodb`, `DYNAMODB_TABLE_NAME`, and `DYNAMODB_REGION`. The SDK uses the assigned compute role, without embedded AWS keys. See the [Terraform and Amplify deployment guide](infra/terraform/README.md) for infrastructure, state bootstrap, configuration, costs, and rollout checks. Nothing is deployed automatically.
+Public links expire seven days after creation. Private history has no automatic expiration; access still requires the original anonymous session. The default local store is a process-local Map; restarting loses its contents. For deployed environments, explicitly select DynamoDB using `SHARE_PERSISTENCE=dynamodb`, `DYNAMODB_TABLE_NAME`, `DYNAMODB_REGION`, and `QUOTA_TABLE_NAME`. The SDK uses the assigned compute role, without embedded AWS keys. See the [Terraform and Amplify deployment guide](infra/terraform/README.md) for infrastructure, state bootstrap, configuration, costs, and rollout checks. Nothing is deployed automatically. See [security operations and prelaunch checklist](docs/SECURITY_OPERATIONS.md) for distributed quotas, required provider-console limits, WAF/budget deployment and emergency shutdown.
 
 Each saved record contains a server-generated UUID, timestamp, text, reading snapshot, anonymous owner ID. Owner fields are omitted from API responses. DynamoDB persistence survives server replacement and supports multiple instances. Its owner index is eventually consistent, so a newly saved share may take a moment to appear in history. History loads 20 shares at a time; use **Load more** for older shares. Failed older-page requests keep the shares already shown and offer retry. The original reading stays attached even if the source changes.
 
@@ -68,7 +68,7 @@ A signed HttpOnly, SameSite=Lax cookie identifies the anonymous session, with a 
 
 No automatic record deletion, manual delete endpoint, audio storage, backup, or account recovery is provided. DynamoDB shares survive restarts; memory shares do not. Unsaved drafts live only in React memory. See [the data lifecycle](docs/DATA_GLOSSARY.md#app-data-lifecycle).
 
-Signed sharing links are optional: saving prepares a URL but never sends it automatically. No raw audio storage, registration, real reading feeds, or harness integration are included. Optional live transcription sends microphone audio to Soniox (or configured OpenAI) only during explicitly started sessions.
+Expiring UUID bearer links are optional: saving prepares a URL but never sends it automatically. No raw audio storage, registration, real reading feeds, or harness integration are included. Optional live transcription sends microphone audio to Soniox (or configured OpenAI) only during explicitly started sessions.
 
 ## Validation
 

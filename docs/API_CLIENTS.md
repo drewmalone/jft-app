@@ -15,13 +15,13 @@ The application HTTP API is defined in OpenAPI 3.1 at `/api/openapi.json`. Next.
 
 OPTIONS advertises methods through Allow. It grants no CORS access. Native HTTP clients are not subject to browser CORS enforcement, but still face every server-side authentication and Origin check. Sending a matching Origin is not proof of identity and is not a native authentication design.
 
-Anonymous ownership currently lives in a signed cookie with a 30-day absolute expiry; there is no login, renewal, account recovery, cross-device ownership transfer or explicit session endpoint. A native cookie jar could technically reproduce some website requests, but losing/expiring that cookie creates a new owner on regular share operations. Do not ship a mobile client assuming automatic recovery or durable history. Storage and paid-operation burst limits are process-local.
+Anonymous ownership currently lives in a signed cookie with a 30-day absolute expiry; there is no login, renewal, account recovery, cross-device ownership transfer or explicit session endpoint. A native cookie jar could technically reproduce some website requests, but losing/expiring that cookie creates a new owner on regular share operations. Do not ship a mobile client assuming automatic recovery or durable history. Production storage and operation quotas use DynamoDB; local memory adapters are development-only. See [security operations](SECURITY_OPERATIONS.md).
 
 ## Stable HTTP conventions to reuse
 
 - Consume named OpenAPI models for shares, public shares, `DraftText`, `TranscriptionCredential` and `ApiError`. Generate HTTP client types if useful; no generated Swift/Kotlin client has been validated in this review. The document currently uses relative server URL `/`; a native client must be configured with the intended deployment base URL.
 - Failures use `{ "error": { "code": "...", "message": "..." } }`; branch on code and status. Messages are display copy, not stable identifiers. Read the documented allowed codes for each status.
-- A 429 on either paid operation includes `Retry-After: 60`, a delay in seconds. This is a process-local burst guard, not a distributed spending guarantee. Do not blindly replay paid operations.
+- A 429 on either paid operation includes `Retry-After: 60`, a delay in seconds. This is a distributed quota guard, not a distributed spending guarantee. Do not blindly replay paid operations.
 - Credential `expires_at` is a positive integer Unix timestamp in seconds. `value` is a temporary bearer secret: never log, persist, cache or include it in reports. Expiry limits establishing a provider connection; it does not terminate an established recording. Do not copy the browser's ten-minute session policy into a claim about server-enforced quotas.
 - Share and cleanup text limits count Unicode code points, not bytes or user-perceived grapheme clusters. Cleanup returns an editable suggestion; it never saves a share.
 - Saving remains an explicit action. POST save is not idempotent: a lost response may follow a committed save. Automatic retry can duplicate shares.

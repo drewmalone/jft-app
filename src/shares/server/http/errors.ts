@@ -1,4 +1,5 @@
 import 'server-only';
+import { QuotaHttpError } from '../auth/quota-error';
 import type { ApiErrorCode } from '../../errors';
 
 /** Raw JSON request limit, including whitespace and escaping; enforced on actual streamed bytes. */
@@ -11,7 +12,7 @@ export const apiFailures = {
   },
   RATE_LIMITED: {
     status: 429,
-    message: 'Please wait a minute before trying again.'
+    message: 'Please wait before trying again. Your words are still here.'
   },
   TRANSCRIPTION_UNAVAILABLE: {
     status: 503,
@@ -81,6 +82,6 @@ export function error(code: ApiErrorCode, headers?: HeadersInit) {
 
 /** Never log or return raw errors: they may contain content or credentials. */
 export function handleApiError(cause: Error): Response {
-  void cause;
+  if (cause instanceof QuotaHttpError) return cause.getResponse();
   return error('INTERNAL_ERROR');
 }
