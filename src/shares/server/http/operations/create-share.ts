@@ -1,3 +1,5 @@
+import { retryAfterHeaders } from '../openapi';
+import { enforceQuota } from '../../auth/quotas';
 import { getCookie } from 'hono/cookie';
 import { createShareForReading } from '../../application/create-share';
 import {
@@ -44,6 +46,7 @@ export const createShareRoute = createRoute({
     }
   },
   responses: {
+    429: failed(['RATE_LIMITED'], retryAfterHeaders),
     201: {
       description:
         'Server-confirmed record with generated ID/time and reading snapshot; ownerId is omitted.',
@@ -63,7 +66,7 @@ export const createShareRoute = createRoute({
     413: failed(['PAYLOAD_TOO_LARGE']),
     415: failed(['UNSUPPORTED_MEDIA_TYPE']),
     409: failed(['READING_CHANGED']),
-    503: failed(['READING_UNAVAILABLE']),
+    503: failed(['READING_UNAVAILABLE', 'INTERNAL_ERROR']),
     ...commonFailures
   }
 });
@@ -73,6 +76,7 @@ export const createShare: RouteHandler<
   typeof createShareRoute,
   SessionEnvironment
 > = async (c) => {
+  await enforceQuota('create', c.get('ownerId'));
   const result = await createShareForReading(
     c.get('ownerId'),
     c.req.valid('json'),

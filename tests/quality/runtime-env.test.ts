@@ -141,3 +141,27 @@ test('generated configuration round-trips through Next environment loading and m
     rmSync(directory, { recursive: true, force: true });
   }
 });
+
+test('quota deployment settings are delivered to SSR without copying credentials or local fixture switches', () => {
+  const config: Record<string, string> = parseRuntimeConfig({
+    QUOTA_TABLE_NAME: 'fictional-dev-quotas',
+    TRANSCRIPTION_DISABLED: 'true',
+    CLEANUP_DISABLED: 'false',
+    QUOTA_TRANSCRIPTION_OWNER_86400: '20',
+    QUOTA_TRANSCRIPTION_GLOBAL_86400: '1',
+    QUOTA_LOCAL_ONLY: 'true',
+    STT_OPENAI_API_KEY: 'fictional-private',
+    SESSION_SECRET: 'fictional-private-cookie-key'
+  });
+  assert.equal(config.QUOTA_TABLE_NAME, 'fictional-dev-quotas');
+  assert.ok(!('QUOTA_TRANSCRIPTION_GLOBAL_86400' in config));
+  assert.equal(config.QUOTA_TRANSCRIPTION_OWNER_86400, '20');
+  assert.equal(config.TRANSCRIPTION_DISABLED, 'true');
+  assert.equal(config.CLEANUP_DISABLED, 'false');
+  for (const key of [
+    'QUOTA_LOCAL_ONLY',
+    'STT_OPENAI_API_KEY',
+    'SESSION_SECRET'
+  ])
+    assert.ok(!(key in config));
+});

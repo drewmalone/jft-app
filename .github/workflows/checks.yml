@@ -24,6 +24,8 @@ jobs:
           node-version-file: .nvmrc
           cache: npm
       - run: npm ci
+      - name: Dependency vulnerability scan
+        run: npm audit --audit-level=high
       - name: Formatting
         run: npm run format:check
       - name: Lint

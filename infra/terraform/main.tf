@@ -3,9 +3,13 @@ locals {
 }
 
 resource "aws_dynamodb_table" "shares" {
-  name                        = "${local.prefix}-shares"
-  billing_mode                = "PAY_PER_REQUEST"
-  hash_key                    = "id"
+  name         = "${local.prefix}-shares"
+  billing_mode = "PAY_PER_REQUEST"
+  hash_key     = "id"
+  on_demand_throughput {
+    max_read_request_units  = var.dynamodb_max_read_units
+    max_write_request_units = var.dynamodb_max_write_units
+  }
   deletion_protection_enabled = var.deletion_protection
 
   attribute {
@@ -24,6 +28,10 @@ resource "aws_dynamodb_table" "shares" {
   global_secondary_index {
     name            = "owner-created-at"
     projection_type = "ALL"
+    on_demand_throughput {
+      max_read_request_units  = var.dynamodb_max_read_units
+      max_write_request_units = var.dynamodb_max_write_units
+    }
     key_schema {
       attribute_name = "ownerId"
       key_type       = "HASH"

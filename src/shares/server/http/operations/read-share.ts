@@ -1,3 +1,5 @@
+import { retryAfterHeaders } from '../openapi';
+import { enforceQuota } from '../../auth/quotas';
 import 'server-only';
 import { createRoute, type RouteHandler, z } from '@hono/zod-openapi';
 import { shareSchema } from '../../../model';
@@ -36,6 +38,8 @@ export const readShareRoute = createRoute({
   security: sessionSecurity,
   request: { params: idParams },
   responses: {
+    429: failed(['RATE_LIMITED'], retryAfterHeaders),
+    503: failed(['INTERNAL_ERROR']),
     200: {
       description:
         'The owner-visible saved share and original reading snapshot.',
@@ -52,6 +56,7 @@ export const readShare: RouteHandler<
   typeof readShareRoute,
   SessionEnvironment
 > = async (c) => {
+  await enforceQuota('private', c.get('ownerId'));
   const { id } = c.req.valid('param');
   const share = await shareRepository.findByOwner(id, c.get('ownerId'));
   if (!share) return c.json(errorBody('SHARE_NOT_FOUND'), 404);

@@ -119,3 +119,13 @@ The shared root provisions a private, encrypted, versioned S3 bucket and one `ju
 The YAML is a top-level list of `date` (`MM-DD`, recurring annually), `title`, `quote`, `source`, and `body`. `READINGS_SAMPLE` controls fictional-content labeling outside the YAML. The required `readings_yaml_path` lives in each environment tfvars file. The checked-in files explicitly select fictional `readings.example.yaml`; replace the path with the complete licensed catalog before a real deployment. Ordinary plans use the same persistent selection. Terraform validates dates, duplicate dates, quotation/source fields and text bounds before publishing the object; edits replace the whole publication. The runtime validates the complete YAML again before caching it. Prior S3 versions remain recoverable. No AWS apply is part of application builds.
 
 Both S3 and local-file loading use the same process-local catalog cache. See [YAML format, publication, timezone and cache behavior](../../docs/READINGS.md).
+
+## Prelaunch security resources
+
+The quota table and narrowly scoped SSR policy are provisioned with this module. Set `QUOTA_TABLE_NAME` from `quota_table_name` in Amplify runtime settings before deploying the new application. Existing private share TTL remains disabled.
+
+Set `amplify_app_id` to opt into a global WAF ACL/association for an existing Amplify app, in us-east-1. Default `waf_block=false` counts matches; review aggregate traffic before enabling blocking. Separate apps/backends for dev/prod avoid app-wide association conflicts. No Amplify application is created by this module.
+
+Explicit `budget_emails` and `monthly_budget_usd` (keys `total`, `amplify`, `dynamodb`) enable alert budgets. Empty defaults create no notifications. Optional `dynamodb_max_read_units` / `dynamodb_max_write_units` default to -1 (uncapped); lowering them can throttle legitimate reads/writes. Review actual plan/state for no share table replacement or deletion. Do not apply mocks as proof of production safety.
+
+See [security operations](../../docs/SECURITY_OPERATIONS.md) for pricing, permissions, imports, runtime variables, provider setup, shutdown commands and the deployment checklist. These protections are not active until deployed and verified.

@@ -1,4 +1,5 @@
 import 'server-only';
+import { securityMetric } from './auth/security-metrics';
 import OpenAI from 'openai';
 import { CleanupResultError } from './cleanup-result-error';
 import { SecretKeyError } from './secret-key';
@@ -30,6 +31,7 @@ export function reportTranscriptionFailure(
   cause: unknown,
   operation: 'transcription' | 'cleanup' = 'transcription'
 ) {
+  securityMetric(operation, 'provider_error');
   const label =
     operation === 'cleanup' ? '[Doorknob cleanup]' : '[Doorknob transcription]';
   if (cause instanceof SonioxCredentialError) {

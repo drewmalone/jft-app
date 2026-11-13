@@ -1,3 +1,7 @@
+mock_provider "aws" {
+  alias = "global"
+}
+
 # Mocked plans only: no AWS account access or secret values.
 mock_provider "aws" {
   # Make the generated ARN available to plan-time permission assertions.

@@ -28,7 +28,12 @@ test('Soniox credential policy is realtime-only, single-use and bounded; respons
     },
     async () => 'permanent-private'
   );
+  assert.match(
+    (body as Record<string, string>).client_reference_id,
+    /^[0-9a-f-]{36}$/
+  );
   assert.deepEqual(body, {
+    client_reference_id: (body as Record<string, string>).client_reference_id,
     usage_type: 'transcribe_websocket',
     expires_in_seconds: 60,
     single_use: true,

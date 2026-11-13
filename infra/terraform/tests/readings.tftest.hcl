@@ -1,4 +1,8 @@
 mock_provider "aws" {
+  alias = "global"
+}
+
+mock_provider "aws" {
   override_during = plan
   mock_resource "aws_s3_bucket" {
     defaults = { arn = "arn:aws:s3:::fictional-readings", id = "fictional-readings" }

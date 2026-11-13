@@ -18,3 +18,5 @@ test-results/
 *.local.tfvars
 crash.log
 crash.*.log
+
+work/

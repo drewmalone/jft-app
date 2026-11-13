@@ -46,6 +46,10 @@ export default defineConfig({
       // Synthetic secret for the isolated production test process.
       env: {
         SHARE_PERSISTENCE: 'memory',
+        QUOTA_LOCAL_ONLY: 'true',
+        // Pagination fixtures seed many synthetic historical records in one minute.
+        QUOTA_CREATE_OWNER_3600: '1000',
+        QUOTA_CREATE_OWNER_86400: '1000',
         READINGS_SOURCE: 'local',
         SESSION_SECRET: 'fictional-playwright-session-secret-at-least-32-bytes',
         // Never issue real credentials, even when local/provider environment settings are enabled.
