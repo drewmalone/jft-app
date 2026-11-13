@@ -88,7 +88,8 @@ export function optionsRoute(
   path: string,
   allow: string,
   operationId: string,
-  tag: 'Shares' | 'Transcription' | 'Readings' | 'Session' = 'Shares'
+  tag:
+    'Shares' | 'Transcription' | 'Readings' | 'Session' | 'Security' = 'Shares'
 ) {
   return createRoute({
     method: 'options',
