@@ -1,4 +1,4 @@
-import { useEffect, useId, useRef } from 'react';
+import { useEffect, useId, useRef, useState } from 'react';
 import { LiveTranscript } from './live-transcript';
 import { RecordingControls } from './recording/recording-controls';
 import { RecordingStatus } from './recording/recording-status';
@@ -38,6 +38,40 @@ export function ShareForm({
     onSave
   });
   const { voice } = composer;
+  const inlineRecorder = useRef<HTMLDivElement>(null);
+  const [docked, setDocked] = useState(true);
+  useEffect(() => {
+    const target = inlineRecorder.current;
+    if (!target) return;
+    const mobile = window.matchMedia('(max-width: 767px)');
+    let observer: IntersectionObserver | undefined;
+    const observe = () => {
+      observer?.disconnect();
+      if (!mobile.matches) {
+        setDocked(false);
+        return;
+      }
+      observer = new IntersectionObserver(
+        ([entry]) => {
+          if (!mobile.matches) return;
+          // Hysteresis keeps small scroll movements from flickering between views.
+          setDocked((current) =>
+            current
+              ? entry.intersectionRatio < 0.98
+              : entry.intersectionRatio < 0.75
+          );
+        },
+        { threshold: [0, 0.75, 0.98, 1], rootMargin: '-8px 0px -8px 0px' }
+      );
+      observer.observe(target);
+    };
+    observe();
+    mobile.addEventListener('change', observe);
+    return () => {
+      observer?.disconnect();
+      mobile.removeEventListener('change', observe);
+    };
+  }, []);
   const preview = useRef<HTMLDivElement>(null);
   useEffect(() => {
     if (preview.current)
@@ -53,7 +87,41 @@ export function ShareForm({
         data-listening={voice.state === 'listening'}
         data-speaking={voice.state === 'listening' && voice.speaking}
       >
-        <div className="recording-panel">
+        <div
+          ref={inlineRecorder}
+          className="inline-recorder"
+          inert={docked}
+          aria-hidden={docked}
+        >
+          <RecordingControls
+            state={voice.state}
+            active={voice.active}
+            disabled={composer.recordingDisabled}
+            onToggle={composer.toggleRecording}
+          />
+          <ListeningClock listening={voice.state === 'listening'} />
+          {!docked && cleanupStatus !== 'pending' && (
+            <RecordingStatus state={voice.state} message={voice.message} />
+          )}
+          {!docked && cleanupStatus === 'pending' && (
+            <div
+              role="status"
+              className="mt-3 text-center text-sm text-[var(--muted)]"
+            >
+              <span
+                aria-hidden="true"
+                className="inline-block h-5 w-5 animate-spin rounded-full border-2 border-[var(--line)] border-t-[var(--navy)] motion-reduce:animate-none"
+              />{' '}
+              Tidying!
+            </div>
+          )}
+        </div>
+        <div
+          className="recording-panel"
+          data-visible={docked}
+          inert={!docked}
+          aria-hidden={!docked}
+        >
           <div className="recording-microphone">
             <RecordingControls
               state={voice.state}
@@ -61,11 +129,10 @@ export function ShareForm({
               disabled={composer.recordingDisabled}
               onToggle={composer.toggleRecording}
             />
-            <ListeningClock listening={voice.state === 'listening'} />
-            {cleanupStatus !== 'pending' && (
+            {docked && cleanupStatus !== 'pending' && (
               <RecordingStatus state={voice.state} message={voice.message} />
             )}
-            {cleanupStatus === 'pending' && (
+            {docked && cleanupStatus === 'pending' && (
               <div
                 role="status"
                 className="mt-3 flex items-center justify-center gap-2 text-sm text-[var(--muted)]"

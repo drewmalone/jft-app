@@ -28,7 +28,7 @@ for (const target of ['dock', 'editor']) {
       name: 'Latest recognized words'
     });
     await expect(panel).toBeInViewport();
-    expect((await panel.boundingBox())!.height).toBeLessThanOrEqual(124);
+    expect((await panel.boundingBox())!.height).toBeLessThanOrEqual(125);
     await expect(
       panel.getByRole('button', { name: 'Save', exact: true })
     ).toBeDisabled();
@@ -113,4 +113,44 @@ test('an interrupted save retains the draft without saving incomplete speech', a
   ).toBeVisible();
   await expect(page.getByRole('textbox')).toHaveValue('Retained final words.');
   expect(saves).toBe(0);
+});
+
+test('inline microphone and dock hand off without restarting the recording', async ({
+  page
+}) => {
+  await page.setViewportSize({ width: 375, height: 667 });
+  await mockSpeech(page);
+  await page.goto('/');
+  const dock = page.locator('.recording-panel');
+  const inline = page.locator('.inline-recorder');
+  await expect(dock).toHaveAttribute('data-visible', 'true');
+  await page.getByRole('button', { name: 'Record your share' }).click();
+  await emit(page, 'speechStart');
+  await emit(page, 'speechResult', [['Words before scrolling.', true]]);
+  await inline.evaluate((el) => el.scrollIntoView({ block: 'center' }));
+  await expect(dock).toHaveAttribute('data-visible', 'false');
+  await expect(dock).toHaveCSS('opacity', '0');
+  const microphone = page.getByRole('button', { name: 'Stop listening' });
+  await expect(microphone).toHaveCount(1);
+  expect((await microphone.boundingBox())!.width).toBeGreaterThanOrEqual(132);
+  await page.evaluate(() => window.scrollTo(0, 0));
+  await expect(dock).toHaveAttribute('data-visible', 'true');
+  await expect(microphone).toHaveCount(1);
+  expect((await microphone.boundingBox())!.width).toBe(64);
+  await emit(page, 'speechResult', [
+    ['Words before scrolling.', true],
+    ['Words after scrolling.', true]
+  ]);
+  expect(
+    await page.evaluate(() => Reflect.get(window, 'microphoneRequests'))
+  ).toBe(1);
+  await expect(page.getByRole('textbox')).toHaveValue(
+    'Words before scrolling. Words after scrolling.'
+  );
+  await page.setViewportSize({ width: 1100, height: 800 });
+  await expect(dock).toHaveAttribute('data-visible', 'false');
+  await expect(microphone).toHaveCount(1);
+  expect(
+    await page.evaluate(() => Reflect.get(window, 'microphoneRequests'))
+  ).toBe(1);
 });

@@ -349,8 +349,12 @@ button:disabled {
 }
 
 /* One recorder, with a compact mobile presentation and the existing full editor. */
-.recording-preview-column {
+.recording-panel {
   display: none;
+}
+
+.inline-recorder {
+  min-height: 280px;
 }
 
 @media (max-width: 767px) {
@@ -361,6 +365,14 @@ button:disabled {
 
   .recording-panel {
     position: fixed;
+    opacity: 0;
+    visibility: hidden;
+    pointer-events: none;
+    transform: translateY(8px);
+    transition:
+      opacity 160ms ease,
+      transform 160ms ease,
+      visibility 160ms;
     z-index: 30;
     inset: auto 0 0;
     display: grid;
@@ -454,5 +466,21 @@ button:disabled {
   .recording-microphone > p[aria-live] {
     font-size: 11px;
     line-height: 14px;
+  }
+}
+
+@media (max-width: 767px) {
+  .recording-panel[data-visible='true'] {
+    opacity: 1;
+    visibility: visible;
+    pointer-events: auto;
+    transform: translateY(0);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .recording-panel {
+    transition: none;
+    transform: none;
   }
 }
