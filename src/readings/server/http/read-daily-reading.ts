@@ -3,7 +3,6 @@ import { createRoute, type RouteHandler } from '@hono/zod-openapi';
 import { z } from 'zod';
 import { dailyReadingSchema } from '../../model';
 import { DEFAULT_READING_TIME_ZONE, timeZoneSchema } from '../../calendar';
-import { readings } from '../configured-readings';
 import {
   privateHeaders,
   failed,
@@ -12,7 +11,7 @@ import {
 } from '../../../server/http/openapi';
 import { error, errorBody } from '../../../server/http/errors';
 import type { OpenAPIHono } from '@hono/zod-openapi';
-import type { SessionEnvironment } from '../../../server/http/middleware';
+import type { ApiEnvironment } from '../../../server/http/middleware';
 
 export const dailyReadingRoute = createRoute({
   method: 'get',
@@ -41,16 +40,19 @@ export const dailyReadingRoute = createRoute({
 });
 export const readDailyReading: RouteHandler<
   typeof dailyReadingRoute,
-  SessionEnvironment
+  ApiEnvironment
 > = async (c) => {
   try {
-    return c.json(await readings.today(c.req.valid('query').timeZone), 200);
+    return c.json(
+      await c.get('services').readings.today(c.req.valid('query').timeZone),
+      200
+    );
   } catch {
     return c.json(errorBody('READING_UNAVAILABLE'), 503);
   }
 };
 /** Register the public reading boundary without introducing anonymous sessions. */
-export function registerDailyReading(app: OpenAPIHono<SessionEnvironment>) {
+export function registerDailyReading(app: OpenAPIHono<ApiEnvironment>) {
   app.openapi(dailyReadingRoute, readDailyReading, (result, c) => {
     if (!result.success) return c.json(errorBody('INVALID_READING_QUERY'), 400);
   });

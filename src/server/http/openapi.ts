@@ -88,7 +88,8 @@ export function optionsRoute(
   path: string,
   allow: string,
   operationId: string,
-  tag: 'Shares' | 'Transcription' | 'Readings' | 'Session' = 'Shares'
+  tag:
+    'Shares' | 'Transcription' | 'Readings' | 'Session' | 'Security' = 'Shares'
 ) {
   return createRoute({
     method: 'options',
@@ -122,6 +123,10 @@ export const openApiConfiguration = {
   },
   servers: [{ url: '/', description: 'Same origin as the application.' }],
   tags: [
+    {
+      name: 'Security',
+      description: 'Bounded CSP reports discarded without retention.'
+    },
     {
       name: 'Session',
       description:

@@ -1,4 +1,6 @@
 import 'server-only';
+import type { ServerServices } from '../services';
+import type { ShareService } from '../../shares/server/application/create-share';
 import type { MiddlewareHandler } from 'hono';
 import { bodyLimit } from 'hono/body-limit';
 import { parse as parseContentType } from 'content-type';
@@ -6,10 +8,16 @@ import { getSession, setSessionCookie } from '../../session/server/session';
 import { error, MAX_SHARE_REQUEST_BYTES } from './errors';
 
 /** Request-local owner established by the protected operation's session middleware. */
-export type SessionEnvironment = { Variables: { ownerId: string } };
+export type ApiEnvironment = {
+  Variables: {
+    ownerId: string;
+    services: ServerServices;
+    saveShares: ShareService;
+  };
+};
 
 /** Resolves verified or fresh anonymous ownership after origin checks; only non-500 responses issue new cookies. */
-export const anonymousSession: MiddlewareHandler<SessionEnvironment> = async (
+export const anonymousSession: MiddlewareHandler<ApiEnvironment> = async (
   c,
   next
 ) => {
@@ -48,7 +56,7 @@ export const exactSameOrigin: MiddlewareHandler = async (c, next) => {
 };
 
 /** Identity boundary only: verify an existing cookie without establishing or renewing ownership. */
-export const existingSession: MiddlewareHandler<SessionEnvironment> = async (
+export const existingSession: MiddlewareHandler<ApiEnvironment> = async (
   c,
   next
 ) => {

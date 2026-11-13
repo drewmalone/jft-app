@@ -4,6 +4,8 @@ import { z } from 'zod';
 export const apiErrorCodeSchema = z.enum([
   'INVALID_JSON',
   'INVALID_SHARE',
+  'INVALID_IDEMPOTENCY_KEY',
+  'IDEMPOTENCY_CONFLICT',
   'INVALID_HISTORY_QUERY',
   'INVALID_READING_QUERY',
   'READING_UNAVAILABLE',
@@ -11,6 +13,7 @@ export const apiErrorCodeSchema = z.enum([
   'CROSS_ORIGIN_REQUEST',
   'UNSUPPORTED_MEDIA_TYPE',
   'PAYLOAD_TOO_LARGE',
+  'REQUEST_TIMEOUT',
   'SHARE_NOT_FOUND',
   'METHOD_NOT_ALLOWED',
   'INTERNAL_ERROR',

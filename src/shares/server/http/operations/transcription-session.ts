@@ -1,9 +1,7 @@
 import { transcriptionCredential } from '../schemas';
-import { serverServices } from '../../../../server/services';
 import { QuotaHttpError } from '../../../../server/http/quota-error';
 import { enforceQuota } from '../../../../server/http/enforce-quota';
 import 'server-only';
-import { transcriptionProvider } from '../../transcription-config';
 import { createRoute, z, type RouteHandler } from '@hono/zod-openapi';
 import {
   reportTranscriptionFailure,
@@ -20,7 +18,7 @@ import {
 import {
   exactSameOrigin,
   existingSession,
-  type SessionEnvironment
+  type ApiEnvironment
 } from '../../../../server/http/middleware';
 import { errorBody } from '../../../../server/http/errors';
 
@@ -32,7 +30,7 @@ export const transcriptionSessionRoute = createRoute({
   tags: ['Transcription'],
   summary: 'Issue a short-lived live transcription credential',
   description:
-    'Requires an existing signed session and an exact same-origin Origin header. No audio or transcript body is accepted. Requires transcription to be enabled in deployment configuration. Credentials are never cached.',
+    'Requires an existing signed session and an exact same-origin Origin header. No audio or transcript body is accepted. Transcription is available by default; emergency shutdown controls and quotas still apply. Credentials are never cached.',
   security: [{ AnonymousSession: [] }],
   request: {
     headers: browserOriginHeaders.extend({
@@ -61,19 +59,20 @@ export const transcriptionSessionRoute = createRoute({
 /** Validate the browser boundary before spending provider credits; failures disclose no upstream details. */
 export const createTranscriptionSession: RouteHandler<
   typeof transcriptionSessionRoute,
-  SessionEnvironment
+  ApiEnvironment
 > = async (c) => {
   try {
-    if (
-      !serverServices.features.transcription.enabled ||
-      serverServices.features.transcription.disabled
-    ) {
+    if (c.get('services').features.transcription.disabled) {
       reportTranscriptionConfiguration('disabled');
       return c.json(errorBody('TRANSCRIPTION_UNAVAILABLE'), 503);
     }
-    await enforceQuota('transcription', c.get('ownerId'));
+    await enforceQuota(
+      'transcription',
+      c.get('ownerId'),
+      c.get('services').quotas
+    );
     const token = await issueTranscriptionCredential(
-      transcriptionProvider(),
+      c.get('services').features.transcription.provider,
       c.req.raw.signal,
       c.req.header('x-stt-provider')
     );

@@ -1,3 +1,4 @@
+import { requestLimits } from '../config/request-limits';
 import { apiErrorSchema, type ApiErrorCode } from './errors';
 
 /** Structured HTTP failure; the controller may branch on code/status without parsing messages. */
@@ -16,10 +17,16 @@ export class ApiRequestError extends Error {
 export async function requestJsonWithHeaders(
   path: string,
   options?: RequestInit,
-  failureMessage?: string
+  failureMessage?: string,
+  timeoutMs: number = requestLimits.browserMs
 ) {
+  const timeout = AbortSignal.timeout(timeoutMs);
+  const signal = options?.signal
+    ? AbortSignal.any([options.signal, timeout])
+    : timeout;
   const response = await fetch(path, {
     ...options,
+    signal,
     cache: 'no-store',
     credentials: 'same-origin'
   });
@@ -51,7 +58,10 @@ export async function requestJsonWithHeaders(
 export async function requestJson(
   path: string,
   options?: RequestInit,
-  failureMessage?: string
+  failureMessage?: string,
+  timeoutMs: number = requestLimits.browserMs
 ): Promise<unknown> {
-  return (await requestJsonWithHeaders(path, options, failureMessage)).body;
+  return (
+    await requestJsonWithHeaders(path, options, failureMessage, timeoutMs)
+  ).body;
 }

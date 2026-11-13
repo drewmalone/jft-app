@@ -5,8 +5,7 @@ import 'server-only';
 import { createRoute, type RouteHandler, z } from '@hono/zod-openapi';
 import { historyOptionsSchema } from '../../storage/history-page';
 import { shareSchema } from '../../../model';
-import { shareRepository } from '../../storage/configured-repository';
-import type { SessionEnvironment } from '../../../../server/http/middleware';
+import type { ApiEnvironment } from '../../../../server/http/middleware';
 import {
   privateHeaders,
   sessionSecurity,
@@ -51,13 +50,12 @@ export const listSharesRoute = createRoute({
 /** Return only this owner’s shares, omitting server-only ownership fields. */
 export const listShares: RouteHandler<
   typeof listSharesRoute,
-  SessionEnvironment
+  ApiEnvironment
 > = async (c) => {
-  await enforceQuota('private', c.get('ownerId'));
-  const { shares, nextCursor } = await shareRepository.listByOwner(
-    c.get('ownerId'),
-    c.req.valid('query')
-  );
+  await enforceQuota('private', c.get('ownerId'), c.get('services').quotas);
+  const { shares, nextCursor } = await c
+    .get('services')
+    .shares.listByOwner(c.get('ownerId'), c.req.valid('query'));
   if (nextCursor) c.header('X-Next-Cursor', nextCursor);
   return c.json(
     shares.map((share) => shareSchema.parse(share)),

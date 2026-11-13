@@ -1,3 +1,4 @@
+import { requestLimits } from '../../config/request-limits';
 import { requestJson } from '../../http/client';
 import { cleanupTextSchema } from './model';
 
@@ -14,7 +15,8 @@ export async function cleanDraft(
       signal,
       body: JSON.stringify({ text })
     },
-    'Cleanup unavailable'
+    'Cleanup unavailable',
+    requestLimits.cleanupMs
   );
   return cleanupTextSchema.parse(body).text;
 }

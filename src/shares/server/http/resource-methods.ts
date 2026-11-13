@@ -1,6 +1,6 @@
 import 'server-only';
 import { createRoute, type OpenAPIHono } from '@hono/zod-openapi';
-import type { SessionEnvironment } from '../../../server/http/middleware';
+import type { ApiEnvironment } from '../../../server/http/middleware';
 import { error } from '../../../server/http/errors';
 import { headRoute, optionsRoute } from '../../../server/http/openapi';
 import { listSharesRoute } from './operations/list-shares';
@@ -17,7 +17,7 @@ const publicAllow = 'GET, HEAD, OPTIONS';
  * Register after operations so the method-rejection handlers do not mask them.
  * Hono executes HEAD through GET; only HEAD documentation is added here.
  */
-export function registerResourceMethods(app: OpenAPIHono<SessionEnvironment>) {
+export function registerResourceMethods(app: OpenAPIHono<ApiEnvironment>) {
   app.openapi(optionsRoute('/shares', collectionAllow, 'sharesOptions'), (c) =>
     c.body(null, 204, { Allow: collectionAllow })
   );

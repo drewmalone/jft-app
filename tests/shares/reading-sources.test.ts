@@ -61,3 +61,18 @@ test('S3 source closes oversized streams including bodies without ContentLength'
     assert.equal(body.destroyed, true);
   }
 });
+
+test('S3 deadline also closes a body stalled after headers arrive', async (t) => {
+  const controller = new AbortController();
+  t.mock.method(AbortSignal, 'timeout', () => controller.signal);
+  const body = new Readable({ read() {} });
+  const client = { send: async () => ({ Body: body }) } as unknown as Pick<
+    S3Client,
+    'send'
+  >;
+  const loading = s3Catalog('fictional-bucket', 'daily.yaml', client)();
+  await Promise.resolve();
+  controller.abort();
+  await assert.rejects(loading, { name: 'AbortError' });
+  assert.equal(body.destroyed, true);
+});

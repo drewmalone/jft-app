@@ -82,7 +82,7 @@ aws amplify update-branch --app-id REPLACE_APP_ID --branch-name REPLACE_TRUSTED_
 
 Use the `compute_role_arn` output for that association. The operator needs scoped `amplify:UpdateBranch` and `iam:PassRole`; runtime code gets neither. Do not make a secret-capable role an app-wide default for untrusted previews. The build service role is distinct from the SSR compute role.
 
-Set server-only runtime settings `TRANSCRIPTION_ENABLED=true`, `CLEANUP_ENABLED=true`, `STT_PROVIDER=soniox`, `STT_SONIOX_SECRET_ARN=<output ARN>` and the existing `STT_OPENAI_SECRET_ARN` for cleanup. Preserve stable session signing and existing application permissions. Run `node --import tsx scripts/prepare-runtime-env.ts` from the repository root before `npm run build`; it edits only allowlisted non-secret assignments in `.env.production` and preserves unrelated source using dotenvx's source editor. Permanent API keys must not enter Amplify build variables/artifacts. `STT_SONIOX_API_KEY` is local-only and ignored in production.
+Set server-only runtime settings `CLEANUP_ENABLED=true`, `STT_PROVIDER=soniox`, `STT_SONIOX_SECRET_ARN=<output ARN>` and the existing `STT_OPENAI_SECRET_ARN` for cleanup. Preserve stable session signing and existing application permissions. Run `node --import tsx scripts/prepare-runtime-env.ts` from the repository root before `npm run build`; it edits only allowlisted non-secret assignments in `.env.production` and preserves unrelated source using dotenvx's source editor. Permanent API keys must not enter Amplify build variables/artifacts. `STT_SONIOX_API_KEY` is local-only and ignored in production.
 
 Use [the runtime guide](../../docs/TRANSCRIPTION.md) for application configuration, token/lifecycle behavior and physical-device/provider release checks. Neither local validation nor a code merge establishes a live AWS deployment or live transcription test.
 
@@ -122,7 +122,7 @@ Both S3 and local-file loading use the same process-local catalog cache. See [YA
 
 ## Prelaunch security resources
 
-The quota table and narrowly scoped SSR policy are provisioned with this module. Set `QUOTA_TABLE_NAME` from `quota_table_name` in Amplify runtime settings before deploying the new application. Set `TRANSCRIPTION_ENABLED` and `CLEANUP_ENABLED` independently; [provider setup](../../docs/TRANSCRIPTION.md#runtime-configuration) owns their defaults and migration behavior. Existing private share TTL remains disabled.
+The quota table and narrowly scoped SSR policy are provisioned with this module. Set `QUOTA_TABLE_NAME` from `quota_table_name` in Amplify runtime settings before deploying the new application. Speech is available by default; set `CLEANUP_ENABLED` independently and use emergency shutdown controls when needed; [provider setup](../../docs/TRANSCRIPTION.md#runtime-configuration) owns their defaults and migration behavior. Existing private share TTL remains disabled.
 
 Set `amplify_app_id` to opt into a global WAF ACL/association for an existing Amplify app, in us-east-1. Default `waf_block=false` counts matches; review aggregate traffic before enabling blocking. Separate apps/backends for dev/prod avoid app-wide association conflicts. No Amplify application is created by this module.
 
@@ -133,3 +133,19 @@ See [security operations](../../docs/SECURITY_OPERATIONS.md) for pricing, permis
 ## Runtime preparation
 
 Run `node --import tsx scripts/prepare-runtime-env.ts` from the repository root before the trusted Amplify build. The same pure validators used at startup validate storage, catalog, feature flags, provider names, secret ARN metadata and known quota overrides. The script updates allowlisted nonsecret settings in `.env.production`, preserving unrelated comments/quoting and the existing secure delivery of secret values. Invalid input leaves the artifact untouched. Canonical enable flags and default emergency flags are always written, so a removed flag cannot silently persist from an earlier artifact. Known quota override defaults are cleared when omitted. API keys and the local browser-fixture switch are never copied. Ordinary local development uses `.env.local` directly.
+
+### Production profile guardrails
+
+The runtime output now includes `DEPLOYMENT_ENV`, `QUOTA_TABLE_NAME`, and the actual `READINGS_SAMPLE` value. The new `readings_sample` variable defaults to `true`; dev/example catalogs therefore retain their sample label. Production plans reject the example filename, a sample label, or a catalog missing any of the 366 annual entries. Replace the checked-in production template's catalog path with an authorized complete publication and set `readings_sample=false` before planning. Run `npm run readings:validate -- --production /path/to/catalog.yaml` from the repository root first. Existing schema/date validation remains in effect.
+
+Copy the nonsecret runtime output through the existing environment-preparation step before building. Hosted runtime startup separately requires the stable signing secret through the existing secret-delivery path; it is never added to Terraform outputs. Hosted profiles reject memory persistence, a missing/shared quota table, and the local-only quota bypass. These changes do not apply infrastructure or alter the selected Amplify app.
+
+### Launch protection configuration
+
+Both production templates now set the reviewed monthly total budget to **$100**. Supply the real existing `amplify_app_id` and `budget_emails` in reviewed production configuration (an ignored `*.local.tfvars` override is supported). Production plans reject missing association/budget inputs. The total budget is account-wide AWS spending, not an application-only cap or provider budget.
+
+COUNT mode remains available for observation with `production_launch_ready=false`. After reviewing aggregate metrics, switch `waf_block=true`; a production launch declaration (`production_launch_ready=true`) is rejected unless blocking is selected. The `launch_security` output describes the plan, not observed AWS state. Follow [Production launch verification](../../docs/PRELAUNCH.md) to verify the actual association, live rule actions and email delivery before launch. No AWS changes are made by merging code.
+
+Custom `waf_rate_limits` maps may override any subset of `api`, `paid`, `create`, `public` and `csp`; omitted entries retain defaults. Unknown names and fractional/out-of-range thresholds are rejected. Rule path, method, priority and default rate live together in `local.waf_rules`. The dedicated `csp` rule scopes `POST /api/csp-report` to 300 requests per source IP per five minutes by default. Review shared-IP traffic before BLOCK. Keep atomic owner quotas; no quota cache or application-wide counter is added.
+
+Input validation uses native presence/count checks. AWS Budgets validates recipient address syntax, and the AWS WAF association API validates the actual Amplify resource. Terraform has no built-in email validator or Amplify app-ID validation function, so this module does not maintain custom format regexes or manage/import the existing app merely to validate its ID. WAF paths use exact/prefix byte-match statements, including OR groups for multi-path rules.

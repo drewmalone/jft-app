@@ -5,6 +5,7 @@ const { default: environment } = await import(
 );
 const { loadEnvConfig } = environment;
 const keys = [
+  'DEPLOYMENT_ENV',
   'SHARE_PERSISTENCE',
   'DYNAMODB_TABLE_NAME',
   'DYNAMODB_REGION',

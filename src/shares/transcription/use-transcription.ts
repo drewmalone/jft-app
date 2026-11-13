@@ -1,19 +1,16 @@
+import { reduceRecording, initialRecordingState } from './recording-state';
 import {
   useContext,
   useEffect,
   useLayoutEffect,
   useRef,
-  useState
+  useReducer
 } from 'react';
 import { configureSpeechDiagnostics, speechDiagnostic } from './diagnostics';
 import { transcriptionEngineFactory } from './provider';
 import { TranscriptionProviderContext } from './provider-context';
 import { appendTranscript } from './append-transcript';
-import type {
-  TranscriptionEngine,
-  TranscriptionEngineFactory,
-  TranscriptionState
-} from './types';
+import type { TranscriptionEngine, TranscriptionEngineFactory } from './types';
 
 const SPEECH_ACTIVITY_HOLD_MS = 1_400;
 
@@ -33,13 +30,13 @@ export function useTranscription(
 ) {
   const provider = useContext(TranscriptionProviderContext);
   const factory = useRef(createEngine ?? transcriptionEngineFactory(provider));
-  const [state, setState] = useState<TranscriptionState>('unsupported');
-  const [speaking, setSpeaking] = useState(false);
+  const [{ state, speaking, interim, message }, dispatch] = useReducer(
+    reduceRecording,
+    initialRecordingState
+  );
   const activityTimer = useRef<ReturnType<typeof setTimeout> | undefined>(
     undefined
   );
-  const [interim, setInterim] = useState('');
-  const [message, setMessage] = useState('');
   const engine = useRef<TranscriptionEngine | null>(null);
   const generation = useRef(0);
   const stopped = useRef(false);
@@ -55,7 +52,7 @@ export function useTranscription(
     const probe = factory.current();
     const supported = probe.available();
     probe.dispose();
-    setState(supported ? 'idle' : 'unsupported');
+    dispatch({ type: 'support', supported });
     const visibility = () =>
       speechDiagnostic('visibility-changed', {
         visible: document.visibilityState === 'visible'
@@ -90,7 +87,7 @@ export function useTranscription(
     speechDiagnostic('editor-stop');
     if (!engine.current) return;
     stopped.current = true;
-    setState('stopping');
+    dispatch({ type: 'stop' });
     engine.current.stop();
   }
   function start() {
@@ -102,7 +99,7 @@ export function useTranscription(
     const next = factory.current();
     if (!next.available()) {
       next.dispose();
-      setState('unsupported');
+      dispatch({ type: 'support', supported: false });
       return;
     }
     engine.current = next;
@@ -120,46 +117,33 @@ export function useTranscription(
       next.dispose();
       engine.current = null;
       clearTimeout(activityTimer.current);
-      setSpeaking(false);
-      setInterim('');
-      setState(failed ? 'error' : 'idle');
-      setMessage(notice);
+      dispatch({ type: 'finish', failed, message: notice });
     };
-    setMessage('');
-    setInterim('');
-    setState('starting');
+    dispatch({ type: 'start' });
     const pulse = () => {
       if (!live()) return;
       clearTimeout(activityTimer.current);
-      setSpeaking(true);
+      dispatch({ type: 'activity', speaking: true });
       activityTimer.current = setTimeout(() => {
-        if (live()) setSpeaking(false);
+        if (live()) dispatch({ type: 'activity', speaking: false });
       }, SPEECH_ACTIVITY_HOLD_MS);
     };
     try {
       next.start({
         connecting: () => {
-          if (live())
-            setState((current) =>
-              current === 'starting' ? 'connecting' : current
-            );
+          if (live()) dispatch({ type: 'connecting' });
         },
         activity: (value) => {
           if (!live()) return;
           clearTimeout(activityTimer.current);
-          setSpeaking(value);
+          dispatch({ type: 'activity', speaking: value });
         },
         listening: () => {
-          if (live())
-            setState((current) =>
-              current === 'starting' || current === 'connecting'
-                ? 'listening'
-                : current
-            );
+          if (live()) dispatch({ type: 'listening' });
         },
         interim: (value) => {
           if (live()) {
-            setInterim(value);
+            dispatch({ type: 'interim', text: value });
             if (value) pulse();
           }
         },

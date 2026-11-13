@@ -1,3 +1,7 @@
+import {
+  submissionFor,
+  SubmissionConflict
+} from '../../src/shares/server/storage/submission';
 import { reflection } from '../fixtures/sample-reading';
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
@@ -46,6 +50,63 @@ export async function repositoryContract(repository: ShareRepository) {
   // Legacy TTL metadata is not part of new records: links alone expire.
   assert.equal('expiresAt' in (await repository.findById(saved.id))!, false);
   assert.ok(await readPublicShare(saved.id, repository));
+  const replayOwner = randomUUID();
+  const input = { text: 'Fictional retry.' };
+  const key = randomUUID();
+  const submission = submissionFor(key, input);
+  const first = await repository.create(
+    replayOwner,
+    input.text,
+    reflection,
+    submission
+  );
+  assert.deepEqual(
+    await repository.create(replayOwner, input.text, reflection, submission),
+    first
+  );
+  assert.deepEqual(
+    await repository.findBySubmission(replayOwner, submission),
+    first
+  );
+  await assert.rejects(
+    repository.findBySubmission(
+      replayOwner,
+      submissionFor(key, { text: 'Changed fictional draft.' })
+    ),
+    SubmissionConflict
+  );
+  await assert.rejects(
+    repository.create(
+      replayOwner,
+      'Changed fictional draft.',
+      reflection,
+      submissionFor(key, { text: 'Changed fictional draft.' })
+    ),
+    SubmissionConflict
+  );
+  const otherOwner = await repository.create(
+    randomUUID(),
+    input.text,
+    reflection,
+    submission
+  );
+  assert.notEqual(otherOwner.id, first.id);
+  const intentional = await repository.create(
+    replayOwner,
+    input.text,
+    reflection,
+    submissionFor(randomUUID(), input)
+  );
+  assert.notEqual(intentional.id, first.id);
+  const replayHistory = await eventuallyHistory(
+    repository,
+    replayOwner,
+    (page) => page.shares.length === 2
+  );
+  assert.equal(replayHistory.shares.length, 2);
+  assert.ok(
+    replayHistory.shares.every((share) => !share.id.startsWith('submission:'))
+  );
 }
 
 /** GSI history is eventually consistent; detail reads above retain their immediate assertion. */

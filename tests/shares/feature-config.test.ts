@@ -8,25 +8,27 @@ import {
 } from '../../src/config/runtime';
 import { createServerServices } from '../../src/server/services';
 
-test('feature flags are independent, strict, and retain the legacy enable migration fallback', () => {
+test('speech is available by default, cleanup is independent, and emergency flags remain strict', () => {
   const defaults = parseFeatureConfig({});
-  assert.equal(defaults.transcription.enabled, false);
+  assert.equal(defaults.transcription.disabled, false);
   assert.equal(defaults.cleanup.enabled, false);
   assert.equal(defaults.transcription.provider, 'soniox');
-  const separate = parseFeatureConfig({
-    STT_ENABLED: 'true',
-    TRANSCRIPTION_ENABLED: 'false',
+  for (const value of ['false', 'true', 'obsolete']) {
+    const config = parseFeatureConfig({
+      STT_ENABLED: value,
+      TRANSCRIPTION_ENABLED: value
+    });
+    assert.equal(config.transcription.disabled, false);
+    assert.equal(config.cleanup.enabled, false);
+    assert.equal('enabled' in config.transcription, false);
+  }
+  const emergency = parseFeatureConfig({
+    TRANSCRIPTION_DISABLED: 'true',
     CLEANUP_ENABLED: 'true'
   });
-  assert.equal(separate.transcription.enabled, false);
-  assert.equal(separate.cleanup.enabled, true);
-  assert.equal(
-    parseFeatureConfig({ STT_ENABLED: 'true' }).cleanup.enabled,
-    true
-  );
+  assert.equal(emergency.transcription.disabled, true);
+  assert.equal(emergency.cleanup.enabled, true);
   for (const key of [
-    'STT_ENABLED',
-    'TRANSCRIPTION_ENABLED',
     'CLEANUP_ENABLED',
     'TRANSCRIPTION_DISABLED',
     'CLEANUP_DISABLED'
@@ -52,13 +54,13 @@ test('known quota windows validate before deployment and ignore removed global s
 test('service factories isolate state and leave unrelated dependencies lazy', () => {
   const a = createServerServices({
     SHARE_PERSISTENCE: 'memory',
-    CLEANUP_ENABLED: 'true',
-    READINGS_SOURCE: 'invalid'
+    CLEANUP_ENABLED: 'true'
   });
   const b = createServerServices({ SHARE_PERSISTENCE: 'memory' });
   assert.equal(a.features.cleanup.enabled, true);
   assert.equal(a.shares, a.shares);
   assert.notEqual(a.shares, b.shares);
-  assert.throws(() => a.readings);
+  assert.equal(a.readings, a.readings);
+  assert.throws(() => createServerServices({ READINGS_SOURCE: 'invalid' }));
   assert.equal(a.quotas, a.quotas);
 });

@@ -1,3 +1,10 @@
+import { requestLimits } from '../../../config/request-limits';
+import {
+  submissionId,
+  submissionRecordSchema,
+  SubmissionConflict,
+  type Submission
+} from './submission';
 import type { Reflection } from '../../model';
 import 'server-only';
 import { DynamoDBClient } from '@aws-sdk/client-dynamodb';
@@ -5,7 +12,8 @@ import {
   DynamoDBDocumentClient,
   GetCommand,
   PutCommand,
-  QueryCommand
+  QueryCommand,
+  TransactWriteCommand
 } from '@aws-sdk/lib-dynamodb';
 import { z } from 'zod';
 import {
@@ -31,24 +39,95 @@ export class DynamoDbShareRepository implements ShareRepository {
   ) {}
 
   static forRegion(tableName: string, region: string) {
-    const client = DynamoDBDocumentClient.from(new DynamoDBClient({ region }));
+    const client = DynamoDBDocumentClient.from(
+      new DynamoDBClient({
+        region,
+        maxAttempts: 2,
+        requestHandler: { connectionTimeout: 1500, requestTimeout: 5000 }
+      })
+    );
     return new DynamoDbShareRepository(tableName, client);
   }
 
   async create(
     ownerId: string,
     text: string,
-    reading: Reflection
+    reading: Reflection,
+    submission?: Submission
   ): Promise<StoredShare> {
     const share = createStoredShare(ownerId, text, reading);
-    await this.client.send(
-      new PutCommand({
+    if (submission) {
+      try {
+        await this.client.send(
+          new TransactWriteCommand({
+            TransactItems: [
+              {
+                Put: {
+                  TableName: this.tableName,
+                  Item: share,
+                  ConditionExpression: 'attribute_not_exists(id)'
+                }
+              },
+              {
+                Put: {
+                  TableName: this.tableName,
+                  Item: {
+                    id: submissionId(ownerId, submission),
+                    requestHash: submission.requestHash,
+                    shareId: share.id
+                  },
+                  ConditionExpression: 'attribute_not_exists(id)'
+                }
+              }
+            ]
+          }),
+          this.deadline()
+        );
+      } catch (cause) {
+        if (
+          cause instanceof Error &&
+          cause.name === 'TransactionCanceledException'
+        ) {
+          const previous = await this.findBySubmission(ownerId, submission);
+          if (previous) return previous;
+        }
+        throw cause;
+      }
+    } else {
+      await this.client.send(
+        new PutCommand({
+          TableName: this.tableName,
+          Item: share,
+          ConditionExpression: 'attribute_not_exists(id)'
+        }),
+        this.deadline()
+      );
+    }
+    return share;
+  }
+
+  private deadline() {
+    return { abortSignal: AbortSignal.timeout(requestLimits.storageMs) };
+  }
+
+  async findBySubmission(
+    ownerId: string,
+    submission: Submission
+  ): Promise<StoredShare | null> {
+    const { Item } = await this.client.send(
+      new GetCommand({
         TableName: this.tableName,
-        Item: share,
-        // A new share must never overwrite an existing share with the same ID.
-        ConditionExpression: 'attribute_not_exists(id)'
-      })
+        Key: { id: submissionId(ownerId, submission) },
+        ConsistentRead: true
+      }),
+      this.deadline()
     );
+    if (!Item) return null;
+    const marker = submissionRecordSchema.parse(Item);
+    if (marker.requestHash !== submission.requestHash)
+      throw new SubmissionConflict();
+    const share = await this.findByOwner(marker.shareId, ownerId);
+    if (!share) throw new Error('Invalid submission record');
     return share;
   }
 
@@ -60,7 +139,8 @@ export class DynamoDbShareRepository implements ShareRepository {
         TableName: this.tableName,
         Key: { id },
         ConsistentRead: true
-      })
+      }),
+      this.deadline()
     );
     if (!Item) return null;
     const share = storedShareSchema.parse(Item);
@@ -89,7 +169,8 @@ export class DynamoDbShareRepository implements ShareRepository {
         ExclusiveStartKey: cursor
           ? { ...decodeHistoryCursor(cursor), ownerId }
           : undefined
-      })
+      }),
+      this.deadline()
     );
     return {
       shares: (Items ?? []).map((item) => storedShareSchema.parse(item)),

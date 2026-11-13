@@ -23,12 +23,16 @@ export type ShareHistoryPage = Awaited<ReturnType<typeof readShares>>;
 export async function saveShare(
   text: string,
   readingDate?: string,
-  readingId?: string
+  readingId?: string,
+  submissionKey?: string
 ) {
   return shareSchema.parse(
     await requestJson('/api/shares', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: {
+        'Content-Type': 'application/json',
+        ...(submissionKey ? { 'Idempotency-Key': submissionKey } : {})
+      },
       body: JSON.stringify({
         text,
         ...(readingDate ? { readingDate } : {}),

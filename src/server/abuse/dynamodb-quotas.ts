@@ -1,4 +1,5 @@
 import 'server-only';
+import { requestLimits } from '../../config/request-limits';
 import {
   DynamoDBDocumentClient,
   TransactWriteCommand,
@@ -13,17 +14,24 @@ export class DynamoQuotaBackend implements QuotaBackend {
     private table: string,
     private client: Pick<DynamoDBDocumentClient, 'send'>
   ) {}
-  async disabled(operation: QuotaOperation) {
+  async disabled(
+    operation: QuotaOperation,
+    signal = AbortSignal.timeout(requestLimits.quotaMs)
+  ) {
     const { Item } = await this.client.send(
       new GetCommand({
         TableName: this.table,
         Key: { id: `control:${operation}` },
         ConsistentRead: true
-      })
+      }),
+      { abortSignal: signal }
     );
     return Item?.disabled === true;
   }
-  async consume(counters: readonly Counter[]) {
+  async consume(
+    counters: readonly Counter[],
+    signal = AbortSignal.timeout(requestLimits.quotaMs)
+  ) {
     try {
       await this.client.send(
         new TransactWriteCommand({
@@ -42,7 +50,8 @@ export class DynamoQuotaBackend implements QuotaBackend {
               }
             }
           }))
-        })
+        }),
+        { abortSignal: signal }
       );
       return;
     } catch (cause) {

@@ -1,12 +1,12 @@
 import assert from 'node:assert/strict';
 import { test, type TestContext } from 'node:test';
-import { dispatch } from '../../src/server/app';
+import { dispatch } from '../fixtures/application';
 import { cleanDraft } from '../../src/shares/cleanup/api';
 
 function enable(t: TestContext) {
   t.mock.property(process, 'env', {
     ...process.env,
-    STT_ENABLED: 'true',
+    CLEANUP_ENABLED: 'true',
     STT_OPENAI_API_KEY: 'fictional-key'
   });
   return t.mock.method(console, 'warn', () => {});
@@ -66,7 +66,7 @@ test('cleanup requires exact origin, an existing signed session, and explicit en
     (await request(session, undefined, 'https://foreign.example')).status,
     403
   );
-  process.env.STT_ENABLED = 'false';
+  process.env.CLEANUP_ENABLED = 'false';
   assert.equal((await request(session)).status, 503);
   assert.equal(calls.mock.callCount(), 0);
 });
@@ -220,14 +220,14 @@ test('shared HTTP handling forwards cleanup cancellation without retrying or swa
   const request = cleanDraft('Fictional draft.', controller.signal);
   controller.abort();
   await assert.rejects(request, { name: 'AbortError' });
-  assert.equal(received, controller.signal);
+  assert.ok(received?.aborted);
   assert.equal(calls.mock.callCount(), 1);
 });
 
 test('cleanup can remain enabled when transcription is disabled, and its own emergency flag wins', async (t) => {
   enable(t);
-  process.env.STT_ENABLED = 'false';
-  process.env.TRANSCRIPTION_ENABLED = 'false';
+  process.env.CLEANUP_ENABLED = 'false';
+  process.env.TRANSCRIPTION_DISABLED = 'true';
   process.env.CLEANUP_ENABLED = 'true';
   const provider = t.mock.method(globalThis, 'fetch', async () =>
     response('Fictional cleaned words.')

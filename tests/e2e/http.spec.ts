@@ -52,3 +52,36 @@ test('serves OpenAPI and honors resource HTTP methods, headers, and sessions', a
     expect(invalid.headers()['www-authenticate']).toBeUndefined();
   }
 });
+
+test('shared runtime preserves idempotency conflicts and private quota denials across Next bundles', async ({
+  request
+}) => {
+  const key = crypto.randomUUID();
+  const save = (text: string) =>
+    request.post('/api/shares', {
+      headers: { 'content-type': 'application/json', 'idempotency-key': key },
+      data: JSON.stringify({ text })
+    });
+  const first = await save('Fictional shared-runtime contract.');
+  const replay = await save('Fictional shared-runtime contract.');
+  const conflict = await save('Changed fictional shared-runtime contract.');
+  expect(first.status()).toBe(201);
+  expect(replay.status()).toBe(201);
+  expect((await replay.json()).id).toBe((await first.json()).id);
+  expect(conflict.status()).toBe(409);
+  expect((await conflict.json()).error.code).toBe('IDEMPOTENCY_CONFLICT');
+  // Fixture allowance is 120/minute. A test can straddle one boundary; 241 calls
+  // must encounter a denial within the test's <60-second duration, without sleeps.
+  let denied = false;
+  for (let attempt = 0; attempt < 241; attempt++) {
+    const response = await request.get('/api/shares');
+    if (response.status() === 429) {
+      expect((await response.json()).error.code).toBe('RATE_LIMITED');
+      expect(Number(response.headers()['retry-after'])).toBeGreaterThan(0);
+      denied = true;
+      break;
+    }
+    expect(response.status()).toBe(200);
+  }
+  expect(denied).toBe(true);
+});

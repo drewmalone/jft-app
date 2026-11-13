@@ -60,8 +60,7 @@ test('generated configuration round-trips through Next environment loading and m
     READINGS_REGION: 'us-east-2',
     DYNAMODB_TABLE_NAME: 'fictional-shares',
     DYNAMODB_REGION: 'us-west-2',
-    STT_PROVIDER: 'soniox',
-    STT_ENABLED: 'true'
+    STT_PROVIDER: 'soniox'
   };
   const prepare = (overrides: Record<string, string> = {}) =>
     spawnSync(
@@ -103,10 +102,10 @@ test('generated configuration round-trips through Next environment loading and m
     assert.equal(prepare().status, 0);
     assert.equal(readFileSync(file, 'utf8'), generated);
     assert.deepEqual(load(), {
+      DEPLOYMENT_ENV: 'local',
       ...settings,
       READINGS_SAMPLE: 'false',
-      TRANSCRIPTION_ENABLED: 'true',
-      CLEANUP_ENABLED: 'true',
+      CLEANUP_ENABLED: 'false',
       TRANSCRIPTION_DISABLED: 'false',
       CLEANUP_DISABLED: 'false',
       QUOTA_TABLE_NAME: '',
@@ -127,7 +126,7 @@ test('generated configuration round-trips through Next environment loading and m
         SHARE_PERSISTENCE: 'memory',
         READINGS_SOURCE: 'local',
         STT_PROVIDER: 'openai',
-        STT_ENABLED: 'false'
+        CLEANUP_ENABLED: 'false'
       }).status,
       0
     );

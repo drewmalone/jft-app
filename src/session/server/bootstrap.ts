@@ -3,7 +3,7 @@ import { createRoute, z, type OpenAPIHono } from '@hono/zod-openapi';
 import {
   anonymousSession,
   exactSameOrigin,
-  type SessionEnvironment
+  type ApiEnvironment
 } from '../../server/http/middleware';
 import {
   browserOriginHeaders,
@@ -39,7 +39,7 @@ const bootstrapRoute = createRoute({
     ...commonFailures
   }
 });
-export function registerSession(app: OpenAPIHono<SessionEnvironment>) {
+export function registerSession(app: OpenAPIHono<ApiEnvironment>) {
   app.openapi(bootstrapRoute, (c) => c.json({ ready: true as const }, 200));
   app.openapi(
     optionsRoute('/session', 'POST, OPTIONS', 'sessionOptions', 'Session'),

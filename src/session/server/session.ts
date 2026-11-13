@@ -1,3 +1,7 @@
+import {
+  deploymentEnvironment,
+  validateSigningSecret
+} from '../../config/deployment';
 import 'server-only';
 import { randomBytes, randomUUID } from 'node:crypto';
 import { parseSigned, serializeSigned } from 'hono/utils/cookie';
@@ -10,6 +14,8 @@ const processState = globalThis as typeof globalThis & {
 };
 
 function secret() {
+  if (deploymentEnvironment(process.env) !== 'local')
+    validateSigningSecret(process.env);
   const configured = process.env.SESSION_SECRET;
   if (configured && Buffer.byteLength(configured) >= 32) return configured;
   if (process.env.NODE_ENV === 'production' || configured) {

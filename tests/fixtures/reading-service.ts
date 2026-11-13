@@ -1,5 +1,5 @@
 import type { TestContext } from 'node:test';
-import { readings } from '../../src/readings/server/configured-readings';
+import { readings } from './application';
 import { reflection } from './sample-reading';
 
 /** Opt a single HTTP test into stable synthetic content; TestContext restores both methods afterward. */

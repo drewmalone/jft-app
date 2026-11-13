@@ -1,18 +1,22 @@
 import 'server-only';
 import type { QuotaOperation } from '../../config/quotas';
-import { QuotaExceeded } from '../abuse/quotas';
+import { isQuotaExceeded } from '../abuse/quotas';
 import { securityMetric } from '../abuse/security-metrics';
-import { serverServices } from '../services';
+import type { QuotaService } from '../abuse/quotas';
 import { QuotaHttpError } from './quota-error';
 import { error } from './errors';
 
 /** Only the HTTP boundary translates domain failures into responses. Private reads tolerate outages. */
-export async function enforceQuota(operation: QuotaOperation, owner: string) {
+export async function enforceQuota(
+  operation: QuotaOperation,
+  owner: string,
+  quotas: Pick<QuotaService, 'check'>
+) {
   try {
-    await serverServices.quotas.check(operation, owner);
+    await quotas.check(operation, owner);
     securityMetric(operation, 'allowed');
   } catch (cause) {
-    if (cause instanceof QuotaExceeded) {
+    if (isQuotaExceeded(cause)) {
       securityMetric(operation, 'limited');
       throw new QuotaHttpError(429, {
         res: error('RATE_LIMITED', { 'Retry-After': String(cause.retryAfter) })

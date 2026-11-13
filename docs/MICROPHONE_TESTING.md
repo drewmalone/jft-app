@@ -28,7 +28,7 @@ Open the printed `https://….trycloudflare.com` URL directly in Safari on the p
 
 `next.config.ts` preserves `allowedDevOrigins: ['*.trycloudflare.com']` so changing Quick Tunnel hostnames can load development assets and connect to `/_next/hmr`. It affects only the Next.js development server; restart it after changing configuration. To narrow the allowlist, use the current tunnel hostname without scheme, port, or path, and restart when it changes.
 
-Quick Tunnel URLs are publicly reachable. Use fictional text and keep `TRANSCRIPTION_ENABLED` and `CLEANUP_ENABLED` false for layout/typing-only checks. Prefer a protected Amplify preview for paid live transcription, with the branch access and project controls in the deployment guide. Never expose API keys in the tunnel command, client variables, browser console, or logs.
+Quick Tunnel URLs are publicly reachable. Use fictional text and set `TRANSCRIPTION_DISABLED=true` and `CLEANUP_ENABLED=false` for layout/typing-only checks. Prefer a protected Amplify preview for paid live transcription, with the branch access and project controls in the deployment guide. Never expose API keys in the tunnel command, client variables, browser console, or logs.
 
 ### Disabled microphone or no permission prompt
 

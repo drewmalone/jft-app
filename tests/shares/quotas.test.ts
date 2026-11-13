@@ -96,8 +96,7 @@ test('DynamoDB adapter writes all counters in one conditional transaction and di
 });
 
 test('HTTP quota rejection and backend outage never invoke a provider; private reads fail open', async (t) => {
-  const { dispatch } = await import('../../src/server/app');
-  t.mock.property(process, 'env', { ...process.env, STT_ENABLED: 'true' });
+  const { dispatch } = await import('../fixtures/application');
   const session = await dispatch(new Request('http://localhost/api/shares'));
   const cookie = session.headers.get('set-cookie')!.split(';')[0];
   const provider = t.mock.method(globalThis, 'fetch', async () => {
@@ -135,7 +134,7 @@ test('HTTP quota rejection and backend outage never invoke a provider; private r
 
 test('share creation rejects malformed drafts before quota use and stops writes at owner allowance', async (t) => {
   useReadingFixture(t);
-  const { dispatch } = await import('../../src/server/app');
+  const { dispatch } = await import('../fixtures/application');
   const session = await dispatch(new Request('http://localhost/api/shares'));
   const cookie = session.headers.get('set-cookie')!.split(';')[0];
   const save = (body: unknown) =>
@@ -167,7 +166,7 @@ test('share creation rejects malformed drafts before quota use and stops writes 
 });
 
 test('untrusted forwarding and owner headers do not change verified quota ownership', async (t) => {
-  const { dispatch } = await import('../../src/server/app');
+  const { dispatch } = await import('../fixtures/application');
   const session = await dispatch(new Request('http://localhost/api/shares'));
   const cookie = session.headers.get('set-cookie')!.split(';')[0];
   const owners: (string | undefined)[] = [];
@@ -236,4 +235,51 @@ test('public reads do not consult the quota backend', async (t) => {
   });
   assert.equal((await readPublicShare(share.id, repository))?.text, share.text);
   assert.equal(check.mock.callCount(), 0);
+});
+
+test('paid quota checks share one overall deadline across the control read and transaction', async (t) => {
+  const controller = new AbortController();
+  const timeout = t.mock.method(AbortSignal, 'timeout', (ms: number) => {
+    assert.equal(ms, 8000);
+    return controller.signal;
+  });
+  const signals: AbortSignal[] = [];
+  const backend = new DynamoQuotaBackend('fictional-quotas', {
+    send: async (_command: unknown, options: { abortSignal: AbortSignal }) => {
+      signals.push(options.abortSignal);
+      if (signals.length === 1) return {};
+      return new Promise((_resolve, reject) =>
+        options.abortSignal.addEventListener(
+          'abort',
+          () => reject(options.abortSignal.reason),
+          { once: true }
+        )
+      );
+    }
+  } as never);
+  const pending = new QuotaService(backend).check('cleanup', 'fictional-owner');
+  await new Promise<void>((resolve) => setImmediate(resolve));
+  assert.equal(signals.length, 2);
+  assert.equal(signals[0], signals[1]);
+  assert.equal(timeout.mock.callCount(), 1);
+  controller.abort(new DOMException('Fictional timeout', 'TimeoutError'));
+  await assert.rejects(pending, { name: 'TimeoutError' });
+});
+
+test('an expired control read never starts a quota transaction', async (t) => {
+  const controller = new AbortController();
+  t.mock.method(AbortSignal, 'timeout', () => controller.signal);
+  let calls = 0;
+  const backend = new DynamoQuotaBackend('fictional-quotas', {
+    send: async () => {
+      calls++;
+      controller.abort(new DOMException('Fictional timeout', 'TimeoutError'));
+      return {};
+    }
+  } as never);
+  await assert.rejects(
+    new QuotaService(backend).check('transcription', 'fictional-owner'),
+    { name: 'TimeoutError' }
+  );
+  assert.equal(calls, 1);
 });

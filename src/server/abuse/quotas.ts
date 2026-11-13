@@ -1,4 +1,5 @@
 import 'server-only';
+import { requestLimits } from '../../config/request-limits';
 import {
   quotaPolicy,
   type QuotaOperation,
@@ -11,14 +12,22 @@ export type Counter = {
   expiresAt: number;
   retryAfter?: number;
 };
+const quotaExceededTag = Symbol.for('doorknob.quota-exceeded');
 export class QuotaExceeded extends Error {
+  readonly [quotaExceededTag] = true;
   constructor(readonly retryAfter: number) {
     super('quota exceeded');
   }
 }
+/** Stable identity across shared Next runtime bundles; retry metadata stays on the error. */
+export function isQuotaExceeded(cause: unknown): cause is QuotaExceeded {
+  return (
+    cause instanceof Error && Reflect.get(cause, quotaExceededTag) === true
+  );
+}
 export interface QuotaBackend {
-  consume(counters: readonly Counter[]): Promise<void>;
-  disabled(operation: QuotaOperation): Promise<boolean>;
+  consume(counters: readonly Counter[], signal?: AbortSignal): Promise<void>;
+  disabled(operation: QuotaOperation, signal?: AbortSignal): Promise<boolean>;
 }
 
 /** Pure quota policy: success returns normally; denial and unavailability throw. */
@@ -29,12 +38,14 @@ export class QuotaService {
     private policy: QuotaPolicy = quotaPolicy
   ) {}
   async check(operation: QuotaOperation, owner: string): Promise<void> {
+    if (!owner) throw new Error('owner required');
+    const signal = AbortSignal.timeout(requestLimits.quotaMs);
     if (
       (operation === 'transcription' || operation === 'cleanup') &&
-      (await this.backend.disabled(operation))
+      (await this.backend.disabled(operation, signal))
     )
       throw new Error('feature disabled');
-    if (!owner) throw new Error('owner required');
+    signal.throwIfAborted();
     const now = Math.floor(this.now() / 1000);
     await this.backend.consume(
       this.policy[operation].map((rule) => {
@@ -45,7 +56,9 @@ export class QuotaService {
           expiresAt: end + 86400,
           retryAfter: end - now
         };
-      })
+      }),
+      signal
     );
+    signal.throwIfAborted();
   }
 }

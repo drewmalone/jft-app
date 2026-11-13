@@ -48,7 +48,8 @@ run "security_resources" {
   }
 }
 run "production_isolation" {
-  command = plan
+  expect_failures = [aws_s3_object.readings]
+  command         = plan
   variables { environment = "prod" }
   assert {
     condition     = aws_dynamodb_table.quotas.name == "review-prod-quotas" && aws_dynamodb_table.shares.name == "review-prod-shares"
@@ -68,5 +69,71 @@ run "no_opt_in_costs" {
   assert {
     condition     = length(aws_wafv2_web_acl.security) == 0 && length(aws_budgets_budget.security) == 0
     error_message = "Local/default setup must not create WAF or budget notifications."
+  }
+}
+
+run "csp_post_rate_rule" {
+  command = plan
+  assert {
+    condition     = length([for rule in aws_wafv2_web_acl.security[0].rule : rule if rule.name == "csp" && rule.statement[0].rate_based_statement[0].limit == 300 && anytrue([for statement in rule.statement[0].rate_based_statement[0].scope_down_statement[0].and_statement[0].statement : try(statement.byte_match_statement[0].search_string == "/api/csp-report" && statement.byte_match_statement[0].positional_constraint == "EXACTLY", false)]) && anytrue([for statement in rule.statement[0].rate_based_statement[0].scope_down_statement[0].and_statement[0].statement : try(statement.byte_match_statement[0].search_string == "POST", false)])]) == 1
+    error_message = "CSP POSTs need their own per-IP rate rule."
+  }
+}
+run "production_missing_edge_and_budget_configuration" {
+  command = plan
+  variables {
+    environment    = "prod"
+    amplify_app_id = null
+    budget_emails  = []
+  }
+  expect_failures = [terraform_data.production_security, aws_s3_object.readings]
+}
+run "launch_cannot_remain_count_only" {
+  command = plan
+  variables {
+    environment             = "prod"
+    production_launch_ready = true
+    waf_block               = false
+  }
+  expect_failures = [terraform_data.production_security, aws_s3_object.readings]
+}
+run "reviewed_production_blocking_configuration" {
+  command = plan
+  variables {
+    environment             = "prod"
+    production_launch_ready = true
+    waf_block               = true
+    monthly_budget_usd      = { total = 100 }
+  }
+  expect_failures = [aws_s3_object.readings]
+  assert {
+    condition     = output.launch_security.launch_declared && output.launch_security.waf_mode == "BLOCK" && length(aws_budgets_budget.security) == 1 && aws_budgets_budget.security["total"].limit_amount == "100"
+    error_message = "A reviewed launch must select BLOCK and the explicit monthly budget."
+  }
+}
+
+run "partial_waf_override_keeps_other_defaults" {
+  command = plan
+  variables { waf_rate_limits = { csp = 100 } }
+  assert {
+    condition     = local.waf_limits["csp"] == 100 && local.waf_limits["paid"] == 300 && local.waf_rules["paid"].method == "POST" && local.waf_rules["api"].method == "GET"
+    error_message = "A single override must not erase another rule's default or method."
+  }
+}
+run "unknown_waf_override_is_rejected" {
+  command = plan
+  variables { waf_rate_limits = { misspelled = 100 } }
+  expect_failures = [var.waf_rate_limits]
+}
+
+run "literal_multi_path_scope" {
+  command = plan
+  assert {
+    condition = anytrue([for rule in aws_wafv2_web_acl.security[0].rule : anytrue([
+      for term in rule.statement[0].rate_based_statement[0].scope_down_statement[0].and_statement[0].statement : try(
+        toset([for child in term.or_statement[0].statement : child.byte_match_statement[0].search_string]) == toset(["/api/transcription/session", "/api/shares/cleanup"]) &&
+      alltrue([for child in term.or_statement[0].statement : child.byte_match_statement[0].positional_constraint == "EXACTLY" && length(child.byte_match_statement[0].field_to_match[0].uri_path) == 1]), false)
+    ]) if rule.name == "paid"])
+    error_message = "The paid POST scope must retain the two exact URI paths through a literal OR group."
   }
 }

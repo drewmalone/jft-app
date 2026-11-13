@@ -1,3 +1,8 @@
+variable "readings_sample" {
+  type        = bool
+  default     = true
+  description = "Keep true for sample content. Production requires a complete licensed catalog and false."
+}
 variable "readings_yaml_path" {
   type        = string
   nullable    = false
@@ -39,6 +44,10 @@ resource "aws_s3_object" "readings" {
   content_type = "application/yaml"
   depends_on   = [aws_s3_bucket_versioning.readings, aws_s3_bucket_server_side_encryption_configuration.readings]
   lifecycle {
+    precondition {
+      condition     = var.environment != "prod" || (!var.readings_sample && basename(var.readings_yaml_path) != "readings.example.yaml" && length(local.readings) == 366)
+      error_message = "Production requires a complete 366-day non-example catalog with readings_sample=false."
+    }
     precondition {
       condition = length(local.readings) <= 366 && length(filebase64(var.readings_yaml_path)) <= 13981016 && length(distinct([for reading in local.readings : reading.date])) == length(local.readings) && alltrue([for reading in local.readings : try(
         reading.date == formatdate("MM-DD", "2000-${reading.date}T00:00:00Z") &&

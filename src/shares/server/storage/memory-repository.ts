@@ -1,3 +1,8 @@
+import {
+  submissionId,
+  SubmissionConflict,
+  type Submission
+} from './submission';
 import type { Reflection } from '../../model';
 import 'server-only';
 import { createStoredShare, type StoredShare } from './create-stored-share';
@@ -12,14 +17,46 @@ import type { ShareRepository } from './repository';
 
 export class InMemoryShareRepository implements ShareRepository {
   #shares = new Map<string, StoredShare>();
+  #submissions = new Map<string, { requestHash: string; shareId: string }>();
 
   async create(
     ownerId: string,
     text: string,
-    reading: Reflection
+    reading: Reflection,
+    submission?: Submission
   ): Promise<StoredShare> {
+    const previous = submission
+      ? this.#submissions.get(submissionId(ownerId, submission))
+      : undefined;
+    if (previous) {
+      if (previous.requestHash !== submission!.requestHash)
+        throw new SubmissionConflict();
+      const saved = this.#shares.get(previous.shareId);
+      if (!saved || saved.ownerId !== ownerId)
+        throw new Error('Invalid submission record');
+      return structuredClone(saved);
+    }
     const share = createStoredShare(ownerId, text, reading);
+    if (submission)
+      this.#submissions.set(submissionId(ownerId, submission), {
+        requestHash: submission.requestHash,
+        shareId: share.id
+      });
     this.#shares.set(share.id, share);
+    return structuredClone(share);
+  }
+
+  async findBySubmission(
+    ownerId: string,
+    submission: Submission
+  ): Promise<StoredShare | null> {
+    const marker = this.#submissions.get(submissionId(ownerId, submission));
+    if (!marker) return null;
+    if (marker.requestHash !== submission.requestHash)
+      throw new SubmissionConflict();
+    const share = this.#shares.get(marker.shareId);
+    if (!share || share.ownerId !== ownerId)
+      throw new Error('Invalid submission record');
     return structuredClone(share);
   }
 
