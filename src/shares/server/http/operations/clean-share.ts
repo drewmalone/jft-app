@@ -1,5 +1,5 @@
+import { enforceQuota } from '../../auth/quotas';
 import 'server-only';
-import { burstLimited } from '../../auth/burst-limit';
 import { createRoute, type RouteHandler } from '@hono/zod-openapi';
 import type { MiddlewareHandler } from 'hono';
 import { error, errorBody } from '../errors';
@@ -68,8 +68,7 @@ export const cleanShare: RouteHandler<
   typeof cleanShareRoute,
   SessionEnvironment
 > = async (c) => {
-  if (burstLimited('cleanup', c.get('ownerId')))
-    return c.json(errorBody('RATE_LIMITED'), 429, { 'Retry-After': '60' });
+  await enforceQuota('cleanup', c.get('ownerId'));
   try {
     const text = await cleanShareText(
       c.req.valid('json').text,

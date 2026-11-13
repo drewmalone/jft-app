@@ -216,3 +216,44 @@ test(
     );
   }
 );
+
+test(
+  'DynamoDB Local atomically enforces a shared final owner allowance across instances',
+  { skip: !endpoint },
+  async (t) => {
+    const { DynamoQuotaBackend, QuotaService } =
+      await import('../../src/shares/server/auth/quotas');
+    const { tableName: table, documentClient } = await dynamoTable(t);
+    const env = { QUOTA_TRANSCRIPTION_OWNER_600: '1' };
+    const a = new QuotaService(
+      new DynamoQuotaBackend(table, documentClient),
+      () => 0,
+      env
+    );
+    const b = new QuotaService(
+      new DynamoQuotaBackend(table, documentClient),
+      () => 0,
+      env
+    );
+    const owner = randomUUID();
+    const results = await Promise.allSettled(
+      Array.from({ length: 10 }, (_, i) =>
+        (i % 2 ? a : b).check('transcription', owner)
+      )
+    );
+    assert.equal(
+      results.filter((r) => r.status === 'fulfilled' && r.value === 0).length,
+      1
+    );
+    assert.ok((await b.check('transcription', owner)) > 0);
+    assert.equal(await b.check('transcription', randomUUID()), 0);
+    assert.equal(await b.check('cleanup', randomUUID()), 0);
+    await documentClient.send(
+      new PutCommand({
+        TableName: table,
+        Item: { id: 'control:cleanup', disabled: true }
+      })
+    );
+    await assert.rejects(b.check('cleanup', randomUUID()));
+  }
+);

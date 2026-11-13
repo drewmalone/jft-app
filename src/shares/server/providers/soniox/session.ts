@@ -1,4 +1,5 @@
 import 'server-only';
+import { randomUUID } from 'node:crypto';
 import { z } from 'zod';
 import { sonioxKey } from './key';
 import { SonioxCredentialError } from './errors';
@@ -28,6 +29,7 @@ export async function issueSonioxCredential(
       },
       body: JSON.stringify({
         usage_type: 'transcribe_websocket',
+        client_reference_id: randomUUID(),
         expires_in_seconds: 60,
         single_use: true,
         max_session_duration_seconds: sessionConfig.maxSessionMs / 1000

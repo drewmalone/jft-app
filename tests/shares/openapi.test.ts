@@ -419,7 +419,7 @@ test('paid operations share documented errors, origin requirements, expiry and r
     await contract(absent, path, 'post');
   }
   const cookie = cookieFrom(await request());
-  for (let attempt = 0; attempt < 5; attempt++) {
+  for (let attempt = 0; attempt < 3; attempt++) {
     const issued = await request(
       'POST',
       '/api/transcription/session',

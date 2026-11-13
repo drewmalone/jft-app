@@ -69,6 +69,18 @@ export function parseRuntimeConfig(env: Environment) {
   return {
     ...parsePersistenceConfig(env),
     ...parseReadingsConfig(env),
+    ...(Object.fromEntries(
+      Object.entries(env).filter(
+        ([key, value]) =>
+          value !== undefined &&
+          (key === 'QUOTA_TABLE_NAME' ||
+            key === 'TRANSCRIPTION_DISABLED' ||
+            key === 'CLEANUP_DISABLED' ||
+            /^QUOTA_(TRANSCRIPTION|CLEANUP|CREATE|PRIVATE)_OWNER_\d+$/.test(
+              key
+            ))
+      )
+    ) as Record<string, string>),
     ...speech.parse({
       STT_ENABLED: env.STT_ENABLED ?? 'false',
       STT_PROVIDER: env.STT_PROVIDER,

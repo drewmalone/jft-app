@@ -1,6 +1,7 @@
+import { QuotaHttpError } from '../../auth/quota-error';
+import { enforceQuota } from '../../auth/quotas';
 import 'server-only';
 import { transcriptionProvider } from '../../transcription-config';
-import { burstLimited } from '../../auth/burst-limit';
 import { createRoute, z, type RouteHandler } from '@hono/zod-openapi';
 import {
   reportTranscriptionFailure,
@@ -66,10 +67,7 @@ export const createTranscriptionSession: RouteHandler<
       reportTranscriptionConfiguration('disabled');
       return c.json(errorBody('TRANSCRIPTION_UNAVAILABLE'), 503);
     }
-    if (burstLimited('transcription', c.get('ownerId'))) {
-      c.header('Retry-After', '60');
-      return c.json(errorBody('RATE_LIMITED'), 429);
-    }
+    await enforceQuota('transcription', c.get('ownerId'));
     const token = await issueTranscriptionCredential(
       transcriptionProvider(),
       c.req.raw.signal,
@@ -82,6 +80,7 @@ export const createTranscriptionSession: RouteHandler<
     }
     return c.json(result.data, 200);
   } catch (cause) {
+    if (cause instanceof QuotaHttpError) throw cause;
     reportTranscriptionFailure(cause);
     return c.json(errorBody('TRANSCRIPTION_UNAVAILABLE'), 503);
   }
