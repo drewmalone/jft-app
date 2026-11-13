@@ -15,6 +15,7 @@ type ShareFormProps = ShareComposerOptions & { error: string };
 export function ShareForm({
   text,
   cleanupStatus,
+  cleanupEnabled,
   isCleanupPending,
   onCleanup,
   sessionReady,
@@ -28,6 +29,7 @@ export function ShareForm({
   const composer = useShareComposer({
     text,
     cleanupStatus,
+    cleanupEnabled,
     isCleanupPending,
     onCleanup,
     sessionReady,

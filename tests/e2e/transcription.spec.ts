@@ -581,10 +581,10 @@ test('recording waits for private-session bootstrap before a parallel credential
   const pending = new Promise<void>((resolve) => {
     release = resolve;
   });
-  await page.route('**/api/shares', async (route) => {
-    if (route.request().method() === 'GET') {
+  await page.route('**/api/session', async (route) => {
+    if (route.request().method() === 'POST') {
       await pending;
-      await route.fulfill({ json: [] });
+      await route.fetch().then((response) => route.fulfill({ response }));
     } else await route.continue();
   });
   await page.goto('/');

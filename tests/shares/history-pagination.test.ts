@@ -12,7 +12,7 @@ import { InMemoryShareRepository } from '../../src/shares/server/storage/memory-
 import { DynamoDbShareRepository } from '../../src/shares/server/storage/dynamodb-repository';
 import { createStoredShare } from '../../src/shares/server/storage/create-stored-share';
 import { shareRepository } from '../../src/shares/server/storage/configured-repository';
-import { dispatch } from '../../src/shares/server/app';
+import { dispatch } from '../../src/server/app';
 import { repositoryContract } from './repository-contract';
 
 test('bounded memory pages traverse timestamp ties once and cannot reveal another owner', async (t) => {

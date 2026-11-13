@@ -1,8 +1,12 @@
 import type { NextConfig } from 'next';
-import { parseTranscriptionProvider } from './src/shares/transcription/config';
+import { validateRuntimeConfig } from './src/config/runtime';
 
 // Fail the CLI on invalid configuration; instrumentation errors alone leave Next running.
-parseTranscriptionProvider(process.env.STT_PROVIDER);
+try {
+  validateRuntimeConfig(process.env);
+} catch {
+  throw new Error('Invalid runtime configuration. Check deployment settings.');
+}
 
 const config: NextConfig = {
   // Quick Tunnel hostnames change on each run; permit their development assets.

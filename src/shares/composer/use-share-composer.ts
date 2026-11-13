@@ -5,6 +5,7 @@ import { useTranscription } from '../transcription/use-transcription';
 export interface ShareComposerOptions {
   text: string;
   cleanupStatus: CleanupStatus;
+  cleanupEnabled?: boolean;
   /** Synchronous guard covers a request starting before React has rendered pending state. */
   isCleanupPending: () => boolean;
   onCleanup: (text: string) => Promise<void>;
@@ -21,6 +22,7 @@ export interface ShareComposerOptions {
 export function useShareComposer({
   text,
   cleanupStatus,
+  cleanupEnabled = true,
   isCleanupPending,
   onCleanup,
   sessionReady,
@@ -32,7 +34,7 @@ export function useShareComposer({
 }: ShareComposerOptions) {
   const voice = useTranscription(text, onTextChange, {
     onStopped: (value) => {
-      void onCleanup(value);
+      if (cleanupEnabled) void onCleanup(value);
     }
   });
   useEffect(() => {
@@ -76,7 +78,8 @@ export function useShareComposer({
       }
     },
     retryCleanup() {
-      if (!voice.active && !saving && !isCleanupPending()) void onCleanup(text);
+      if (cleanupEnabled && !voice.active && !saving && !isCleanupPending())
+        void onCleanup(text);
     }
   };
 }

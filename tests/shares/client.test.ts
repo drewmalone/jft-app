@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { saveShare } from '../../src/shares/api';
-import { ApiRequestError } from '../../src/shares/http-client';
+import { ApiRequestError } from '../../src/http/client';
 
 test('the fetch client retains stable error codes/status and does not retry failed saves', async (context) => {
   const calls = context.mock.method(

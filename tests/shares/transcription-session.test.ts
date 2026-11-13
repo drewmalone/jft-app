@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test, type TestContext } from 'node:test';
-import { dispatch } from '../../src/shares/server/app';
+import { dispatch } from '../../src/server/app';
 import { issueTranscriptionCredential } from '../../src/shares/server/providers/openai/session';
 import { SecretsManagerClient } from '@aws-sdk/client-secrets-manager';
 import { openAIKey } from '../../src/shares/server/providers/openai/key';

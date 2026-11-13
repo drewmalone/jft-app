@@ -1,5 +1,7 @@
-import { QuotaHttpError } from '../../auth/quota-error';
-import { enforceQuota } from '../../auth/quotas';
+import { transcriptionCredential } from '../schemas';
+import { serverServices } from '../../../../server/services';
+import { QuotaHttpError } from '../../../../server/http/quota-error';
+import { enforceQuota } from '../../../../server/http/enforce-quota';
 import 'server-only';
 import { transcriptionProvider } from '../../transcription-config';
 import { createRoute, z, type RouteHandler } from '@hono/zod-openapi';
@@ -12,16 +14,15 @@ import {
   privateHeaders,
   commonFailures,
   failed,
-  transcriptionCredential,
   retryAfterHeaders,
   browserOriginHeaders
-} from '../openapi';
+} from '../../../../server/http/openapi';
 import {
   exactSameOrigin,
   existingSession,
   type SessionEnvironment
-} from '../middleware';
-import { errorBody } from '../errors';
+} from '../../../../server/http/middleware';
+import { errorBody } from '../../../../server/http/errors';
 
 export const transcriptionSessionRoute = createRoute({
   middleware: [exactSameOrigin, existingSession] as const,
@@ -31,7 +32,7 @@ export const transcriptionSessionRoute = createRoute({
   tags: ['Transcription'],
   summary: 'Issue a short-lived live transcription credential',
   description:
-    'Requires an existing signed session and an exact same-origin Origin header. No audio or transcript body is accepted. Disabled unless STT_ENABLED=true. Credentials are never cached.',
+    'Requires an existing signed session and an exact same-origin Origin header. No audio or transcript body is accepted. Requires transcription to be enabled in deployment configuration. Credentials are never cached.',
   security: [{ AnonymousSession: [] }],
   request: {
     headers: browserOriginHeaders.extend({
@@ -63,7 +64,10 @@ export const createTranscriptionSession: RouteHandler<
   SessionEnvironment
 > = async (c) => {
   try {
-    if (process.env.STT_ENABLED !== 'true') {
+    if (
+      !serverServices.features.transcription.enabled ||
+      serverServices.features.transcription.disabled
+    ) {
       reportTranscriptionConfiguration('disabled');
       return c.json(errorBody('TRANSCRIPTION_UNAVAILABLE'), 503);
     }

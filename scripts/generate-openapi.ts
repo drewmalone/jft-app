@@ -2,7 +2,7 @@ import { mkdir, writeFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 import { format, resolveConfig } from 'prettier';
 import { stringify } from 'yaml';
-import { getOpenApiDocument } from '../src/shares/server/app';
+import { getOpenApiDocument } from '../src/server/app';
 
 async function main() {
   const directory = new URL('../.tmp/', import.meta.url);

@@ -1,26 +1,30 @@
-import { retryAfterHeaders } from '../openapi';
-import { enforceQuota } from '../../auth/quotas';
+import { share } from '../schemas';
+import { retryAfterHeaders } from '../../../../server/http/openapi';
+import { enforceQuota } from '../../../../server/http/enforce-quota';
 import { getCookie } from 'hono/cookie';
 import { createShareForReading } from '../../application/create-share';
 import {
   readingTimeZone,
   READING_TIME_ZONE_COOKIE
 } from '../../../../readings/calendar';
-import { errorBody } from '../errors';
+import { errorBody } from '../../../../server/http/errors';
 import 'server-only';
 import { createRoute, type RouteHandler } from '@hono/zod-openapi';
 import { shareSchema } from '../../../model';
-import type { SessionEnvironment } from '../middleware';
+import type { SessionEnvironment } from '../../../../server/http/middleware';
 import {
-  share,
   privateHeaders,
   sessionSecurity,
   commonFailures,
   failed
-} from '../openapi';
+} from '../../../../server/http/openapi';
 import { createShareSchema, MAX_SHARE_TEXT_LENGTH } from '../../../model';
-import { MAX_SHARE_REQUEST_BYTES } from '../errors';
-import { anonymousSession, sameOrigin, jsonBody } from '../middleware';
+import { MAX_SHARE_REQUEST_BYTES } from '../../../../server/http/errors';
+import {
+  anonymousSession,
+  sameOrigin,
+  jsonBody
+} from '../../../../server/http/middleware';
 
 export const createShareRoute = createRoute({
   middleware: [sameOrigin, anonymousSession, jsonBody] as const,
@@ -38,7 +42,7 @@ export const createShareRoute = createRoute({
       description: `Text plus an optional ISO readingDate is accepted: at most ${MAX_SHARE_TEXT_LENGTH} Unicode code points before trimming, then at least one non-whitespace character. Raw JSON is limited to ${MAX_SHARE_REQUEST_BYTES} bytes. JSON media types are case-insensitive; valid parameters are accepted.`,
       content: {
         'application/json': {
-          schema: createShareSchema.openapi('CreateShare', {
+          schema: createShareSchema.clone().openapi('CreateShare', {
             example: { text: 'A fictional thought.' }
           })
         }

@@ -8,7 +8,7 @@ import { localCatalog } from '../../src/readings/server/sources';
 import { ReadingCache } from '../../src/readings/server/cache';
 import { readings } from '../../src/readings/server/configured-readings';
 import { readingDate } from '../../src/readings/calendar';
-import { dispatch } from '../../src/shares/server/app';
+import { dispatch } from '../../src/server/app';
 import { shareRepository } from '../../src/shares/server/storage/configured-repository';
 import { DynamoDbShareRepository } from '../../src/shares/server/storage/dynamodb-repository';
 import { dynamoTable } from './dynamodb-fixture';

@@ -1,6 +1,6 @@
 import 'server-only';
-import { QuotaHttpError } from '../auth/quota-error';
-import type { ApiErrorCode } from '../../errors';
+import { QuotaHttpError } from './quota-error';
+import type { ApiErrorCode } from '../../http/errors';
 
 /** Raw JSON request limit, including whitespace and escaping; enforced on actual streamed bytes. */
 export const MAX_SHARE_REQUEST_BYTES = 64 * 1024;

@@ -365,7 +365,10 @@ test('failed bootstrap blocks saves through retry and navigation until the sessi
   let writes = 0;
   await page.route('**/api/shares', async (route) => {
     if (route.request().method() === 'POST') writes++;
-    if (route.request().method() === 'GET') {
+    await route.continue();
+  });
+  await page.route('**/api/session', async (route) => {
+    if (route.request().method() === 'POST') {
       reads++;
       if (reads === 1) {
         await route.fulfill({
@@ -400,7 +403,9 @@ test('failed bootstrap blocks saves through retry and navigation until the sessi
     .getByRole('banner')
     .getByRole('button', { name: 'Past shares', exact: true })
     .click();
-  await expect(page.getByRole('status')).toHaveText('Loading your shares…');
+  await expect(page.getByRole('status')).toHaveText(
+    'Preparing your private session…'
+  );
   await page
     .getByRole('banner')
     .getByRole('button', { name: 'Today’s reflection', exact: true })
@@ -464,4 +469,50 @@ test('a top-level cross-site form cannot overwrite the owning session cookie', a
   expect(
     await (await page.context().request.get(`/api/shares/${share.id}`)).json()
   ).toEqual(share);
+});
+
+test('history failures do not block session preparation, recording or saving', async ({
+  page
+}) => {
+  let reads = 0;
+  await page.route('**/api/shares', async (route) => {
+    if (route.request().method() === 'GET') {
+      reads++;
+      await route.fulfill({
+        status: 500,
+        json: {
+          error: { code: 'INTERNAL_ERROR', message: 'Please try again.' }
+        }
+      });
+    } else await route.continue();
+  });
+  await page.goto('/');
+  await page
+    .getByRole('textbox')
+    .fill('Fictional words during a history outage.');
+  await expect(
+    page.getByRole('button', { name: 'Save privately' })
+  ).toBeEnabled();
+  await expect(
+    page.getByRole('button', { name: 'Record your share' })
+  ).toBeEnabled();
+  expect(reads).toBe(0);
+  await page
+    .getByRole('banner')
+    .getByRole('button', { name: 'Past shares', exact: true })
+    .click();
+  await expect(page.getByRole('main').getByRole('alert')).toContainText(
+    'saved shares could not be read'
+  );
+  await page
+    .getByRole('banner')
+    .getByRole('button', { name: 'Today’s reflection', exact: true })
+    .click();
+  await expect(
+    page.getByRole('button', { name: 'Record your share' })
+  ).toBeEnabled();
+  await page.getByRole('button', { name: 'Save privately' }).click();
+  await expect(
+    page.getByRole('heading', { name: 'Your share is saved.' })
+  ).toBeVisible();
 });

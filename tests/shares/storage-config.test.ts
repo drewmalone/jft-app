@@ -1,7 +1,7 @@
 import '@hono/zod-openapi';
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { createShareRepository } from '../../src/shares/server/storage/configured-repository';
+import { createShareRepository } from '../../src/server/services';
 import { InMemoryShareRepository } from '../../src/shares/server/storage/memory-repository';
 import { DynamoDbShareRepository } from '../../src/shares/server/storage/dynamodb-repository';
 

@@ -4,24 +4,25 @@ The application HTTP API is defined in OpenAPI 3.1 at `/api/openapi.json`. Next.
 
 ## Current HTTP behavior
 
-| Operation                         | Purpose                                              | Current access                                                                                      |
-| --------------------------------- | ---------------------------------------------------- | --------------------------------------------------------------------------------------------------- |
-| GET `/api/shares`                 | History and implicit anonymous-session establishment | Cookie optional; missing/invalid/expired credentials establish a fresh owner                        |
-| POST `/api/shares`                | Explicitly save reviewed text                        | Signed anonymous cookie, or a fresh owner; absent Origin accepted, foreign supplied Origin rejected |
-| GET `/api/shares/{id}`            | Read an owned share                                  | Owner-scoped cookie session; another owner's ID is indistinguishable from missing                   |
-| GET `/api/public/shares/{id}`     | Read an expiring public reading link                 | Bearer UUID, no owner session required                                                              |
-| POST `/api/transcription/session` | Issue a temporary provider connection credential     | Existing cookie and exact Origin required; paid-service flag and burst limit                        |
-| POST `/api/shares/cleanup`        | Tidy finalized text without saving                   | Existing cookie and exact Origin required; paid-service flag and separate burst limit               |
+| Operation                         | Purpose                                           | Current access                                                                                      |
+| --------------------------------- | ------------------------------------------------- | --------------------------------------------------------------------------------------------------- |
+| POST `/api/session`               | Prepare/resume the signed browser cookie          | Exact same-origin Origin; no history/provider access                                                |
+| GET `/api/shares`                 | History (implicit session compatibility retained) | Cookie optional; missing/invalid/expired credentials establish a fresh owner                        |
+| POST `/api/shares`                | Explicitly save reviewed text                     | Signed anonymous cookie, or a fresh owner; absent Origin accepted, foreign supplied Origin rejected |
+| GET `/api/shares/{id}`            | Read an owned share                               | Owner-scoped cookie session; another owner's ID is indistinguishable from missing                   |
+| GET `/api/public/shares/{id}`     | Read an expiring public reading link              | Bearer UUID, no owner session required                                                              |
+| POST `/api/transcription/session` | Issue a temporary provider connection credential  | Existing cookie and exact Origin required; paid-service flag and burst limit                        |
+| POST `/api/shares/cleanup`        | Tidy finalized text without saving                | Existing cookie and exact Origin required; paid-service flag and separate burst limit               |
 
 OPTIONS advertises methods through Allow. It grants no CORS access. Native HTTP clients are not subject to browser CORS enforcement, but still face every server-side authentication and Origin check. Sending a matching Origin is not proof of identity and is not a native authentication design.
 
-Anonymous ownership currently lives in a signed cookie with a 30-day absolute expiry; there is no login, renewal, account recovery, cross-device ownership transfer or explicit session endpoint. A native cookie jar could technically reproduce some website requests, but losing/expiring that cookie creates a new owner on regular share operations. Do not ship a mobile client assuming automatic recovery or durable history. Production storage and operation quotas use DynamoDB; local memory adapters are development-only. See [security operations](SECURITY_OPERATIONS.md).
+Anonymous ownership currently lives in a signed cookie with a 30-day absolute expiry; there is no login, renewal, account recovery or cross-device ownership transfer. The browser has a same-origin session-preparation endpoint; this is not native authentication. A native cookie jar could technically reproduce some website requests, but losing/expiring that cookie creates a new owner on regular share operations. Do not ship a mobile client assuming automatic recovery or durable history. Production storage and operation quotas use DynamoDB; local memory adapters are development-only. See [security operations](SECURITY_OPERATIONS.md).
 
 ## Stable HTTP conventions to reuse
 
 - Consume named OpenAPI models for shares, public shares, `DraftText`, `TranscriptionCredential` and `ApiError`. Generate HTTP client types if useful; no generated Swift/Kotlin client has been validated in this review. The document currently uses relative server URL `/`; a native client must be configured with the intended deployment base URL.
 - Failures use `{ "error": { "code": "...", "message": "..." } }`; branch on code and status. Messages are display copy, not stable identifiers. Read the documented allowed codes for each status.
-- A 429 on either paid operation includes `Retry-After: 60`, a delay in seconds. This is a distributed quota guard, not a distributed spending guarantee. Do not blindly replay paid operations.
+- A 429 on either paid operation includes `Retry-After`, a positive delay in seconds. This is a distributed quota guard, not a distributed spending guarantee. Do not blindly replay paid operations.
 - Credential `expires_at` is a positive integer Unix timestamp in seconds. `value` is a temporary bearer secret: never log, persist, cache or include it in reports. Expiry limits establishing a provider connection; it does not terminate an established recording. Do not copy the browser's ten-minute session policy into a claim about server-enforced quotas.
 - Share and cleanup text limits count Unicode code points, not bytes or user-perceived grapheme clusters. Cleanup returns an editable suggestion; it never saves a share.
 - Saving remains an explicit action. POST save is not idempotent: a lost response may follow a committed save. Automatic retry can duplicate shares.
@@ -60,4 +61,4 @@ Native apps need their own capture, permission, activity indication, background/
 
 ## Work deliberately left for a mobile milestone
 
-Design explicit session establishment and authentication, secure device credential storage, expiry/recovery and any cross-device identity first. Keep browser CSRF/Origin protections and define native authentication separately; do not simply remove Origin checks or open CORS. Then address durable storage, shared spending limits, save idempotency, contract compatibility checks and a release/versioning policy. This review implements none of those features.
+Design native session establishment and authentication, secure device credential storage, expiry/recovery and any cross-device identity first. Keep browser CSRF/Origin protections and define native authentication separately; do not simply remove Origin checks or open CORS. Then address durable storage, shared spending limits, save idempotency, contract compatibility checks and a release/versioning policy. This review implements none of those features.

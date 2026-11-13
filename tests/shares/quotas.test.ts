@@ -3,11 +3,13 @@ import { reflection } from '../fixtures/sample-reading';
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import {
-  DynamoQuotaBackend,
-  MemoryQuotaBackend,
   QuotaService,
+  QuotaExceeded,
   type Counter
-} from '../../src/shares/server/auth/quotas';
+} from '../../src/server/abuse/quotas';
+import { DynamoQuotaBackend } from '../../src/server/abuse/dynamodb-quotas';
+import { MemoryQuotaBackend } from '../../src/server/abuse/memory-quotas';
+import { parseQuotaPolicy } from '../../src/config/quotas';
 
 test('shared backend serializes the final allowance across independent services without limiting other owners', async () => {
   const backend = new MemoryQuotaBackend();
@@ -15,27 +17,29 @@ test('shared backend serializes the final allowance across independent services 
     QUOTA_TRANSCRIPTION_OWNER_600: '1',
     QUOTA_TRANSCRIPTION_GLOBAL_86400: '1'
   };
-  const a = new QuotaService(backend, () => 1000000, env);
-  const b = new QuotaService(backend, () => 1000000, env);
-  const results = await Promise.all([
+  const a = new QuotaService(backend, () => 1000000, parseQuotaPolicy(env));
+  const b = new QuotaService(backend, () => 1000000, parseQuotaPolicy(env));
+  const results = await Promise.allSettled([
     a.check('transcription', 'owner-a'),
     b.check('transcription', 'owner-a')
   ]);
-  assert.equal(results.filter((r) => r === 0).length, 1);
-  assert.equal(await b.check('transcription', 'new-owner'), 0);
-  assert.equal(await b.check('cleanup', 'owner-a'), 0);
+  assert.equal(results.filter((r) => r.status === 'fulfilled').length, 1);
+  await assert.doesNotReject(b.check('transcription', 'new-owner'));
+  await assert.doesNotReject(b.check('cleanup', 'owner-a'));
 });
 
 test('owner quota, atomic rejection, and fixed-window expiry use a controlled clock', async () => {
   let now = 0;
   const backend = new MemoryQuotaBackend();
-  const service = new QuotaService(backend, () => now, {});
+  const service = new QuotaService(backend, () => now);
   for (let i = 0; i < 3; i++)
-    assert.equal(await service.check('transcription', 'a'), 0);
-  assert.equal(await service.check('transcription', 'a'), 600);
-  assert.equal(await service.check('transcription', 'b'), 0);
+    await assert.doesNotReject(service.check('transcription', 'a'));
+  await assert.rejects(service.check('transcription', 'a'), {
+    retryAfter: 600
+  });
+  await assert.doesNotReject(service.check('transcription', 'b'));
   now = 600000;
-  assert.equal(await service.check('transcription', 'a'), 0);
+  await assert.doesNotReject(service.check('transcription', 'a'));
 });
 
 test('backend failure and independent dynamic kill switches reject paid usage', async () => {
@@ -48,9 +52,9 @@ test('backend failure and independent dynamic kill switches reject paid usage', 
   await assert.rejects(broken.check('transcription', 'a'));
   const backend = new MemoryQuotaBackend();
   backend.disabled = async (op?: string) => op === 'cleanup';
-  const service = new QuotaService(backend, () => 0, {});
+  const service = new QuotaService(backend, () => 0);
   await assert.rejects(service.check('cleanup', 'a'));
-  assert.equal(await service.check('transcription', 'a'), 0);
+  await assert.doesNotReject(service.check('transcription', 'a'));
 });
 
 test('DynamoDB adapter writes all counters in one conditional transaction and distinguishes outages', async () => {
@@ -66,7 +70,7 @@ test('DynamoDB adapter writes all counters in one conditional transaction and di
     }
   };
   const backend = new DynamoQuotaBackend('quotas', client as never);
-  assert.equal(await backend.consume(counters), true);
+  await backend.consume(counters);
   const items = (
     input as { TransactItems: { Update: Record<string, unknown> }[] }
   ).TransactItems;
@@ -92,7 +96,7 @@ test('DynamoDB adapter writes all counters in one conditional transaction and di
 });
 
 test('HTTP quota rejection and backend outage never invoke a provider; private reads fail open', async (t) => {
-  const { dispatch } = await import('../../src/shares/server/app');
+  const { dispatch } = await import('../../src/server/app');
   t.mock.property(process, 'env', { ...process.env, STT_ENABLED: 'true' });
   const session = await dispatch(new Request('http://localhost/api/shares'));
   const cookie = session.headers.get('set-cookie')!.split(';')[0];
@@ -102,7 +106,7 @@ test('HTTP quota rejection and backend outage never invoke a provider; private r
   let offline = false;
   t.mock.method(QuotaService.prototype, 'check', async () => {
     if (offline) throw new Error('unavailable');
-    return 123;
+    throw new QuotaExceeded(123);
   });
   const post = () =>
     dispatch(
@@ -131,7 +135,7 @@ test('HTTP quota rejection and backend outage never invoke a provider; private r
 
 test('share creation rejects malformed drafts before quota use and stops writes at owner allowance', async (t) => {
   useReadingFixture(t);
-  const { dispatch } = await import('../../src/shares/server/app');
+  const { dispatch } = await import('../../src/server/app');
   const session = await dispatch(new Request('http://localhost/api/shares'));
   const cookie = session.headers.get('set-cookie')!.split(';')[0];
   const save = (body: unknown) =>
@@ -163,7 +167,7 @@ test('share creation rejects malformed drafts before quota use and stops writes 
 });
 
 test('untrusted forwarding and owner headers do not change verified quota ownership', async (t) => {
-  const { dispatch } = await import('../../src/shares/server/app');
+  const { dispatch } = await import('../../src/server/app');
   const session = await dispatch(new Request('http://localhost/api/shares'));
   const cookie = session.headers.get('set-cookie')!.split(';')[0];
   const owners: (string | undefined)[] = [];
@@ -172,7 +176,7 @@ test('untrusted forwarding and owner headers do not change verified quota owners
     'check',
     async (_op: string, owner?: string) => {
       owners.push(owner);
-      return 0;
+      return;
     }
   );
   for (const spoof of ['one', 'two']) {
@@ -200,16 +204,18 @@ test('daily owner allowances survive short-window resets and expire independentl
     ['cleanup', 5, 30]
   ] as const) {
     let now = 0;
-    const service = new QuotaService(new MemoryQuotaBackend(), () => now, {});
+    const service = new QuotaService(new MemoryQuotaBackend(), () => now);
     for (let i = 0; i < daily; i++) {
       now = Math.floor(i / perWindow) * 600000;
-      assert.equal(await service.check(operation, 'owner'), 0);
+      await assert.doesNotReject(service.check(operation, 'owner'));
     }
     now += 600000;
-    assert.equal(await service.check(operation, 'owner'), 86400 - now / 1000);
-    assert.equal(await service.check(operation, 'different-owner'), 0);
+    await assert.rejects(service.check(operation, 'owner'), {
+      retryAfter: 86400 - now / 1000
+    });
+    await assert.doesNotReject(service.check(operation, 'different-owner'));
     now = 86400000;
-    assert.equal(await service.check(operation, 'owner'), 0);
+    await assert.doesNotReject(service.check(operation, 'owner'));
   }
 });
 

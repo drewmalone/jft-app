@@ -1,16 +1,18 @@
 import 'server-only';
 import { createRoute, type RouteHandler } from '@hono/zod-openapi';
 import { z } from 'zod';
-import { dailyReadingSchema } from '../../../../readings/model';
+import { dailyReadingSchema } from '../../model';
+import { DEFAULT_READING_TIME_ZONE, timeZoneSchema } from '../../calendar';
+import { readings } from '../configured-readings';
 import {
-  DEFAULT_READING_TIME_ZONE,
-  timeZoneSchema
-} from '../../../../readings/calendar';
-import { readings } from '../../../../readings/server/configured-readings';
-import { privateHeaders, failed, headRoute, optionsRoute } from '../openapi';
-import { error, errorBody } from '../errors';
+  privateHeaders,
+  failed,
+  headRoute,
+  optionsRoute
+} from '../../../server/http/openapi';
+import { error, errorBody } from '../../../server/http/errors';
 import type { OpenAPIHono } from '@hono/zod-openapi';
-import type { SessionEnvironment } from '../middleware';
+import type { SessionEnvironment } from '../../../server/http/middleware';
 
 export const dailyReadingRoute = createRoute({
   method: 'get',

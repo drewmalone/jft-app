@@ -1,10 +1,12 @@
 # Microphone permission handling and iPhone Safari verification
 
+Use this checklist with each selected provider. Soniox capture is owned by its browser SDK; the WebRTC-specific notes below describe the OpenAI adapter.
+
 The OpenAI engine calls `getUserMedia` directly from the recording tap, before network requests or asynchronous permission queries. The returned stream is used for the WebRTC session. There is one capture request per recording, with no temporary preflight stream or competing capture sessions. The browser manages saved website permission; another tap cannot force a denied native prompt to reopen. No `navigator.permissions` dependency is required.
 
 Cancel, page hiding, navigation, and unmount invalidate startup even while the native permission prompt is pending. Browsers do not provide an abort signal for `getUserMedia`: a pending prompt may remain visible. If it later grants access, the engine stops those tracks and never starts the canceled transport. Startup also has a bounded timeout. Permission errors distinguish Safari site permission, browser security/HTTPS, and missing/busy devices. Connection/provider failures do not claim microphone denial.
 
-OpenAI processes the audio remotely after the WebRTC connection starts. No raw audio is stored or played by the app. Finalized words remain in the editable draft through errors; provisional text is not saved. See [processing, retention, and cost](../README.md#processing-retention-and-cost) and [Amplify configuration](TRANSCRIPTION.md).
+OpenAI processes the audio remotely after the WebRTC connection starts. No raw audio is stored or played by the app. Finalized words remain in the editable draft through errors; provisional text is not saved. See [processing, retention, and cost](SECURITY_OPERATIONS.md#privacy-and-retention) and [Amplify configuration](TRANSCRIPTION.md).
 
 ## Test locally from an iPhone with a Mac
 
@@ -26,7 +28,7 @@ Open the printed `https://….trycloudflare.com` URL directly in Safari on the p
 
 `next.config.ts` preserves `allowedDevOrigins: ['*.trycloudflare.com']` so changing Quick Tunnel hostnames can load development assets and connect to `/_next/hmr`. It affects only the Next.js development server; restart it after changing configuration. To narrow the allowlist, use the current tunnel hostname without scheme, port, or path, and restart when it changes.
 
-Quick Tunnel URLs are publicly reachable. Use fictional text and keep `STT_ENABLED` unset for layout/typing-only checks. Prefer a protected Amplify preview for paid live transcription, with the branch access and project controls in the deployment guide. Never expose API keys in the tunnel command, client variables, browser console, or logs.
+Quick Tunnel URLs are publicly reachable. Use fictional text and keep `TRANSCRIPTION_ENABLED` and `CLEANUP_ENABLED` false for layout/typing-only checks. Prefer a protected Amplify preview for paid live transcription, with the branch access and project controls in the deployment guide. Never expose API keys in the tunnel command, client variables, browser console, or logs.
 
 ### Disabled microphone or no permission prompt
 

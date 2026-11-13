@@ -1,4 +1,4 @@
-import { requestJson } from '../http-client';
+import { requestJson } from '../../http/client';
 import { cleanupTextSchema } from './model';
 
 /** One cancellable cleanup request; never retries or saves a share, and never returns provider error details. */

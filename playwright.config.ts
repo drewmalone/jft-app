@@ -54,6 +54,11 @@ export default defineConfig({
         SESSION_SECRET: 'fictional-playwright-session-secret-at-least-32-bytes',
         // Never issue real credentials, even when local/provider environment settings are enabled.
         STT_ENABLED: 'false',
+        TRANSCRIPTION_ENABLED: 'false',
+        CLEANUP_ENABLED: 'true', // Exercise cleanup UI through page mocks; real server credentials are blank.
+        STT_OPENAI_API_KEY: '',
+        STT_OPENAI_SECRET_ARN: '',
+        STT_SONIOX_SECRET_ARN: '',
         STT_PROVIDER: parseTranscriptionProvider(process.env.STT_PROVIDER)
       }
     },

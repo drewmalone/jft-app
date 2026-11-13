@@ -1,3 +1,4 @@
+import { serverServices } from '../server/services';
 import { cookies } from 'next/headers';
 import {
   readingTimeZone,
@@ -28,7 +29,13 @@ export default async function Home() {
   }
   return (
     <TranscriptionBootstrap provider={transcriptionProvider()}>
-      <ShareApp initialReading={daily} />
+      <ShareApp
+        initialReading={daily}
+        cleanupEnabled={
+          serverServices.features.cleanup.enabled &&
+          !serverServices.features.cleanup.disabled
+        }
+      />
     </TranscriptionBootstrap>
   );
 }

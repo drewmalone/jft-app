@@ -5,9 +5,9 @@ import SwaggerParser from '@apidevtools/swagger-parser';
 import type { OpenAPIV3_1 } from 'openapi-types';
 import Ajv2020, { type AnySchema } from 'ajv/dist/2020';
 import addFormats from 'ajv-formats';
-import { dispatch, getOpenApiDocument } from '../../src/shares/server/app';
+import { dispatch, getOpenApiDocument } from '../../src/server/app';
 import { MAX_SHARE_TEXT_LENGTH } from '../../src/shares/model';
-import { MAX_SHARE_REQUEST_BYTES } from '../../src/shares/server/http/errors';
+import { MAX_SHARE_REQUEST_BYTES } from '../../src/server/http/errors';
 import {
   collectionAllow,
   detailAllow
@@ -471,6 +471,24 @@ test('paid operations share documented errors, origin requirements, expiry and r
   await contract(
     await request('OPTIONS', '/api/transcription/session'),
     '/api/transcription/session',
+    'options'
+  );
+});
+
+test('session preparation documents success, same-origin failures and discovery without storage dependencies', async () => {
+  const ready = await request('POST', '/api/session', undefined, undefined, {
+    origin: 'http://localhost'
+  });
+  assert.equal(ready.status, 200);
+  assert.deepEqual(await ready.clone().json(), { ready: true });
+  await contract(ready, '/api/session', 'post');
+  const rejected = await request('POST', '/api/session');
+  assert.equal(rejected.status, 403);
+  assert.equal(rejected.headers.get('set-cookie'), null);
+  await contract(rejected, '/api/session', 'post');
+  await contract(
+    await request('OPTIONS', '/api/session'),
+    '/api/session',
     'options'
   );
 });

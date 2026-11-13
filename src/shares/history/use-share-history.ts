@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { readShares, type ShareHistoryPage } from '../api';
 import type { Share } from '../model';
 
@@ -16,17 +16,15 @@ export type ShareHistoryState =
       moreError: string;
     };
 
-/** Ignore stale reads and block saving until session bootstrap succeeds. */
+/** Read history on demand after session readiness; stale responses never replace newer pages. */
 export function useShareHistory() {
   const [history, setHistory] = useState<ShareHistoryState>({
     status: 'loading'
   });
-  const [sessionReady, setSessionReady] = useState(false);
   const requestId = useRef(0);
   const pageRequest = useRef<symbol | null>(null);
-  const bootstrapRequest = useRef<Promise<ShareHistoryPage> | null>(null);
 
-  async function load(request: Promise<ShareHistoryPage>) {
+  const load = useCallback(async (request: Promise<ShareHistoryPage>) => {
     const current = ++requestId.current;
     pageRequest.current = null;
     setHistory({ status: 'loading' });
@@ -40,7 +38,6 @@ export function useShareHistory() {
           loadingMore: false,
           moreError: ''
         });
-        setSessionReady(true);
       }
     } catch (cause) {
       if (current === requestId.current)
@@ -48,30 +45,16 @@ export function useShareHistory() {
           status: 'failed',
           message: `Your saved shares could not be read. ${cause instanceof Error ? cause.message : 'Check your connection and try again.'}`
         });
-    } finally {
-      if (current === requestId.current && bootstrapRequest.current === request)
-        bootstrapRequest.current = null;
     }
-  }
+  }, []);
 
   function invalidate() {
     requestId.current++;
     pageRequest.current = null;
   }
 
-  useEffect(() => {
-    // Reuse only the bootstrap read across Strict Mode effects to issue one cookie.
-    bootstrapRequest.current ??= readShares();
-    void load(bootstrapRequest.current);
-    return invalidate;
-  }, []);
-
-  function refresh() {
-    if (sessionReady) return load(readShares());
-    // Before readiness, all retries share one request so owners cannot race.
-    bootstrapRequest.current ??= readShares();
-    return load(bootstrapRequest.current);
-  }
+  useEffect(() => invalidate, []);
+  const refresh = useCallback(() => load(readShares()), [load]);
 
   async function loadMore() {
     if (
@@ -118,5 +101,5 @@ export function useShareHistory() {
       if (pageRequest.current === token) pageRequest.current = null;
     }
   }
-  return { history, sessionReady, refresh, loadMore };
+  return { history, refresh, loadMore };
 }

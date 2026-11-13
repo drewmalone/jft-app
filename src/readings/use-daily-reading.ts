@@ -6,7 +6,7 @@ import {
   readingTimeZone,
   READING_TIME_ZONE_COOKIE
 } from './calendar';
-import { requestJson } from '../shares/http-client';
+import { requestJson } from '../http/client';
 
 /** Resolve browser timezone explicitly and refresh at date rollover without polling the database. */
 export function useDailyReading(initial: DailyReading) {
