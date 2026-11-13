@@ -57,9 +57,17 @@ test('Stop automatically tidies final text, waits before saving, and preserves p
   const transcriptBox = await page
     .getByRole('region', { name: 'Live share transcript' })
     .boundingBox();
-  expect(loadingBox!.y + loadingBox!.height).toBeLessThanOrEqual(
-    transcriptBox!.y
-  );
+  if (page.viewportSize()!.width < 768) {
+    const panelBox = await page.locator('.recording-panel').boundingBox();
+    expect(loadingBox!.y).toBeGreaterThanOrEqual(panelBox!.y);
+    expect(loadingBox!.y + loadingBox!.height).toBeLessThanOrEqual(
+      panelBox!.y + panelBox!.height
+    );
+  } else {
+    expect(loadingBox!.y + loadingBox!.height).toBeLessThanOrEqual(
+      transcriptBox!.y
+    );
+  }
   await page.emulateMedia({ reducedMotion: 'reduce' });
   expect(
     await loading

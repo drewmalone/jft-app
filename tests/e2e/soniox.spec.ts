@@ -118,7 +118,11 @@ test('Soniox streams provisional words, drains Stop, repeats sessions, edits, sa
     page.getByRole('button', { name: 'Stop listening' })
   ).toBeVisible();
   await result(page, [['Draft guess', false]]);
-  await expect(page.getByText('Draft guess', { exact: false })).toBeVisible();
+  await expect(
+    page
+      .getByRole('region', { name: 'Live share transcript' })
+      .getByText('Draft guess', { exact: false })
+  ).toBeVisible();
   await result(page, [['Hel', true]]);
   await result(page, [
     ['lo', true],

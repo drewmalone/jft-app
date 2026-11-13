@@ -347,3 +347,102 @@ button:disabled {
     transition: none;
   }
 }
+
+/* One recorder, with a compact mobile presentation and the existing full editor. */
+.recording-preview-column {
+  display: none;
+}
+
+@media (max-width: 767px) {
+  body:has(.share-form) {
+    /* Reserve the entire dock plus the device's home-indicator area. */
+    padding-bottom: calc(200px + env(safe-area-inset-bottom, 0px));
+  }
+
+  .recording-panel {
+    position: fixed;
+    z-index: 30;
+    inset: auto 0 0;
+    display: grid;
+    grid-template-columns: 100px minmax(0, 1fr);
+    gap: 12px;
+    height: calc(184px + env(safe-area-inset-bottom, 0px));
+    box-sizing: border-box;
+    padding: 12px max(16px, env(safe-area-inset-right, 0px))
+      calc(12px + env(safe-area-inset-bottom, 0px))
+      max(12px, env(safe-area-inset-left, 0px));
+    background: var(--paper);
+    border-top: 1px solid var(--line);
+    box-shadow: 0 -4px 20px #102b3c08;
+  }
+
+  .recording-panel .microphone-ring {
+    padding: 4px;
+  }
+
+  .recording-panel .record-button {
+    width: 64px;
+    height: 64px;
+  }
+
+  .recording-panel .record-button svg {
+    width: 30px;
+    height: 30px;
+  }
+
+  .recording-panel .speech-bars {
+    display: none;
+  }
+
+  .recording-panel .listening-clock {
+    margin-top: 4px;
+    font-size: 14px;
+  }
+
+  .recording-microphone > p[aria-live] {
+    font-size: 12px;
+    line-height: 16px;
+    margin-top: 4px;
+  }
+
+  .recording-preview-column {
+    display: flex;
+    min-width: 0;
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .recording-preview {
+    height: 72px;
+    flex: none;
+    overflow: hidden;
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+    font-family: var(--font-serif);
+    font-size: 16px;
+    line-height: 24px;
+  }
+
+  .review-button {
+    align-self: flex-end;
+    min-height: 44px;
+    margin-top: 5px;
+    padding: 8px 12px;
+    border: 1px solid #bdc6cc;
+    border-radius: 8px;
+    color: var(--navy);
+    font-size: 14px;
+  }
+
+  .review-button:hover:not(:disabled) {
+    background: #f1eee5;
+  }
+
+  .transcript-editor {
+    scroll-margin-block: 24px 210px;
+  }
+
+  html {
+    scroll-padding-bottom: calc(200px + env(safe-area-inset-bottom, 0px));
+  }
+}

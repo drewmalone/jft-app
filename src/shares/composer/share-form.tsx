@@ -1,4 +1,4 @@
-import { useId } from 'react';
+import { useEffect, useId, useRef } from 'react';
 import { LiveTranscript } from './live-transcript';
 import { RecordingControls } from './recording/recording-controls';
 import { RecordingStatus } from './recording/recording-status';
@@ -38,45 +38,105 @@ export function ShareForm({
     onSave
   });
   const { voice } = composer;
+  const reviewRequested = useRef(false);
+  const editor = useRef<HTMLDivElement>(null);
+  const preview = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (preview.current)
+      preview.current.scrollTop = preview.current.scrollHeight;
+  }, [text, voice.interim]);
+  useEffect(() => {
+    // Keep the same recorder mounted until the provider has flushed its final words.
+    if (reviewRequested.current && !voice.active) {
+      editor.current?.scrollIntoView({ block: 'center', behavior: 'smooth' });
+      editor.current?.querySelector('textarea')?.focus({ preventScroll: true });
+      reviewRequested.current = false;
+    }
+  }, [voice.active]);
   const fieldId = useId();
   const errorId = `${fieldId}-error`;
   return (
-    <form onSubmit={composer.submit} className="mt-5">
+    <form onSubmit={composer.submit} className="share-form mt-5">
       <div
         className="voice-studio"
         data-paused={!voice.active && Boolean(voice.message)}
         data-listening={voice.state === 'listening'}
         data-speaking={voice.state === 'listening' && voice.speaking}
       >
-        <RecordingControls
-          state={voice.state}
-          active={voice.active}
-          disabled={composer.recordingDisabled}
-          onToggle={composer.toggleRecording}
-        />
-        <ListeningClock listening={voice.state === 'listening'} />
-        {cleanupStatus !== 'pending' && (
-          <RecordingStatus state={voice.state} message={voice.message} />
-        )}
-        {cleanupStatus === 'pending' && (
-          <div
-            role="status"
-            className="mt-3 flex items-center justify-center gap-2 text-sm text-[var(--muted)]"
-          >
-            <span
-              aria-hidden="true"
-              className="inline-block h-5 w-5 shrink-0 animate-spin rounded-full border-2 border-[var(--line)] border-t-[var(--navy)] motion-reduce:animate-none"
+        <div className="recording-panel">
+          <div className="recording-microphone">
+            <RecordingControls
+              state={voice.state}
+              active={voice.active}
+              disabled={composer.recordingDisabled}
+              onToggle={composer.toggleRecording}
             />
-            <span>Tidying!</span>
+            <ListeningClock listening={voice.state === 'listening'} />
+            {cleanupStatus !== 'pending' && (
+              <RecordingStatus state={voice.state} message={voice.message} />
+            )}
+            {cleanupStatus === 'pending' && (
+              <div
+                role="status"
+                className="mt-3 flex items-center justify-center gap-2 text-sm text-[var(--muted)]"
+              >
+                <span
+                  aria-hidden="true"
+                  className="inline-block h-5 w-5 shrink-0 animate-spin rounded-full border-2 border-[var(--line)] border-t-[var(--navy)] motion-reduce:animate-none"
+                />
+                <span>Tidying!</span>
+              </div>
+            )}
           </div>
-        )}
-        <LiveTranscript
-          text={text}
-          interim={voice.interim}
-          onTextChange={onTextChange}
-          readOnly={saving}
-          errorId={error ? errorId : undefined}
-        />
+          <div className="recording-preview-column">
+            <p className="eyebrow">Your words</p>
+            <div
+              ref={preview}
+              className="recording-preview"
+              role="region"
+              aria-label="Latest recognized words"
+              aria-live="off"
+            >
+              {text || (!voice.interim && 'Speak to begin…')}
+              {voice.interim && (
+                <span className="transcript-interim"> {voice.interim}</span>
+              )}
+            </div>
+            {(voice.active || Boolean(voice.message)) && (
+              <button
+                type="button"
+                className="review-button"
+                disabled={saving || voice.state === 'stopping'}
+                onClick={() => {
+                  if (voice.active) {
+                    reviewRequested.current = true;
+                    voice.stop();
+                  } else {
+                    editor.current?.scrollIntoView({
+                      block: 'center',
+                      behavior: 'smooth'
+                    });
+                    editor.current
+                      ?.querySelector('textarea')
+                      ?.focus({ preventScroll: true });
+                  }
+                }}
+              >
+                {voice.active ? 'Finish & review' : 'Review'}{' '}
+                <span aria-hidden="true">→</span>
+              </button>
+            )}
+          </div>
+        </div>
+        <div ref={editor} className="transcript-editor">
+          <LiveTranscript
+            text={text}
+            interim={voice.interim}
+            onTextChange={onTextChange}
+            readOnly={saving}
+            errorId={error ? errorId : undefined}
+          />
+        </div>
       </div>
       <div className="mt-3 text-sm text-[var(--muted)]" aria-live="polite">
         {cleanupStatus === 'failed' && (
@@ -95,6 +155,11 @@ export function ShareForm({
           </div>
         )}
       </div>
+      {voice.message && voice.message !== 'Tap to record more.' && (
+        <p role="alert" className="error mt-4 rounded-xl border p-4 text-sm">
+          {voice.message}
+        </p>
+      )}
       {error && (
         <p
           id={errorId}
