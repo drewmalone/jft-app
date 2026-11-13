@@ -71,3 +71,43 @@ run "no_opt_in_costs" {
     error_message = "Local/default setup must not create WAF or budget notifications."
   }
 }
+
+run "csp_post_rate_rule" {
+  command = plan
+  assert {
+    condition     = length([for rule in aws_wafv2_web_acl.security[0].rule : rule if rule.name == "csp" && rule.statement[0].rate_based_statement[0].limit == 300 && anytrue([for statement in rule.statement[0].rate_based_statement[0].scope_down_statement[0].and_statement[0].statement : try(statement.regex_match_statement[0].regex_string == "^/api/csp-report$", false)]) && anytrue([for statement in rule.statement[0].rate_based_statement[0].scope_down_statement[0].and_statement[0].statement : try(statement.byte_match_statement[0].search_string == "POST", false)])]) == 1
+    error_message = "CSP POSTs need their own per-IP rate rule."
+  }
+}
+run "production_missing_edge_and_budget_configuration" {
+  command = plan
+  variables {
+    environment    = "prod"
+    amplify_app_id = null
+    budget_emails  = []
+  }
+  expect_failures = [terraform_data.production_security, aws_s3_object.readings]
+}
+run "launch_cannot_remain_count_only" {
+  command = plan
+  variables {
+    environment             = "prod"
+    production_launch_ready = true
+    waf_block               = false
+  }
+  expect_failures = [terraform_data.production_security, aws_s3_object.readings]
+}
+run "reviewed_production_blocking_configuration" {
+  command = plan
+  variables {
+    environment             = "prod"
+    production_launch_ready = true
+    waf_block               = true
+    monthly_budget_usd      = { total = 100 }
+  }
+  expect_failures = [aws_s3_object.readings]
+  assert {
+    condition     = output.launch_security.launch_declared && output.launch_security.waf_mode == "BLOCK" && length(aws_budgets_budget.security) == 1 && aws_budgets_budget.security["total"].limit_amount == "100"
+    error_message = "A reviewed launch must select BLOCK and the explicit monthly budget."
+  }
+}

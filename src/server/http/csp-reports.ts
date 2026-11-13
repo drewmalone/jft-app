@@ -1,4 +1,5 @@
 import 'server-only';
+import { requestLimits } from '../../config/request-limits';
 import { createRoute, type OpenAPIHono } from '@hono/zod-openapi';
 import type { MiddlewareHandler } from 'hono';
 import { sameOrigin, type SessionEnvironment } from './middleware';
@@ -15,17 +16,25 @@ const discardReport: MiddlewareHandler = async (c, next) => {
   const reader = c.req.raw.body?.getReader();
   if (reader) {
     let size = 0;
+    let expired = false;
+    const timer = setTimeout(() => {
+      expired = true;
+      // Cancellation may itself hang; do not wait for the sender's acknowledgement.
+      void reader.cancel().catch(() => {});
+    }, requestLimits.cspReportMs);
     try {
       for (;;) {
         const { done, value } = await reader.read();
+        if (expired) return error('REQUEST_TIMEOUT');
         if (done) break;
         size += value.byteLength;
         if (size > 8192) {
-          await reader.cancel();
+          void reader.cancel().catch(() => {});
           return error('PAYLOAD_TOO_LARGE');
         }
       }
     } finally {
+      clearTimeout(timer);
       reader.releaseLock();
     }
   }
@@ -40,7 +49,7 @@ export function registerCspReports(app: OpenAPIHono<SessionEnvironment>) {
       tags: ['Security'],
       summary: 'Discard a browser CSP report safely',
       description:
-        'Same-origin report-only CSP destination. Accepts at most 8192 actual body bytes of opaque report data; discards all data without parsing, logging, issuing a cookie or contacting storage/providers. Browser developer tools retain violation diagnostics.',
+        'Same-origin report-only CSP destination. Accepts at most 8192 actual body bytes within five seconds of opaque report data; discards all data without parsing, logging, issuing a cookie or contacting storage/providers. Browser developer tools retain violation diagnostics.',
       middleware: [sameOrigin, discardReport] as const,
       security: [],
       responses: {
@@ -49,6 +58,7 @@ export function registerCspReports(app: OpenAPIHono<SessionEnvironment>) {
           headers: privateHeaders
         },
         403: failed(['CROSS_ORIGIN_REQUEST']),
+        408: failed(['REQUEST_TIMEOUT']),
         413: failed(['PAYLOAD_TOO_LARGE']),
         ...commonFailures
       }

@@ -30,6 +30,10 @@ output "quota_table_name" { value = aws_dynamodb_table.quotas.name }
 variable "budget_emails" {
   type    = set(string)
   default = []
+  validation {
+    condition     = length(var.budget_emails) <= 10 && alltrue([for email in var.budget_emails : can(regex("^[^@[:space:]]+@[^@[:space:]]+[.][^@[:space:]]+$", email))])
+    error_message = "Supply at most ten valid budget recipient email addresses."
+  }
 }
 variable "monthly_budget_usd" {
   description = "Example launch alert thresholds, not hard spending limits. Empty disables budgets."
@@ -78,4 +82,33 @@ variable "dynamodb_max_write_units" {
   description = "Optional on-demand write ceiling per table/index; -1 means uncapped. May throttle legitimate traffic."
   type        = number
   default     = -1
+}
+
+
+variable "production_launch_ready" {
+  type        = bool
+  default     = false
+  description = "Explicit launch declaration after observing COUNT metrics and verifying live association/alerts. Requires BLOCK mode; not proof of live AWS state."
+}
+resource "terraform_data" "production_security" {
+  lifecycle {
+    precondition {
+      condition     = var.environment != "prod" || (var.amplify_app_id != null && length(var.budget_emails) > 0 && contains(keys(var.monthly_budget_usd), "total"))
+      error_message = "Production requires the existing Amplify app ID, budget recipients, and a reviewed total monthly USD budget."
+    }
+    precondition {
+      condition     = !var.production_launch_ready || (var.environment == "prod" && var.waf_block)
+      error_message = "Production launch readiness requires production with WAF BLOCK enabled after COUNT observation and live verification."
+    }
+  }
+}
+output "launch_security" {
+  value = {
+    launch_declared                      = var.production_launch_ready
+    waf_mode                             = var.waf_block ? "BLOCK" : "COUNT"
+    amplify_app_id                       = var.amplify_app_id
+    budget_names                         = [for budget in aws_budgets_budget.security : budget.name]
+    csp_requests_per_ip_per_five_minutes = var.waf_rate_limits["csp"]
+  }
+  description = "Declared plan configuration only. Complete docs/PRELAUNCH.md against live AWS before launch."
 }

@@ -11,6 +11,10 @@ variable "amplify_app_id" {
   description = "Existing Amplify app; null creates no WAF or association. Association covers every branch of the app."
   type        = string
   default     = null
+  validation {
+    condition     = var.amplify_app_id == null ? true : can(regex("^d[a-z0-9]+$", var.amplify_app_id))
+    error_message = "Use the actual existing Amplify app ID, or null outside production."
+  }
 }
 variable "waf_block" {
   description = "Start in COUNT; enable blocking after reviewing aggregate metrics."
@@ -21,11 +25,11 @@ variable "waf_rate_limits" {
   description = "Requests per source IP per five minutes; allow shared meeting networks."
   type        = map(number)
   default = {
-    api = 5000, paid = 300, create = 500, public = 3000
+    api = 5000, paid = 300, create = 500, public = 3000, csp = 300
   }
   validation {
-    condition     = alltrue([for key in ["api", "paid", "create", "public"] : try(var.waf_rate_limits[key] >= 10, false)])
-    error_message = "Supply all four rate thresholds, at least 10 each."
+    condition     = alltrue([for key in ["api", "paid", "create", "public", "csp"] : try(var.waf_rate_limits[key] >= 10, false)])
+    error_message = "Supply all five rate thresholds, at least 10 each."
 
   }
 }
@@ -56,6 +60,8 @@ resource "aws_wafv2_web_acl" "security" {
         priority = 30, pattern = "^/api/(shares|session)$"
         }, public = {
         priority = 40, pattern = "^/(s/|api/public/shares/)"
+        }, csp = {
+        priority = 45, pattern = "^/api/csp-report$"
       }
     }
     content {
@@ -95,7 +101,7 @@ resource "aws_wafv2_web_acl" "security" {
               statement {
                 byte_match_statement {
                   positional_constraint = "EXACTLY"
-                  search_string         = contains(["paid", "create"], rule.key) ? "POST" : "GET"
+                  search_string         = contains(["paid", "create", "csp"], rule.key) ? "POST" : "GET"
                   field_to_match {
                     method {}
                   }

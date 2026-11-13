@@ -4,6 +4,8 @@ mock_provider "aws" {
 
 mock_provider "aws" {
   override_during = plan
+  mock_data "aws_partition" { defaults = { partition = "aws" } }
+  mock_data "aws_region" { defaults = { region = "us-west-2" } }
   mock_resource "aws_s3_bucket" {
     defaults = { arn = "arn:aws:s3:::fictional-readings", id = "fictional-readings" }
   }
@@ -81,6 +83,9 @@ run "leap_day_is_a_valid_annual_key" {
 run "production_partial_catalog_is_rejected_even_without_sample_label" {
   command = plan
   variables {
+    amplify_app_id     = "dfictionalapp"
+    budget_emails      = ["operator@example.com"]
+    monthly_budget_usd = { total = 100 }
     environment        = "prod"
     readings_sample    = false
     readings_yaml_path = "tests/fixtures/leap-day-readings.yaml"

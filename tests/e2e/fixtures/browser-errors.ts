@@ -35,7 +35,7 @@ export function browserErrorCategory(
   // Endpoint tests assert those statuses; missing scripts/styles and other console errors still fail.
   if (
     observedHttpFailure &&
-    /^Failed to load resource: the server responded with a status of (400|403|404|405|409|413|415|429|500|502|503)\b/.test(
+    /^Failed to load resource: the server responded with a status of (400|403|404|405|408|409|413|415|429|500|502|503)\b/.test(
       message
     )
   )

@@ -63,7 +63,11 @@ export const apiFailures = {
   },
   PAYLOAD_TOO_LARGE: {
     status: 413,
-    message: 'The JSON request must not exceed 64 KiB.'
+    message: 'The request body exceeds the size limit for this endpoint.'
+  },
+  REQUEST_TIMEOUT: {
+    status: 408,
+    message: 'The request body was not received in time.'
   },
   SHARE_NOT_FOUND: { status: 404, message: 'Share not found.' },
   METHOD_NOT_ALLOWED: {
