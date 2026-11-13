@@ -29,7 +29,7 @@ test('typed and recording drafts retain their reading across rollover and naviga
     initialProps: { value: first }
   });
   await act(async () => {});
-  act(() => hook.result.current.cleanup.edit('Fictional draft.'));
+  act(() => hook.result.current.edit('Fictional draft.'));
   hook.rerender({ value: next });
   assert.equal(
     hook.result.current.displayedReading.reading?.id,
@@ -42,7 +42,7 @@ test('typed and recording drafts retain their reading across rollover and naviga
     hook.result.current.displayedReading.reading?.id,
     first.reading!.id
   );
-  act(() => hook.result.current.cleanup.edit(''));
+  act(() => hook.result.current.edit(''));
   assert.equal(
     hook.result.current.displayedReading.reading?.id,
     next.reading!.id

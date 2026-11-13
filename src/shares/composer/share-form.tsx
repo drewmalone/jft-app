@@ -2,42 +2,43 @@ import { useEffect, useId, useRef, useState } from 'react';
 import { LiveTranscript } from './live-transcript';
 import { RecordingControls } from './recording/recording-controls';
 import { RecordingStatus } from './recording/recording-status';
-import { ListeningClock } from './recording/listening-clock';
+import { ListeningClock, useListeningTime } from './recording/listening-clock';
 import { SaveShareButton } from './save-share-button';
 import {
   useShareComposer,
   type ShareComposerOptions
 } from './use-share-composer';
 
-type ShareFormProps = ShareComposerOptions & { error: string };
+type ShareFormProps = ShareComposerOptions & {
+  error: string;
+  onSaveOriginal?: () => void;
+};
 
 /** The parent owns the draft and clears it only after a confirmed save. */
 export function ShareForm({
   text,
-  cleanupStatus,
-  isCleanupPending,
-  onCleanup,
   sessionReady,
   readingReady,
   saving,
   error,
+  onSaveOriginal,
   onRecordingChange,
+  onPreparingChange,
   onTextChange,
   onSave
 }: ShareFormProps) {
   const composer = useShareComposer({
     text,
-    cleanupStatus,
-    isCleanupPending,
-    onCleanup,
     sessionReady,
     readingReady,
     saving,
     onRecordingChange,
+    onPreparingChange,
     onTextChange,
     onSave
   });
   const { voice } = composer;
+  const time = useListeningTime(voice.state === 'listening');
   const panel = useRef<HTMLDivElement>(null);
   const [editing, setEditing] = useState(false);
   useEffect(() => {
@@ -144,21 +145,11 @@ export function ShareForm({
               composer.toggleRecording();
             }}
           />
-          <ListeningClock listening={voice.state === 'listening'} />
-          {!showDock && cleanupStatus !== 'pending' && (
-            <RecordingStatus state={voice.state} message={voice.message} />
+          {!(showDock && voice.state === 'listening') && (
+            <ListeningClock time={time} />
           )}
-          {!showDock && cleanupStatus === 'pending' && (
-            <div
-              role="status"
-              className="mt-3 text-center text-sm text-[var(--muted)]"
-            >
-              <span
-                aria-hidden="true"
-                className="inline-block h-5 w-5 animate-spin rounded-full border-2 border-[var(--line)] border-t-[var(--navy)] motion-reduce:animate-none"
-              />{' '}
-              Tidying!
-            </div>
+          {!showDock && (
+            <RecordingStatus state={voice.state} message={voice.message} />
           )}
         </div>
         <div
@@ -175,20 +166,11 @@ export function ShareForm({
               disabled={composer.recordingDisabled}
               onToggle={composer.toggleRecording}
             />
-            {showDock && cleanupStatus !== 'pending' && (
-              <RecordingStatus state={voice.state} message={voice.message} />
+            {showDock && voice.state === 'listening' && (
+              <ListeningClock time={time} />
             )}
-            {showDock && cleanupStatus === 'pending' && (
-              <div
-                role="status"
-                className="mt-3 flex items-center justify-center gap-2 text-sm text-[var(--muted)]"
-              >
-                <span
-                  aria-hidden="true"
-                  className="inline-block h-5 w-5 shrink-0 animate-spin rounded-full border-2 border-[var(--line)] border-t-[var(--navy)] motion-reduce:animate-none"
-                />
-                <span>Tidying!</span>
-              </div>
+            {showDock && (
+              <RecordingStatus state={voice.state} message={voice.message} />
             )}
           </div>
           <div className="recording-preview-column">
@@ -226,23 +208,6 @@ export function ShareForm({
           />
         </div>
       </div>
-      <div className="mt-3 text-sm text-[var(--muted)]" aria-live="polite">
-        {cleanupStatus === 'failed' && (
-          <div>
-            <p role="alert">
-              Your text could not be tidied. Your original words are still here.
-            </p>
-            <button
-              type="button"
-              className="secondary mt-2 w-full"
-              disabled={composer.retryDisabled}
-              onClick={composer.retryCleanup}
-            >
-              Retry cleanup
-            </button>
-          </div>
-        )}
-      </div>
       {voice.message && voice.message !== 'Tap to record more.' && (
         <p role="alert" className="error mt-4 rounded-xl border p-4 text-sm">
           {voice.message}
@@ -251,11 +216,23 @@ export function ShareForm({
       {error && (
         <p
           id={errorId}
+          data-save-error
+          tabIndex={-1}
           role="alert"
           className="error mt-4 rounded-xl border p-4 text-sm leading-relaxed"
         >
           {error}
         </p>
+      )}
+      {onSaveOriginal && (
+        <button
+          type="button"
+          className="secondary mt-3 w-full"
+          disabled={saving || voice.active}
+          onClick={onSaveOriginal}
+        >
+          Save original words
+        </button>
       )}
       <SaveShareButton saving={saving} disabled={composer.saveDisabled} />
     </form>

@@ -4,18 +4,27 @@ import { mockSpeech, emit } from './fixtures/openai-browser';
 for (const target of ['dock', 'editor']) {
   test(`${target} Save flushes recording, waits for cleanup, and saves exactly once`, async ({
     page
-  }) => {
+  }, testInfo) => {
     await page.setViewportSize({ width: 320, height: 568 });
     await mockSpeech(page);
     let release!: () => void;
     const pending = new Promise<void>((resolve) => {
       release = resolve;
     });
-    await page.route('**/api/shares/cleanup', async (route) => {
+    await page.route('**/api/shares', async (route) => {
+      if (route.request().method() !== 'POST') return route.continue();
+      const input = route.request().postDataJSON();
+      expect(input.tidy).toBe(true);
+      expect(input.text).toContain('Corrected final words.');
       await pending;
-      await route.fulfill({
-        json: { text: 'Earlier words. Corrected final words.' }
+      const response = await route.fetch({
+        postData: JSON.stringify({
+          ...input,
+          text: 'Earlier words. Corrected final words.',
+          tidy: false
+        })
       });
+      await route.fulfill({ response });
     });
     let saves = 0;
     page.on('request', (request) => {
@@ -52,17 +61,30 @@ for (const target of ['dock', 'editor']) {
     );
     await button.evaluate((el) => el.scrollIntoView({ block: 'center' }));
     await button.click();
+    await expect(
+      page.getByRole('heading', { name: 'Preparing your share…' })
+    ).toBeFocused();
+    await page.screenshot({ path: testInfo.outputPath('preparing-share.png') });
     await expect(button).toBeDisabled();
+    await expect(
+      page.getByRole('button', { name: 'Past shares', exact: true })
+    ).toBeDisabled();
     await emit(page, 'speechResult', [
       ['Earlier words. '.repeat(30), true],
       ['Corrected final words.', true]
     ]);
     await emit(page, 'speechEnd');
-    await expect(page.getByRole('textbox')).toHaveValue(
+    await expect(page.locator('textarea[aria-label="Your share"]')).toHaveValue(
       /Corrected final words\./
     );
-    await expect(page.getByRole('status')).toHaveText('Tidying!');
-    expect(saves).toBe(0);
+    await expect(
+      page.getByRole('heading', { name: 'Your share is saved.' })
+    ).toHaveCount(0);
+    await page.locator('form').evaluate((form: HTMLFormElement) => {
+      form.requestSubmit();
+      form.requestSubmit();
+    });
+    await expect.poll(() => saves).toBe(1);
     const saved = page.waitForResponse(
       (r) => r.request().method() === 'POST' && r.url().endsWith('/api/shares')
     );
@@ -153,4 +175,50 @@ test('inline microphone and dock hand off without restarting the recording', asy
   expect(
     await page.evaluate(() => Reflect.get(window, 'microphoneRequests'))
   ).toBe(1);
+});
+
+test('one recording timer survives pauses and dock handoffs; the microphone pulses unless motion is reduced', async ({
+  page
+}, testInfo) => {
+  await page.setViewportSize({ width: 375, height: 667 });
+  await page.clock.install();
+  await mockSpeech(page);
+  await page.goto('/');
+  await page.getByRole('button', { name: 'Record your share' }).click();
+  await emit(page, 'speechStart');
+  const time = page.getByRole('timer');
+  await expect(time).toHaveText('00:00');
+  await expect(time).toHaveAttribute('aria-live', 'off');
+  const ring = page
+    .getByRole('button', { name: 'Stop listening' })
+    .locator('..');
+  await expect(ring).toHaveCSS('animation-name', 'recording-pulse');
+  await page.clock.fastForward(2200);
+  await expect(time).toHaveText('00:02');
+  await page.screenshot({ path: testInfo.outputPath('recording-timer.png') });
+  await page
+    .locator('.inline-recorder')
+    .evaluate((el) => el.scrollIntoView({ block: 'center' }));
+  await expect(time).toBeVisible();
+  await expect(time).toHaveText('00:02');
+  await page.emulateMedia({ reducedMotion: 'reduce' });
+  await expect(ring).toHaveCSS('animation-name', 'none');
+  await page.emulateMedia({ reducedMotion: 'no-preference' });
+  await emit(page, 'speechResult', [['Timer test words.', true]]);
+  await emit(page, 'speechEnd');
+  const paused = await page.getByLabel('Listening time').textContent();
+  await page.clock.fastForward(5000);
+  await expect(page.getByLabel('Listening time')).toHaveText(paused!);
+  await expect(page.locator('.inline-recorder .microphone-ring')).toHaveCSS(
+    'animation-name',
+    'none'
+  );
+  await page.getByRole('button', { name: 'Record your share' }).click();
+  await emit(page, 'speechStart');
+  await page.clock.fastForward(1100);
+  await page.evaluate(() => window.scrollTo(0, 0));
+  await expect(page.getByRole('timer')).not.toHaveText(paused!);
+  expect(
+    await page.evaluate(() => Reflect.get(window, 'microphoneRequests'))
+  ).toBe(2);
 });

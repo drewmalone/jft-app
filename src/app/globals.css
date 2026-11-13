@@ -411,7 +411,7 @@ button:disabled {
     font-size: 14px;
   }
 
-  .recording-microphone > p[aria-live] {
+  .recording-microphone > p[aria-live='polite'] {
     font-size: 12px;
     line-height: 16px;
     margin-top: 4px;
@@ -461,10 +461,7 @@ button:disabled {
 }
 
 @media (max-width: 767px) {
-  .recording-panel .listening-clock {
-    display: none;
-  }
-  .recording-microphone > p[aria-live] {
+  .recording-microphone > p[aria-live='polite'] {
     font-size: 11px;
     line-height: 14px;
   }
@@ -483,5 +480,26 @@ button:disabled {
   .recording-panel {
     transition: none;
     transform: none;
+  }
+}
+
+/* A quiet halo communicates an open microphone even between spoken words. */
+@keyframes recording-pulse {
+  0%,
+  100% {
+    box-shadow: 0 0 0 0 #345c7126;
+  }
+  50% {
+    box-shadow: 0 0 0 5px #345c7108;
+  }
+}
+
+.voice-studio[data-listening='true'] .microphone-ring {
+  animation: recording-pulse 2s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .voice-studio[data-listening='true'] .microphone-ring {
+    animation: none;
   }
 }

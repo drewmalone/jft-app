@@ -186,7 +186,7 @@ test('prevents duplicate submissions and waits for server confirmation', async (
   await expect(page.locator('button.primary[type="submit"]')).toHaveText(
     'Saving…'
   );
-  await expect(page.getByRole('textbox')).toHaveValue(
+  await expect(page.locator('textarea[aria-label="Your share"]')).toHaveValue(
     'A fictional pending thought.'
   );
   await page.locator('form').evaluate((form: HTMLFormElement) => {

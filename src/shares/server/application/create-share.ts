@@ -11,7 +11,8 @@ export async function createShareForReading(
   input: z.infer<typeof createShareSchema>,
   timeZone: string,
   source: Pick<typeof readings, 'findByDate' | 'today'> = readings,
-  repository: Pick<ShareRepository, 'create'> = shareRepository
+  repository: Pick<ShareRepository, 'create'> = shareRepository,
+  prepareText: (text: string) => Promise<string> = async (text) => text
 ) {
   let reading;
   try {
@@ -25,6 +26,10 @@ export async function createShareForReading(
   if (input.readingId && reading.id !== input.readingId)
     return { error: 'READING_CHANGED' } as const;
   return {
-    share: await repository.create(ownerId, input.text, reading)
+    share: await repository.create(
+      ownerId,
+      await prepareText(input.text),
+      reading
+    )
   } as const;
 }

@@ -16,7 +16,7 @@ async function accessible(page: Page) {
   ).toEqual([]);
 }
 
-test('composer, listening, Tidying and editable results pass accessibility scans', async ({
+test('recording, preparing, and saved results pass accessibility scans', async ({
   page
 }) => {
   await mockSpeech(page);
@@ -24,11 +24,9 @@ test('composer, listening, Tidying and editable results pass accessibility scans
   const pending = new Promise<void>((resolve) => {
     release = resolve;
   });
-  await page.route('**/api/shares/cleanup', async (route) => {
-    await pending;
-    await route.fulfill({
-      json: { text: 'A fictional reflection.\n\nAnother thought.' }
-    });
+  await page.route('**/api/shares', async (route) => {
+    if (route.request().method() === 'POST') await pending;
+    await route.continue();
   });
   await page.goto('/');
   await expect(
@@ -41,13 +39,21 @@ test('composer, listening, Tidying and editable results pass accessibility scans
     ['A fictional reflection. Another thought.', true]
   ]);
   await accessible(page);
+  // Use the primary action on desktop, where the dock is intentionally absent.
+  const save =
+    page.viewportSize()!.width < 768
+      ? page.locator('.dock-save-button')
+      : page.locator('button.primary[type="submit"]');
+  await save.click();
+  await expect(
+    page.getByRole('heading', { name: 'Preparing your share…' })
+  ).toBeFocused();
   await emit(page, 'speechEnd');
-  await expect(page.getByRole('status')).toHaveText('Tidying!');
   await accessible(page);
   release();
-  await expect(page.getByRole('textbox')).toHaveValue(
-    'A fictional reflection.\n\nAnother thought.'
-  );
+  await expect(
+    page.getByRole('heading', { name: 'Your share is saved.' })
+  ).toBeVisible();
   await accessible(page);
 });
 

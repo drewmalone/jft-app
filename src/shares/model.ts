@@ -9,6 +9,10 @@ const nonblankText = z.string().refine((value) => value.trim().length > 0, {
 });
 /** Accept text and optional reading date/revision selectors; the server supplies the authoritative snapshot. */
 export const createShareSchema = z.strictObject({
+  tidy: z.boolean().optional().meta({
+    description:
+      'Opt in to server-side copyediting before saving; requires an exact Origin and an existing session. Cleanup is skipped when transcription is disabled.'
+  }),
   readingDate: z.iso.date().optional(),
   readingId: z.string().min(1).max(500).optional(),
   text: z

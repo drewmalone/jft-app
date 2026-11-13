@@ -4,7 +4,6 @@ import { ApiRequestError } from './http-client';
 import { useEffect, useRef, useState, type FormEvent } from 'react';
 import type { Share } from './model';
 import { readShare, saveShare } from './api';
-import { useShareCleanup } from './cleanup/use-share-cleanup';
 import { useShareHistory } from './history/use-share-history';
 
 type Screen =
@@ -24,7 +23,7 @@ export function useShareApplication(
   const { text, needsReview, displayedReading, recordingChanged, canReview } =
     draft;
   const reading = displayedReading.reading;
-  const cleanup = useShareCleanup(text, draft.edit);
+  const [preparing, setPreparing] = useState(false);
   const {
     history,
     sessionReady,
@@ -32,6 +31,7 @@ export function useShareApplication(
     loadMore
   } = useShareHistory();
   const [saveError, setSaveError] = useState('');
+  const [cleanupFailed, setCleanupFailed] = useState(false);
   const [saving, setSaving] = useState(false);
   const savePending = useRef(false);
   const mounted = useRef(false);
@@ -47,7 +47,6 @@ export function useShareApplication(
     };
   }, []);
   function navigate(next: Screen) {
-    cleanup.cancel();
     detailRequest.current++;
     setDetailState({ status: 'idle' });
     setScreen(next);
@@ -68,30 +67,40 @@ export function useShareApplication(
         });
     }
   }
-  async function save(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    if (savePending.current || !sessionReady || needsReview) return;
+  async function save(event?: FormEvent<HTMLFormElement>, tidy = true) {
+    event?.preventDefault();
+    if (savePending.current) return;
+    if (!sessionReady || needsReview) {
+      setPreparing(false);
+      return;
+    }
     if (!reading) {
+      setPreparing(false);
       setSaveError(
         'The daily reading is unavailable. Your words are still here.'
       );
       return;
     }
     if (!text.trim()) {
+      setPreparing(false);
       setSaveError('Write a few words before saving your share.');
       return;
     }
     savePending.current = true;
     setSaving(true);
+    setPreparing(true);
+    setCleanupFailed(false);
     setSaveError('');
     try {
-      const share = await saveShare(text, reading.date, reading.id);
+      const share = await saveShare(text, reading.date, reading.id, tidy);
       if (!mounted.current) return;
-      cleanup.cancel();
       draft.reset();
       navigate({ view: 'saved', share });
     } catch (cause) {
       if (!mounted.current) return;
+      setCleanupFailed(
+        cause instanceof ApiRequestError && cause.code === 'CLEANUP_UNAVAILABLE'
+      );
       if (
         cause instanceof ApiRequestError &&
         cause.code === 'READING_CHANGED'
@@ -104,7 +113,10 @@ export function useShareApplication(
       );
     } finally {
       savePending.current = false;
-      if (mounted.current) setSaving(false);
+      if (mounted.current) {
+        setSaving(false);
+        setPreparing(false);
+      }
     }
   }
   return {
@@ -120,12 +132,19 @@ export function useShareApplication(
     },
     screen,
     text,
-    cleanup,
+    preparing,
+    preparingChanged: setPreparing,
+    edit: draft.edit,
     history,
     sessionReady,
     loadHistory,
     loadMore,
     saveError,
+    saveOriginal: cleanupFailed
+      ? () => {
+          void save(undefined, false);
+        }
+      : undefined,
     saving,
     detailState,
     navigate,

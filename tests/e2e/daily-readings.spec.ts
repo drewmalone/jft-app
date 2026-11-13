@@ -59,7 +59,8 @@ test('browser supplies its timezone and saving keeps the displayed reading acros
     expect(route.request().postDataJSON()).toEqual({
       text: 'Fictional thoughts about the displayed reading.',
       readingDate: date,
-      readingId: reading.id
+      readingId: reading.id,
+      tidy: true
     });
     const id = randomUUID();
     await route.fulfill({

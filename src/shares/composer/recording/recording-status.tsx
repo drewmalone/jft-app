@@ -26,7 +26,11 @@ export function RecordingStatus({
       : statusLabels[state];
   return (
     <p
-      className="mt-2 text-center text-sm text-[var(--muted)]"
+      className={
+        state === 'listening'
+          ? 'sr-only'
+          : 'mt-2 text-center text-sm text-[var(--muted)]'
+      }
       aria-live="polite"
       title={message || undefined}
     >

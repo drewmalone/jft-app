@@ -12,9 +12,6 @@ async function mockSoniox(page: Page) {
       json: { value: 'synthetic-temporary', expires_at: 9999999999 }
     });
   });
-  await page.route('**/api/shares/cleanup', (route) =>
-    route.fulfill({ json: { text: route.request().postDataJSON().text } })
-  );
   await page.addInitScript(() => {
     const sockets: Socket[] = [];
     class Track extends EventTarget {

@@ -250,7 +250,7 @@ test('large microphone reacts to speech and pauses while the prompter follows wo
   await record.click();
   await emit(page, 'speechStart');
   await expect(studio).toHaveAttribute('data-speaking', 'false');
-  await expect(page.getByText('Listening…', { exact: true })).toBeVisible();
+  await expect(page.getByLabel('Listening time')).toBeVisible();
   await emit(page, 'speechActivity', true);
   await expect(studio).toHaveAttribute('data-speaking', 'true');
   expect(
