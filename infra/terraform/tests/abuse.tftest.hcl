@@ -49,7 +49,7 @@ run "security_resources" {
 }
 run "production_isolation" {
   expect_failures = [aws_s3_object.readings]
-  command = plan
+  command         = plan
   variables { environment = "prod" }
   assert {
     condition     = aws_dynamodb_table.quotas.name == "review-prod-quotas" && aws_dynamodb_table.shares.name == "review-prod-shares"

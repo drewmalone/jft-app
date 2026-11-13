@@ -123,6 +123,10 @@ export const openApiConfiguration = {
   servers: [{ url: '/', description: 'Same origin as the application.' }],
   tags: [
     {
+      name: 'Security',
+      description: 'Bounded CSP reports discarded without retention.'
+    },
+    {
       name: 'Session',
       description:
         'Signed anonymous browser session preparation; independent of storage and providers.'

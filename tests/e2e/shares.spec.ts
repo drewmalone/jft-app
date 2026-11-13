@@ -579,6 +579,9 @@ test('HTTP responses include browser security defaults', async ({
     expect(headers['content-security-policy-report-only']).toContain(
       'api.openai.com'
     );
+    expect(headers['content-security-policy-report-only']).toContain(
+      'report-uri /api/csp-report'
+    );
     expect(headers['strict-transport-security']).toBeUndefined();
   }
 });

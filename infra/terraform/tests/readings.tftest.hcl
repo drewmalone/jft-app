@@ -23,7 +23,7 @@ variables {
 run "private_catalog_and_read_only_runtime" {
   command = plan
   assert {
-    condition = output.runtime_environment.READINGS_SAMPLE == "true" && output.runtime_environment.DEPLOYMENT_ENV == "dev" && output.runtime_environment.QUOTA_TABLE_NAME == aws_dynamodb_table.quotas.name
+    condition     = output.runtime_environment.READINGS_SAMPLE == "true" && output.runtime_environment.DEPLOYMENT_ENV == "dev" && output.runtime_environment.QUOTA_TABLE_NAME == aws_dynamodb_table.quotas.name
     error_message = "Runtime must preserve sample labeling and explicit deployment/storage isolation."
   }
   assert {
@@ -81,8 +81,8 @@ run "leap_day_is_a_valid_annual_key" {
 run "production_partial_catalog_is_rejected_even_without_sample_label" {
   command = plan
   variables {
-    environment = "prod"
-    readings_sample = false
+    environment        = "prod"
+    readings_sample    = false
     readings_yaml_path = "tests/fixtures/leap-day-readings.yaml"
   }
   expect_failures = [aws_s3_object.readings]

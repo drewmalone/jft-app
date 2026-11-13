@@ -1,3 +1,4 @@
+import { registerCspReports } from './http/csp-reports';
 import { registerSession } from '../session/server/bootstrap';
 import { registerDailyReading } from '../readings/server/http/read-daily-reading';
 import 'server-only';
@@ -54,6 +55,7 @@ const app = new OpenAPIHono<SessionEnvironment>({
 app.onError(handleApiError);
 registerDailyReading(app);
 registerSession(app);
+registerCspReports(app);
 app.openapi(listSharesRoute, listShares);
 app.openapi(createShareRoute, createShare);
 

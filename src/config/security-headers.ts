@@ -13,7 +13,7 @@ export function securityHeaders(hosted: boolean) {
     {
       key: 'Content-Security-Policy-Report-Only',
       value:
-        "default-src 'self'; script-src 'self' 'unsafe-inline' blob:; style-src 'self' 'unsafe-inline'; connect-src 'self' https://api.openai.com https://soniox.com https://*.soniox.com wss://*.soniox.com; img-src 'self' data: blob:; font-src 'self'; media-src 'self' blob:; worker-src 'self' blob:; manifest-src 'self'; form-action 'self'; " +
+        "default-src 'self'; script-src 'self' 'unsafe-inline' blob:; style-src 'self' 'unsafe-inline'; connect-src 'self' https://api.openai.com https://soniox.com https://*.soniox.com wss://*.soniox.com; img-src 'self' data: blob:; font-src 'self'; media-src 'self' blob:; worker-src 'self' blob:; manifest-src 'self'; form-action 'self'; report-uri /api/csp-report; " +
         baseline
     },
     ...(hosted
