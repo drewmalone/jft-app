@@ -38,6 +38,53 @@ export function ShareForm({
     onSave
   });
   const { voice } = composer;
+  const editor = useRef<HTMLDivElement>(null);
+  const panel = useRef<HTMLDivElement>(null);
+  const reviewRequested = useRef(false);
+  const [editing, setEditing] = useState(false);
+  useEffect(() => {
+    const element = panel.current;
+    if (!element) return;
+    const root = document.documentElement;
+    const previous = root.style.getPropertyValue('--recording-dock-height');
+    const measure = () => {
+      const height = element.getBoundingClientRect().height;
+      if (height)
+        root.style.setProperty(
+          '--recording-dock-height',
+          `${Math.ceil(height)}px`
+        );
+    };
+    measure();
+    const observer = new ResizeObserver(measure);
+    observer.observe(element);
+    return () => {
+      observer.disconnect();
+      if (previous) root.style.setProperty('--recording-dock-height', previous);
+      else root.style.removeProperty('--recording-dock-height');
+    };
+  }, []);
+  useEffect(() => {
+    if (
+      !reviewRequested.current ||
+      voice.active ||
+      cleanupStatus === 'pending' ||
+      isCleanupPending()
+    )
+      return;
+    reviewRequested.current = false;
+    editor.current?.scrollIntoView({ block: 'center' });
+    editor.current?.querySelector('textarea')?.focus({ preventScroll: true });
+  }, [voice.active, cleanupStatus, isCleanupPending]);
+  function review() {
+    if (voice.active) {
+      reviewRequested.current = true;
+      voice.stop();
+    } else {
+      editor.current?.scrollIntoView({ block: 'center' });
+      editor.current?.querySelector('textarea')?.focus({ preventScroll: true });
+    }
+  }
   const inlineRecorder = useRef<HTMLDivElement>(null);
   const [docked, setDocked] = useState(true);
   useEffect(() => {
@@ -72,6 +119,7 @@ export function ShareForm({
       mobile.removeEventListener('change', observe);
     };
   }, []);
+  const showDock = docked && !editing;
   const preview = useRef<HTMLDivElement>(null);
   useEffect(() => {
     if (preview.current)
@@ -80,7 +128,24 @@ export function ShareForm({
   const fieldId = useId();
   const errorId = `${fieldId}-error`;
   return (
-    <form onSubmit={composer.submit} className="share-form mt-5">
+    <form
+      onSubmit={composer.submit}
+      className="share-form mt-5"
+      onFocusCapture={(event) => {
+        if (event.target.tagName === 'TEXTAREA') setEditing(true);
+      }}
+      onBlurCapture={(event) => {
+        if (event.target.tagName !== 'TEXTAREA') return;
+        const next = event.relatedTarget;
+        // Keep controls stable between pointer-down (blur) and their click.
+        if (
+          next instanceof HTMLElement &&
+          (next.closest('.inline-recorder') || next.matches('button.primary'))
+        )
+          return;
+        setEditing(false);
+      }}
+    >
       <div
         className="voice-studio"
         data-paused={!voice.active && Boolean(voice.message)}
@@ -90,20 +155,23 @@ export function ShareForm({
         <div
           ref={inlineRecorder}
           className="inline-recorder"
-          inert={docked}
-          aria-hidden={docked}
+          inert={showDock}
+          aria-hidden={showDock}
         >
           <RecordingControls
             state={voice.state}
             active={voice.active}
             disabled={composer.recordingDisabled}
-            onToggle={composer.toggleRecording}
+            onToggle={() => {
+              setEditing(false);
+              composer.toggleRecording();
+            }}
           />
           <ListeningClock listening={voice.state === 'listening'} />
-          {!docked && cleanupStatus !== 'pending' && (
+          {!showDock && cleanupStatus !== 'pending' && (
             <RecordingStatus state={voice.state} message={voice.message} />
           )}
-          {!docked && cleanupStatus === 'pending' && (
+          {!showDock && cleanupStatus === 'pending' && (
             <div
               role="status"
               className="mt-3 text-center text-sm text-[var(--muted)]"
@@ -118,9 +186,10 @@ export function ShareForm({
         </div>
         <div
           className="recording-panel"
-          data-visible={docked}
-          inert={!docked}
-          aria-hidden={!docked}
+          ref={panel}
+          data-visible={showDock}
+          inert={!showDock}
+          aria-hidden={!showDock}
         >
           <div className="recording-microphone">
             <RecordingControls
@@ -129,10 +198,10 @@ export function ShareForm({
               disabled={composer.recordingDisabled}
               onToggle={composer.toggleRecording}
             />
-            {docked && cleanupStatus !== 'pending' && (
+            {showDock && cleanupStatus !== 'pending' && (
               <RecordingStatus state={voice.state} message={voice.message} />
             )}
-            {docked && cleanupStatus === 'pending' && (
+            {showDock && cleanupStatus === 'pending' && (
               <div
                 role="status"
                 className="mt-3 flex items-center justify-center gap-2 text-sm text-[var(--muted)]"
@@ -154,21 +223,29 @@ export function ShareForm({
               aria-label="Latest recognized words"
               aria-live="off"
             >
-              {text || (!voice.interim && 'Speak to begin…')}
+              {text || (!voice.interim && 'Your words will appear here.')}
               {voice.interim && (
                 <span className="transcript-interim"> {voice.interim}</span>
               )}
             </div>
-            <button
-              type="submit"
-              className="dock-save-button"
-              disabled={composer.saveDisabled}
-            >
-              {saving ? 'Saving…' : 'Save'} <span aria-hidden="true">→</span>
-            </button>
+            {(voice.active || Boolean(text.trim())) && (
+              <button
+                type="button"
+                className="dock-review-button"
+                disabled={
+                  saving ||
+                  voice.state === 'stopping' ||
+                  cleanupStatus === 'pending'
+                }
+                onClick={review}
+              >
+                {voice.active ? 'Finish & review' : 'Review'}{' '}
+                <span aria-hidden="true">→</span>
+              </button>
+            )}
           </div>
         </div>
-        <div className="transcript-editor">
+        <div ref={editor} className="transcript-editor">
           <LiveTranscript
             text={text}
             interim={voice.interim}

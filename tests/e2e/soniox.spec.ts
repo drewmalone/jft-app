@@ -224,7 +224,9 @@ test('Soniox credential refusal stops capture and leaves typed words editable', 
   );
 });
 
-test('Soniox dock Save drains final words before saving', async ({ page }) => {
+test('Soniox Review drains final words before editing and saving', async ({
+  page
+}) => {
   await page.setViewportSize({ width: 375, height: 667 });
   await mockSoniox(page);
   await page.goto('/');
@@ -233,10 +235,12 @@ test('Soniox dock Save drains final words before saving', async ({ page }) => {
     page.getByRole('button', { name: 'Stop listening' })
   ).toBeVisible();
   await result(page, [['Saved', true]]);
-  await page.locator('.dock-save-button').click();
+  await page.getByRole('button', { name: 'Finish & review' }).click();
   const saved = page.waitForResponse(
     (r) => r.request().method() === 'POST' && r.url().endsWith('/api/shares')
   );
   await result(page, [[' final words.', true]], true);
+  await expect(page.getByRole('textbox')).toBeFocused();
+  await page.locator('button.primary[type="submit"]').click();
   expect((await (await saved).json()).text).toBe('Saved final words.');
 });
