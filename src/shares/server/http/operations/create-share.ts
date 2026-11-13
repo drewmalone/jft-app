@@ -1,3 +1,10 @@
+import type { MiddlewareHandler } from 'hono';
+import {
+  cleanShareText,
+  reportTranscriptionFailure
+} from '../../cleanup-provider';
+import { exactSameOrigin, existingSession } from '../middleware';
+
 import { retryAfterHeaders } from '../openapi';
 import { enforceQuota } from '../../auth/quotas';
 import { getCookie } from 'hono/cookie';
@@ -22,15 +29,38 @@ import { createShareSchema, MAX_SHARE_TEXT_LENGTH } from '../../../model';
 import { MAX_SHARE_REQUEST_BYTES } from '../errors';
 import { anonymousSession, sameOrigin, jsonBody } from '../middleware';
 
+class SaveCleanupError extends Error {}
+
+/** Paid cleanup retains the standalone cleanup operation's origin/session boundary. */
+const tidySaveAccess: MiddlewareHandler<SessionEnvironment> = async (
+  c,
+  next
+) => {
+  const input = await c.req.json();
+  if (input?.tidy === true) {
+    const rejected = await exactSameOrigin(c, async () => {});
+    if (rejected) return rejected;
+    return existingSession(c, next);
+  }
+  await next();
+};
+
+/** Denied paid-save attempts must not bootstrap a session through the write API. */
+const shareSession: MiddlewareHandler<SessionEnvironment> = async (c, next) => {
+  const result = await anonymousSession(c, next);
+  if (c.res.status === 403) c.res.headers.delete('set-cookie');
+  return result;
+};
+
 export const createShareRoute = createRoute({
-  middleware: [sameOrigin, anonymousSession, jsonBody] as const,
+  middleware: [sameOrigin, shareSession, jsonBody, tidySaveAccess] as const,
   method: 'post',
   path: '/shares',
   operationId: 'createShare',
   tags: ['Shares'],
   summary: 'Save a private text share',
   description:
-    'POST is not idempotent. A supplied Origin must match Host/protocol; origin rejection precedes session handling and never issues a cookie.',
+    'POST is not idempotent. A supplied Origin must match Host/protocol. Optional tidy:true requires an exact Origin and an existing signed session; when transcription is enabled, cleanup completes on the server before creating the record. Cleanup failure returns CLEANUP_UNAVAILABLE without writing a share.',
   security: sessionSecurity,
   request: {
     body: {
@@ -62,11 +92,15 @@ export const createShareRoute = createRoute({
       content: { 'application/json': { schema: share } }
     },
     400: failed(['INVALID_JSON', 'INVALID_SHARE']),
-    403: failed(['CROSS_ORIGIN_REQUEST']),
+    403: failed(['CROSS_ORIGIN_REQUEST', 'SESSION_REQUIRED']),
     413: failed(['PAYLOAD_TOO_LARGE']),
     415: failed(['UNSUPPORTED_MEDIA_TYPE']),
     409: failed(['READING_CHANGED']),
-    503: failed(['READING_UNAVAILABLE', 'INTERNAL_ERROR']),
+    503: failed([
+      'READING_UNAVAILABLE',
+      'INTERNAL_ERROR',
+      'CLEANUP_UNAVAILABLE'
+    ]),
     ...commonFailures
   }
 });
@@ -77,11 +111,31 @@ export const createShare: RouteHandler<
   SessionEnvironment
 > = async (c) => {
   await enforceQuota('create', c.get('ownerId'));
-  const result = await createShareForReading(
-    c.get('ownerId'),
-    c.req.valid('json'),
-    readingTimeZone(getCookie(c, READING_TIME_ZONE_COOKIE))
-  );
+  const input = c.req.valid('json');
+  let result;
+  try {
+    result = await createShareForReading(
+      c.get('ownerId'),
+      input,
+      readingTimeZone(getCookie(c, READING_TIME_ZONE_COOKIE)),
+      undefined,
+      undefined,
+      async (text) => {
+        if (!input.tidy || process.env.STT_ENABLED !== 'true') return text;
+        await enforceQuota('cleanup', c.get('ownerId'));
+        try {
+          return await cleanShareText(text, c.req.raw.signal);
+        } catch (cause) {
+          reportTranscriptionFailure(cause, 'cleanup');
+          throw new SaveCleanupError();
+        }
+      }
+    );
+  } catch (cause) {
+    if (cause instanceof SaveCleanupError)
+      return c.json(errorBody('CLEANUP_UNAVAILABLE'), 503);
+    throw cause;
+  }
   if (result.error === 'READING_UNAVAILABLE')
     return c.json(errorBody(result.error), 503);
   if (result.error === 'READING_CHANGED')

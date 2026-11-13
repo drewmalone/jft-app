@@ -24,7 +24,7 @@ for (const width of [320, 375, 390, 430]) {
     const response = page.waitForResponse(
       (r) => r.url().endsWith('/api/shares') && r.request().method() === 'POST'
     );
-    const save = page.getByRole('button', { name: 'Save privately' });
+    const save = page.locator('button.primary[type="submit"]');
     await save.scrollIntoViewIfNeeded();
     await expect(save).toBeInViewport();
     await save.click();
@@ -58,7 +58,9 @@ for (const width of [320, 375, 390, 430]) {
       .getByRole('link', { name: 'Write your own share' })
       .scrollIntoViewIfNeeded();
     await page.getByRole('link', { name: 'Write your own share' }).click();
-    await page.getByRole('link', { name: 'About Doorknob' }).click();
+    const about = page.getByRole('link', { name: 'About Doorknob' });
+    await about.evaluate((el) => el.scrollIntoView({ block: 'center' }));
+    await about.click();
     await expect(
       page.getByRole('heading', { name: 'The Story of the Doorknob' })
     ).toBeVisible();

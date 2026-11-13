@@ -13,16 +13,16 @@ test('dictation combines with inline editing, repeated sessions, saving, history
   await expect(
     page.getByText('Speak from your own experience', { exact: true })
   ).toBeVisible();
-  await expect(
-    page.getByText('Tap the microphone to begin.', { exact: true })
-  ).toBeVisible();
+  await expect(page.getByText('Tap to begin', { exact: true })).toBeVisible();
   await page.getByRole('textbox').fill('Typed fictional thought.');
   await page.getByRole('button', { name: 'Record your share' }).click();
   await expect(page.getByText('Connecting transcription…')).toBeVisible();
   await emit(page, 'speechStart');
   await emit(page, 'speechResult', [['Provisional fiction', false]]);
   await expect(
-    page.getByText('Provisional fiction', { exact: false })
+    page
+      .getByRole('region', { name: 'Live share transcript' })
+      .getByText('Provisional fiction', { exact: false })
   ).toBeVisible();
   await expect(page.getByRole('textbox')).toHaveValue(
     'Typed fictional thought.'
@@ -39,9 +39,7 @@ test('dictation combines with inline editing, repeated sessions, saving, history
     ['More fiction.', true]
   ]);
   await page.getByRole('button', { name: 'Stop listening' }).click();
-  await expect(
-    page.getByRole('button', { name: 'Save privately' })
-  ).toBeDisabled();
+  await expect(page.locator('button.primary[type="submit"]')).toBeDisabled();
   await emit(page, 'speechEnd');
   const draft = 'Typed fictional thought.\n\nFinal fiction. More fiction.';
   await expect(page.getByRole('textbox')).toHaveValue(draft);
@@ -55,7 +53,7 @@ test('dictation combines with inline editing, repeated sessions, saving, history
   const savedResponse = page.waitForResponse(
     (r) => r.request().method() === 'POST' && r.url().endsWith('/api/shares')
   );
-  await page.getByRole('button', { name: 'Save privately' }).click();
+  await page.locator('button.primary[type="submit"]').click();
   const saved = await (await savedResponse).json();
   expect(saved.kind).toBe('text');
   expect(saved.text).toBe(combined);
@@ -105,7 +103,7 @@ test('permission/service errors recover, navigation cleans up, stale callbacks a
   await expect(page.getByRole('textbox')).toHaveValue('');
   await page.getByRole('button', { name: 'Record your share' }).click();
   await emit(page, 'speechEnd');
-  await expect(page.getByText(/Tap to record more/)).toBeVisible();
+  await expect(page.getByText('Paused')).toBeVisible();
 });
 
 test('unsupported browsers keep typing and saving', async ({ page }) => {
@@ -119,7 +117,7 @@ test('unsupported browsers keep typing and saving', async ({ page }) => {
     page.getByText('Sorry, transcription is unavailable for your browser!')
   ).toBeVisible();
   await page.getByRole('textbox').fill('Fictional typed fallback.');
-  await page.getByRole('button', { name: 'Save privately' }).click();
+  await page.locator('button.primary[type="submit"]').click();
   await expect(
     page.getByRole('heading', { name: 'Your share is saved.' })
   ).toBeVisible();
@@ -197,7 +195,7 @@ test('opt-in diagnostics trace recognition without exposing transcripts or raw e
   await page.getByRole('button', { name: 'Record your share' }).click();
   await emit(page, 'speechStart');
   await emit(page, 'speechEnd');
-  await expect(page.getByText(/Tap to record more/)).toBeVisible();
+  await expect(page.getByText('Paused')).toBeVisible();
   expect(logs.length).toBe(before);
 });
 
@@ -232,7 +230,8 @@ test('large microphone reacts to speech and pauses while the prompter follows wo
   await page.goto('/');
   const record = page.getByRole('button', { name: 'Record your share' });
   const size = await record.boundingBox();
-  expect(size!.width).toBeGreaterThanOrEqual(132);
+  if (page.viewportSize()!.width < 768) expect(size!.width).toBe(64);
+  else expect(size!.width).toBeGreaterThanOrEqual(132);
   expect(size!.height).toBe(size!.width);
   const studio = page.locator('.voice-studio');
   const prompter = page.getByRole('region', { name: 'Live share transcript' });
@@ -251,7 +250,7 @@ test('large microphone reacts to speech and pauses while the prompter follows wo
   await record.click();
   await emit(page, 'speechStart');
   await expect(studio).toHaveAttribute('data-speaking', 'false');
-  await expect(page.getByText('Listening...', { exact: true })).toBeVisible();
+  await expect(page.getByLabel('Listening time')).toBeVisible();
   await emit(page, 'speechActivity', true);
   await expect(studio).toHaveAttribute('data-speaking', 'true');
   expect(
@@ -399,9 +398,7 @@ test('microphone denial retains typing and stop accepts corrected final words wi
   await emit(page, 'speechStart');
   await emit(page, 'speechResult', [['uncorrected provisional', false]]);
   await page.getByRole('button', { name: 'Stop listening' }).click();
-  await expect(
-    page.getByRole('button', { name: 'Save privately' })
-  ).toBeDisabled();
+  await expect(page.locator('button.primary[type="submit"]')).toBeDisabled();
   expect(await page.evaluate(() => Reflect.get(window, 'aborted'))).toBe(true);
   await emit(page, 'speechResult', [['Corrected, punctuated final.', true]]);
   await emit(page, 'speechEnd');
@@ -470,9 +467,7 @@ test('unconfigured real credential endpoint releases capture and preserves typed
   await page
     .getByRole('textbox')
     .fill('Fictional typed fallback without provider access.');
-  await expect(
-    page.getByRole('button', { name: 'Save privately' })
-  ).toBeEnabled();
+  await expect(page.locator('button.primary[type="submit"]')).toBeEnabled();
   const denied = page.waitForResponse((response) =>
     response.url().endsWith('/api/transcription/session')
   );
@@ -485,7 +480,7 @@ test('unconfigured real credential endpoint releases capture and preserves typed
     )
   ).toBeVisible();
   expect(await page.evaluate(() => Reflect.get(window, 'aborted'))).toBe(true);
-  await page.getByRole('button', { name: 'Save privately' }).click();
+  await page.locator('button.primary[type="submit"]').click();
   await expect(
     page.getByRole('heading', { name: 'Your share is saved.' })
   ).toBeVisible();
@@ -561,7 +556,7 @@ test('permission granted shows cancellable connection progress, without claiming
   await expect(
     page.getByText('Connecting transcription…', { exact: true })
   ).toBeVisible();
-  await expect(page.getByText('Listening...', { exact: true })).toHaveCount(0);
+  await expect(page.getByText('Listening…', { exact: true })).toHaveCount(0);
   await expect(page.getByLabel('Listening time')).toHaveText('00:00');
   await page.getByRole('button', { name: 'Cancel connection' }).click();
   await expect(
@@ -570,7 +565,7 @@ test('permission granted shows cancellable connection progress, without claiming
   expect(await page.evaluate(() => Reflect.get(window, 'aborted'))).toBe(true);
   release();
   await expect.poll(() => completed).toBe(true);
-  await expect(page.getByText('Listening...', { exact: true })).toHaveCount(0);
+  await expect(page.getByText('Listening…', { exact: true })).toHaveCount(0);
 });
 
 test('recording waits for private-session bootstrap before a parallel credential request can start', async ({

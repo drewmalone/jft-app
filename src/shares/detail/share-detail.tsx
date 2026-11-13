@@ -7,7 +7,7 @@ import { dateLabel, readingDateLabel } from '../dates';
 export function ShareDetail({ share }: { share: Share }) {
   return (
     <section aria-label="Saved share">
-      <article className="share-card mt-8 rounded-xl border border-[var(--line)] p-6 sm:p-8">
+      <article className="share-card mt-4 rounded-xl border border-[var(--line)] p-5 sm:p-6">
         <p className="eyebrow">
           Saved {dateLabel(share.createdAt)} ·{' '}
           {new Date(share.createdAt).toLocaleTimeString('en-US', {
@@ -15,19 +15,39 @@ export function ShareDetail({ share }: { share: Share }) {
             minute: '2-digit'
           })}
         </p>
-        <p className="mt-4 text-xs leading-relaxed text-[var(--muted)]">
-          Reading · {readingDateLabel(share.reflection.date)}
-        </p>
-        <h2 className="mt-2 font-serif text-2xl leading-snug">
-          {share.reflection.title}
-        </h2>
-        <ReadingQuotation reading={share.reflection} />
-        <p className="mt-4 whitespace-pre-line text-sm leading-relaxed text-[var(--muted)]">
-          {share.reflection.body}
-        </p>
-        <div className="my-6 border-t border-[var(--line)]" />
-        <h2 className="font-serif text-2xl">Your thoughts</h2>
-        <ExpandableThoughts key={share.id} text={share.text} />
+        <div className="mt-4">
+          <h2 className="font-serif text-2xl">Your thoughts</h2>
+          <ExpandableThoughts key={share.id} text={share.text} />
+        </div>
+        <div className="my-4 border-t border-[var(--line)]" />
+        <details className="group mt-3 text-[var(--muted)]">
+          <summary className="min-h-11 cursor-pointer rounded py-2 text-xs leading-relaxed marker:text-[var(--muted)]">
+            <span className="font-semibold">Original reflection</span>
+            <span className="ml-2">
+              · {readingDateLabel(share.reflection.date)}
+            </span>
+            <span className="mt-1 block truncate text-sm font-medium text-[var(--navy)]">
+              {share.reflection.title}
+            </span>
+            <span className="mt-1 line-clamp-1 text-xs group-open:hidden">
+              {Array.from(share.reflection.body)
+                .slice(0, 96)
+                .join('')
+                .trimEnd()}
+              {Array.from(share.reflection.body).length > 96 ? '…' : ''}
+            </span>
+            <span className="mt-1 block underline underline-offset-4 group-open:hidden">
+              Read original reflection
+            </span>
+            <span className="mt-1 hidden underline underline-offset-4 group-open:block">
+              Hide original reflection
+            </span>
+          </summary>
+          <div className="text-sm leading-relaxed">
+            <ReadingQuotation reading={share.reflection} />
+            <p className="mt-3 whitespace-pre-line">{share.reflection.body}</p>
+          </div>
+        </details>
       </article>
     </section>
   );

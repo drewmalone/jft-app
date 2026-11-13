@@ -38,7 +38,20 @@ export function RecordingControls({
           disabled={disabled || state === 'unsupported' || state === 'stopping'}
           onClick={onToggle}
         >
-          <MicrophoneIcon />
+          {active ? (
+            <svg
+              aria-hidden="true"
+              width="68"
+              height="68"
+              viewBox="0 0 24 24"
+              fill="currentColor"
+            >
+              <rect x="6" y="4" width="4" height="16" rx="1" />
+              <rect x="14" y="4" width="4" height="16" rx="1" />
+            </svg>
+          ) : (
+            <MicrophoneIcon />
+          )}
         </button>
       </div>
       <SpeechBars />

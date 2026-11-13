@@ -347,3 +347,159 @@ button:disabled {
     transition: none;
   }
 }
+
+/* One recorder, with a compact mobile presentation and the existing full editor. */
+.recording-panel {
+  display: none;
+}
+
+.inline-recorder {
+  min-height: 280px;
+}
+
+@media (max-width: 767px) {
+  body:has(.share-form) {
+    /* Reserve the entire dock plus the device's home-indicator area. */
+    padding-bottom: calc(var(--recording-dock-height, 124px) + 16px);
+  }
+
+  .recording-panel {
+    position: fixed;
+    opacity: 0;
+    visibility: hidden;
+    pointer-events: none;
+    transform: translateY(8px);
+    transition:
+      opacity 160ms ease,
+      transform 160ms ease,
+      visibility 160ms;
+    z-index: 30;
+    inset: auto 0 0;
+    display: grid;
+    grid-template-columns: 88px minmax(0, 1fr);
+    gap: 8px;
+    min-height: calc(110px + env(safe-area-inset-bottom, 0px));
+    box-sizing: border-box;
+    padding: 8px max(16px, env(safe-area-inset-right, 0px))
+      calc(8px + env(safe-area-inset-bottom, 0px))
+      max(12px, env(safe-area-inset-left, 0px));
+    background: var(--paper);
+    border-top: 1px solid var(--line);
+    box-shadow: 0 -4px 20px #102b3c08;
+  }
+
+  .recording-panel .microphone-ring {
+    padding: 4px;
+  }
+
+  .recording-panel .record-button {
+    width: 64px;
+    height: 64px;
+  }
+
+  .recording-panel .record-button svg {
+    width: 30px;
+    height: 30px;
+  }
+
+  .recording-panel .speech-bars {
+    display: none;
+  }
+
+  .recording-panel .listening-clock {
+    margin-top: 4px;
+    font-size: 14px;
+  }
+
+  .recording-microphone > p[aria-live='polite'] {
+    font-size: 12px;
+    line-height: 16px;
+    margin-top: 4px;
+  }
+
+  .recording-preview-column {
+    display: flex;
+    min-width: 0;
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .recording-preview {
+    height: 2.7em;
+    flex: none;
+    overflow: hidden;
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+    font-family: var(--font-serif);
+    font-size: 1rem;
+    line-height: 1.35;
+  }
+
+  .dock-save-button {
+    align-self: flex-end;
+    min-height: 44px;
+    margin-top: 2px;
+    padding: 8px 12px;
+    border: 1px solid #bdc6cc;
+    border-radius: 8px;
+    color: var(--navy);
+    font-size: 0.875rem;
+    max-width: 100%;
+  }
+
+  .dock-save-button:hover:not(:disabled) {
+    background: #f1eee5;
+  }
+
+  .transcript-editor {
+    scroll-margin-block: 24px calc(var(--recording-dock-height, 124px) + 24px);
+  }
+
+  html {
+    scroll-padding-bottom: calc(var(--recording-dock-height, 124px) + 16px);
+  }
+}
+
+@media (max-width: 767px) {
+  .recording-microphone > p[aria-live='polite'] {
+    font-size: 11px;
+    line-height: 14px;
+  }
+}
+
+@media (max-width: 767px) {
+  .recording-panel[data-visible='true'] {
+    opacity: 1;
+    visibility: visible;
+    pointer-events: auto;
+    transform: translateY(0);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .recording-panel {
+    transition: none;
+    transform: none;
+  }
+}
+
+/* A quiet halo communicates an open microphone even between spoken words. */
+@keyframes recording-pulse {
+  0%,
+  100% {
+    box-shadow: 0 0 0 0 #345c7126;
+  }
+  50% {
+    box-shadow: 0 0 0 5px #345c7108;
+  }
+}
+
+.voice-studio[data-listening='true'] .microphone-ring {
+  animation: recording-pulse 2s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .voice-studio[data-listening='true'] .microphone-ring {
+    animation: none;
+  }
+}

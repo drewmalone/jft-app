@@ -24,6 +24,7 @@ Anonymous ownership currently lives in a signed cookie with a 30-day absolute ex
 - A 429 on either paid operation includes `Retry-After: 60`, a delay in seconds. This is a distributed quota guard, not a distributed spending guarantee. Do not blindly replay paid operations.
 - Credential `expires_at` is a positive integer Unix timestamp in seconds. `value` is a temporary bearer secret: never log, persist, cache or include it in reports. Expiry limits establishing a provider connection; it does not terminate an established recording. Do not copy the browser's ten-minute session policy into a claim about server-enforced quotas.
 - Share and cleanup text limits count Unicode code points, not bytes or user-perceived grapheme clusters. Cleanup returns an editable suggestion; it never saves a share.
+- `POST /api/shares` optionally accepts `tidy: true` to copyedit on the server before saving. This requires an exact website Origin and existing cookie, uses the cleanup quota, and returns `CLEANUP_UNAVAILABLE` without writing if cleanup fails. Omit the flag to save original text.
 - Saving remains an explicit action. POST save is not idempotent: a lost response may follow a committed save. Automatic retry can duplicate shares.
 
 The normalized transcription error envelope replaces its previous string-error response. The website handles credential failures by HTTP status; external consumers of the earlier response must migrate. No API versioning policy is introduced here.

@@ -4,7 +4,7 @@ const statusLabels = {
   unsupported: 'Sorry, transcription is unavailable for your browser!',
   starting: 'Waiting for microphone access…',
   connecting: 'Connecting transcription…',
-  listening: 'Listening...',
+  listening: 'Listening…',
   stopping: 'Finishing your words…'
 };
 
@@ -18,12 +18,21 @@ export function RecordingStatus({
 }) {
   const label =
     state === 'idle' || state === 'error'
-      ? message || 'Tap the microphone to begin.'
+      ? state === 'error'
+        ? 'Recording interrupted'
+        : message
+          ? 'Paused'
+          : 'Tap to begin'
       : statusLabels[state];
   return (
     <p
-      className="mt-2 text-center text-sm text-[var(--muted)]"
+      className={
+        state === 'listening'
+          ? 'sr-only'
+          : 'mt-2 text-center text-sm text-[var(--muted)]'
+      }
       aria-live="polite"
+      title={message || undefined}
     >
       {label}
     </p>

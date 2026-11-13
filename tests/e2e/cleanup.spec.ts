@@ -1,225 +1,139 @@
-import { expect, test, type Page } from './fixtures/test';
+import { expect, test } from './fixtures/test';
 import { mockSpeech, emit } from './fixtures/openai-browser';
 
-const original =
-  'Um, I called someone today. Uh, I felt calmer. I will try again tomorrow.';
-const cleaned =
-  'I called someone today. I felt calmer.\n\nI will try again tomorrow.';
-async function recordAndStop(page: Page) {
-  await page.getByRole('button', { name: 'Record your share' }).click();
-  await emit(page, 'speechStart');
-  await emit(page, 'speechResult', [[original, true]]);
-  await page.getByRole('button', { name: 'Stop listening' }).click();
-  await emit(page, 'speechEnd');
-}
+const original = 'Um, I called someone today. Uh, I felt calmer.';
+const cleaned = 'I called someone today.\n\nI felt calmer.';
 
-test('Stop automatically tidies final text, waits before saving, and preserves paragraph sharing and history', async ({
+test('pausing preserves original words; Save prepares and displays only the server-confirmed text', async ({
   page,
   browser,
-  watchPage,
-  baseURL
+  baseURL,
+  watchPage
 }) => {
   await mockSpeech(page);
+  let cleanupRequests = 0;
+  page.on('request', (request) => {
+    if (request.url().endsWith('/api/shares/cleanup')) cleanupRequests++;
+  });
   let release!: () => void;
   const pending = new Promise<void>((resolve) => {
     release = resolve;
   });
-  let cleanupRequests = 0,
-    saves = 0;
-  page.on('request', (request) => {
-    if (request.method() === 'POST' && request.url().endsWith('/api/shares'))
-      saves++;
-  });
-  await page.route('**/api/shares/cleanup', async (route) => {
-    cleanupRequests++;
-    expect(route.request().postDataJSON()).toEqual({ text: original });
+  await page.route('**/api/shares', async (route) => {
+    if (route.request().method() !== 'POST') return route.continue();
+    const input = route.request().postDataJSON();
+    expect(input).toMatchObject({ text: original, tidy: true });
     await pending;
-    await route.fulfill({ json: { text: cleaned } });
+    const response = await route.fetch({
+      postData: JSON.stringify({ ...input, text: cleaned, tidy: false })
+    });
+    await route.fulfill({ response });
   });
   await page.goto('/');
-  await recordAndStop(page);
-  await expect(page.getByRole('status')).toHaveText('Tidying!');
-  await expect(
-    page.getByRole('button', { name: 'Save privately' })
-  ).toBeDisabled();
-  await expect(
-    page.getByRole('button', { name: 'Record your share' })
-  ).toBeDisabled();
+  await page.getByRole('button', { name: 'Record your share' }).click();
+  await emit(page, 'speechStart');
+  await emit(page, 'speechResult', [[original, true]]);
+  await emit(page, 'speechEnd');
   await expect(page.getByRole('textbox')).toHaveValue(original);
-  const loading = page.getByRole('status');
-  await expect(loading.locator('[aria-hidden="true"]')).toBeVisible();
-  expect(
-    await loading
-      .locator('[aria-hidden="true"]')
-      .evaluate((element) => getComputedStyle(element).animationName)
-  ).toBe('spin');
-  const loadingBox = await loading.boundingBox();
-  const transcriptBox = await page
-    .getByRole('region', { name: 'Live share transcript' })
-    .boundingBox();
-  expect(loadingBox!.y + loadingBox!.height).toBeLessThanOrEqual(
-    transcriptBox!.y
-  );
-  await page.emulateMedia({ reducedMotion: 'reduce' });
-  expect(
-    await loading
-      .locator('[aria-hidden="true"]')
-      .evaluate((element) => getComputedStyle(element).animationName)
-  ).toBe('none');
+  expect(cleanupRequests).toBe(0);
+  await page.locator('button.primary[type="submit"]').click();
   await expect(
-    page.getByText(/Audio is sent to OpenAI while recording/)
+    page.getByRole('heading', { name: 'Preparing your share…' })
+  ).toBeFocused();
+  await expect(page.getByRole('textbox')).toHaveCount(0);
+  await expect(
+    page.getByRole('heading', { name: 'Your share is saved.' })
   ).toHaveCount(0);
-  expect(saves).toBe(0);
-  release();
-  await expect(page.getByRole('textbox')).toHaveValue(cleaned);
-  await expect(page.getByRole('button', { name: 'Undo cleanup' })).toHaveCount(
-    0
-  );
-  await expect(page.getByRole('status')).toHaveCount(0);
-  expect(cleanupRequests).toBe(1);
-  expect(saves).toBe(0);
-  await page.getByRole('textbox').fill(cleaned + ' Edited.');
   const saved = page.waitForResponse(
-    (response) =>
-      response.request().method() === 'POST' &&
-      response.url().endsWith('/api/shares')
+    (r) => r.request().method() === 'POST' && r.url().endsWith('/api/shares')
   );
-  await page.getByRole('button', { name: 'Save privately' }).click();
+  release();
   const share = await (await saved).json();
-  expect(share.text).toBe(cleaned + ' Edited.');
-  const paragraphs = page.locator('.share-card .thoughts-text > p');
-  await expect(paragraphs).toHaveCount(2);
-  const firstParagraph = await paragraphs.nth(0).boundingBox();
-  const secondParagraph = await paragraphs.nth(1).boundingBox();
-  const minimumGap = page.viewportSize()!.width < 640 ? 19 : 15;
-  expect(
-    secondParagraph!.y - firstParagraph!.y - firstParagraph!.height
-  ).toBeGreaterThanOrEqual(minimumGap);
-  await expect(paragraphs.nth(1)).toHaveText(
-    'I will try again tomorrow. Edited.'
-  );
-  await page
-    .getByRole('main')
-    .getByRole('button', { name: 'Past shares', exact: true })
-    .click();
-  await expect(page.getByRole('listitem')).toContainText(
-    'I called someone today.'
-  );
-  const reader = await browser.newContext({ ignoreHTTPSErrors: true });
+  await expect(
+    page.getByRole('heading', { name: 'Your share is saved.' })
+  ).toBeFocused();
+  await expect(page.locator('.thoughts-text')).toContainText('I felt calmer.');
+  expect(share.text).toBe(cleaned);
+  expect(cleanupRequests).toBe(0);
+  const recipient = await browser.newContext({ ignoreHTTPSErrors: true });
   try {
-    const other = await reader.newPage();
-    watchPage(other);
-    await other.goto(new URL(share.shareUrl, baseURL).href);
-    await expect(
-      other.getByRole('region', { name: 'Shared thoughts' }).locator('p')
-    ).toHaveCount(2);
+    const reader = await recipient.newPage();
+    watchPage(reader);
+    await reader.goto(new URL(share.shareUrl, baseURL).href);
+    await expect(reader.getByLabel('Shared thoughts')).toContainText(
+      'I felt calmer.'
+    );
   } finally {
-    await reader.close();
+    await recipient.close();
   }
 });
 
-test('cleaned text survives in-app navigation and never persists across refresh', async ({
+test('cleanup failure restores the draft and allows saving original words explicitly', async ({
   page
 }) => {
-  await mockSpeech(page);
-  await page.route('**/api/shares/cleanup', (route) =>
-    route.fulfill({ json: { text: cleaned } })
-  );
   await page.goto('/');
-  await recordAndStop(page);
-  await expect(page.getByRole('textbox')).toHaveValue(cleaned);
-  await page
-    .getByRole('banner')
-    .getByRole('button', { name: 'Past shares' })
-    .click();
-  await page
-    .getByRole('banner')
-    .getByRole('button', { name: 'Today’s reflection' })
-    .click();
-  await expect(page.getByRole('textbox')).toHaveValue(cleaned);
-  await expect(page.getByRole('button', { name: 'Undo cleanup' })).toHaveCount(
-    0
-  );
-  await page.reload();
-  await expect(page.getByRole('textbox')).toHaveValue('');
-});
-
-test('cleanup failure keeps the original editable and saveable, with a retry', async ({
-  page
-}) => {
-  await mockSpeech(page);
-  let calls = 0;
-  await page.route('**/api/shares/cleanup', (route) =>
-    ++calls === 1
-      ? route.fulfill({
-          status: 503,
-          json: {
-            error: { code: 'CLEANUP_UNAVAILABLE', message: 'Unavailable.' }
+  await page.getByRole('textbox').fill(original);
+  let saves = 0;
+  await page.route('**/api/shares', async (route) => {
+    if (route.request().method() !== 'POST') return route.continue();
+    saves++;
+    if (saves === 1)
+      return route.fulfill({
+        status: 503,
+        json: {
+          error: {
+            code: 'CLEANUP_UNAVAILABLE',
+            message:
+              'Your text could not be tidied. Your original words are still here.'
           }
-        })
-      : route.fulfill({ json: { text: cleaned } })
-  );
-  await page.goto('/');
-  await recordAndStop(page);
-  await expect(
-    page.getByText(
-      'Your text could not be tidied. Your original words are still here.',
-      { exact: true }
-    )
-  ).toBeVisible();
+        }
+      });
+    expect(route.request().postDataJSON().tidy).toBeUndefined();
+    await route.continue();
+  });
+  await page.locator('button.primary[type="submit"]').click();
+  await expect(page.locator('[data-save-error]')).toBeFocused();
   await expect(page.getByRole('textbox')).toHaveValue(original);
   await expect(
-    page.getByRole('button', { name: 'Save privately' })
-  ).toBeEnabled();
-  await page.getByRole('button', { name: 'Retry cleanup' }).click();
-  await expect(page.getByRole('textbox')).toHaveValue(cleaned);
+    page.getByRole('heading', { name: 'Preparing your share…' })
+  ).toHaveCount(0);
+  await page
+    .getByRole('button', { name: 'Save original words', exact: true })
+    .click();
+  await expect(
+    page.getByRole('heading', { name: 'Your share is saved.' })
+  ).toBeVisible();
+  await expect(page.locator('.thoughts-text')).toContainText(original);
+  expect(saves).toBe(2);
 });
 
-for (const action of ['edit', 'navigate'] as const) {
-  test(`a late cleanup cannot overwrite ${action === 'edit' ? 'manual edits' : 'a navigated draft'}`, async ({
-    page
-  }) => {
-    await mockSpeech(page);
-    let release!: () => void;
-    let completed = false;
-    const pending = new Promise<void>((resolve) => {
-      release = resolve;
-    });
-    await page.route('**/api/shares/cleanup', async (route) => {
-      await pending;
-      try {
-        await route.fulfill({ json: { text: cleaned } });
-      } catch {
-        /* Request cancellation is the behavior under test. */
-      }
-      completed = true;
-    });
-    await page.goto('/');
-    await recordAndStop(page);
-    await expect(
-      page.getByText('Tidying!', {
-        exact: true
-      })
-    ).toBeVisible();
-    if (action === 'edit')
-      await page.getByRole('textbox').fill('My intentional edit.');
-    else {
-      await page
-        .getByRole('banner')
-        .getByRole('button', { name: 'Past shares' })
-        .click();
-      await page
-        .getByRole('banner')
-        .getByRole('button', { name: 'Today’s reflection' })
-        .click();
-    }
-    release();
-    await expect.poll(() => completed).toBe(true);
-    await expect(page.getByRole('textbox')).toHaveValue(
-      action === 'edit' ? 'My intentional edit.' : original
-    );
-    await expect(
-      page.getByRole('button', { name: 'Undo cleanup' })
-    ).toHaveCount(0);
+test('a failed save retains manual edits and retries explicitly without duplicating requests', async ({
+  page
+}) => {
+  await page.goto('/');
+  await page.getByRole('textbox').fill(original);
+  let saves = 0;
+  await page.route('**/api/shares', async (route) => {
+    if (route.request().method() !== 'POST') return route.continue();
+    saves++;
+    if (saves === 1)
+      return route.fulfill({
+        status: 503,
+        json: {
+          error: { code: 'INTERNAL_ERROR', message: 'Please try again.' }
+        }
+      });
+    await route.continue();
   });
-}
+  await page.locator('button.primary[type="submit"]').click();
+  await expect(page.getByRole('textbox')).toHaveValue(original);
+  await page.getByRole('textbox').fill('Manually corrected words.');
+  await page.locator('button.primary[type="submit"]').click();
+  await expect(
+    page.getByRole('heading', { name: 'Your share is saved.' })
+  ).toBeVisible();
+  await expect(page.locator('.thoughts-text')).toContainText(
+    'Manually corrected words.'
+  );
+  expect(saves).toBe(2);
+});

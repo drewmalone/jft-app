@@ -46,7 +46,7 @@ Soniox results contain incremental finals and a replacement provisional suffix. 
 
 ## Cleanup remains independent
 
-`server/cleanup-provider.ts` keeps OpenAI `gpt-5.4-mini`, structured output, reasoning off, `store:false`, no tools and existing deadlines. Successful explicit Stop sends the finalized draft, including typed text, through the BFF for cleanup. Failure preserves the original. A Soniox key cannot authorize cleanup: retain the existing OpenAI credentials and compute-role permission. No translation, summarization or feedback is added.
+`server/cleanup-provider.ts` keeps OpenAI `gpt-5.4-mini`, structured output, reasoning off, `store:false`, no tools and existing deadlines. Save opens a preparing screen immediately, keeps the recorder mounted until final words arrive, and sends `tidy: true` with the save request. The server validates the reading, checks cleanup quotas, tidies, and only then persists the result. Pausing makes no cleanup request. Failure writes no share and preserves the original draft; the user can retry or Save original words. A Soniox key cannot authorize cleanup: retain the existing OpenAI credentials and compute-role permission. No translation, summarization or feedback is added.
 
 ## Amplify and Terraform
 

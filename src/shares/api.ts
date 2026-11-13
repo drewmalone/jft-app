@@ -23,7 +23,8 @@ export type ShareHistoryPage = Awaited<ReturnType<typeof readShares>>;
 export async function saveShare(
   text: string,
   readingDate?: string,
-  readingId?: string
+  readingId?: string,
+  tidy = false
 ) {
   return shareSchema.parse(
     await requestJson('/api/shares', {
@@ -31,6 +32,7 @@ export async function saveShare(
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         text,
+        ...(tidy ? { tidy: true } : {}),
         ...(readingDate ? { readingDate } : {}),
         ...(readingId ? { readingId } : {})
       })
