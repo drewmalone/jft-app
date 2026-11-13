@@ -567,6 +567,24 @@ test('lost save response retries the committed share with the same submission ke
 test('HTTP responses include browser security defaults', async ({
   request
 }) => {
+  const report = await request.post('/api/csp-report', {
+    headers: { 'content-type': 'application/csp-report' },
+    data: JSON.stringify({
+      'csp-report': {
+        'document-uri': 'https://127.0.0.1:3100/s/fictional-bearer'
+      }
+    })
+  });
+  expect(report.status()).toBe(204);
+  expect(report.headers()['set-cookie']).toBeUndefined();
+  expect(await report.text()).toBe('');
+  const oversized = await request.post('/api/csp-report', {
+    headers: { 'content-type': 'application/csp-report' },
+    data: 'x'.repeat(8193)
+  });
+  expect(oversized.status()).toBe(413);
+  expect(oversized.headers()['set-cookie']).toBeUndefined();
+
   for (const path of ['/', '/api/readings/today']) {
     const response = await request.get(path);
     const headers = response.headers();
