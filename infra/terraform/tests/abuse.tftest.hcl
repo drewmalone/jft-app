@@ -48,6 +48,7 @@ run "security_resources" {
   }
 }
 run "production_isolation" {
+  expect_failures = [aws_s3_object.readings]
   command = plan
   variables { environment = "prod" }
   assert {

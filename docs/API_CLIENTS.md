@@ -25,7 +25,7 @@ Anonymous ownership currently lives in a signed cookie with a 30-day absolute ex
 - A 429 on either paid operation includes `Retry-After`, a positive delay in seconds. This is a distributed quota guard, not a distributed spending guarantee. Do not blindly replay paid operations.
 - Credential `expires_at` is a positive integer Unix timestamp in seconds. `value` is a temporary bearer secret: never log, persist, cache or include it in reports. Expiry limits establishing a provider connection; it does not terminate an established recording. Do not copy the browser's ten-minute session policy into a claim about server-enforced quotas.
 - Share and cleanup text limits count Unicode code points, not bytes or user-perceived grapheme clusters. Cleanup returns an editable suggestion; it never saves a share.
-- Saving remains an explicit action. POST save is not idempotent: a lost response may follow a committed save. Automatic retry can duplicate shares.
+- Saving remains an explicit action. An owner-scoped Idempotency-Key supports unchanged save retries after a lost response; see [the retry contract](API.md#retrying-saves). Requests without a key can create duplicates. The browser does not retry automatically.
 
 The normalized transcription error envelope replaces its previous string-error response. The website handles credential failures by HTTP status; external consumers of the earlier response must migrate. No API versioning policy is introduced here.
 
@@ -61,4 +61,4 @@ Native apps need their own capture, permission, activity indication, background/
 
 ## Work deliberately left for a mobile milestone
 
-Design native session establishment and authentication, secure device credential storage, expiry/recovery and any cross-device identity first. Keep browser CSRF/Origin protections and define native authentication separately; do not simply remove Origin checks or open CORS. Then address durable storage, shared spending limits, save idempotency, contract compatibility checks and a release/versioning policy. This review implements none of those features.
+Design native session establishment and authentication, secure device credential storage, expiry/recovery and any cross-device identity first. Keep browser CSRF/Origin protections and define native authentication separately; do not simply remove Origin checks or open CORS. Durable storage, per-owner quotas, provider/resource cost controls and owner-scoped save idempotency now have server implementations. Native clients still need contract compatibility checks and a release/versioning policy; the browser signed-cookie flow does not establish a native authentication contract.

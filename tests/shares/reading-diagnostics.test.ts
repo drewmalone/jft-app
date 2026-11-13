@@ -28,6 +28,8 @@ test('real configured loading reports safe initial failures and retries after a 
     }
     await rm(directory, { recursive: true, force: true });
   });
+  let clock = 0;
+  t.mock.method(Date, 'now', () => clock);
   const logs = t.mock.method(console, 'error', () => {});
   const now = Date.parse('2028-12-03T12:00:00Z');
   await assert.rejects(readings.today('America/Chicago', now));
@@ -39,6 +41,7 @@ test('real configured loading reports safe initial failures and retries after a 
     body: 'Fictional body that must not appear in logs.'
   };
   await writeFile(path, JSON.stringify([row]));
+  clock = 1000;
   await assert.rejects(readings.today('America/Chicago', now));
   const diagnostic = JSON.stringify(logs.mock.calls[1].arguments);
   assert.match(diagnostic, /0.source/);
@@ -48,6 +51,7 @@ test('real configured loading reports safe initial failures and retries after a 
     path,
     JSON.stringify([{ ...row, source: 'Fictional collection' }])
   );
+  clock = 3000;
   const result = await readings.today('America/Chicago', now);
   assert.equal(result.reading?.body, row.body);
   assert.equal(logs.mock.callCount(), 2);

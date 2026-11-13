@@ -32,6 +32,7 @@ export function useShareApplication(
   const [saveError, setSaveError] = useState('');
   const [saving, setSaving] = useState(false);
   const savePending = useRef(false);
+  const submission = useRef<{ payload: string; key: string } | null>(null);
   const mounted = useRef(false);
   const detailRequest = useRef(0);
   const [detailState, setDetailState] = useState<DetailState>({
@@ -85,13 +86,27 @@ export function useShareApplication(
     setSaving(true);
     setSaveError('');
     try {
-      const share = await saveShare(text, reading.date, reading.id);
+      const payload = JSON.stringify([text.trim(), reading.date, reading.id]);
+      if (submission.current?.payload !== payload)
+        submission.current = { payload, key: crypto.randomUUID() };
+      const share = await saveShare(
+        text,
+        reading.date,
+        reading.id,
+        submission.current.key
+      );
       if (!mounted.current) return;
       cleanup.cancel();
       draft.reset();
+      submission.current = null;
       navigate({ view: 'saved', share });
     } catch (cause) {
       if (!mounted.current) return;
+      if (
+        cause instanceof ApiRequestError &&
+        cause.code === 'IDEMPOTENCY_CONFLICT'
+      )
+        submission.current = null;
       if (
         cause instanceof ApiRequestError &&
         cause.code === 'READING_CHANGED'

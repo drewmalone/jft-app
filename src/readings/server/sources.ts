@@ -1,6 +1,6 @@
 import 'server-only';
 import { createReadStream } from 'node:fs';
-import type { Readable } from 'node:stream';
+import { addAbortSignal, type Readable } from 'node:stream';
 import { GetObjectCommand, S3Client } from '@aws-sdk/client-s3';
 import { MAX_CATALOG_BYTES } from './catalog';
 
@@ -10,11 +10,13 @@ export type CatalogLoad = (
 /** Bound memory and close the stream on success, overflow or transport failure. */
 async function readCatalogStream(
   stream: Readable,
-  contentLength?: number
+  contentLength?: number,
+  signal: AbortSignal = AbortSignal.timeout(15_000)
 ): Promise<string> {
   const chunks: Buffer[] = [];
   let length = 0;
   try {
+    addAbortSignal(signal, stream);
     if (contentLength !== undefined && contentLength > MAX_CATALOG_BYTES)
       throw new Error('Reading catalog exceeds the size limit.');
     for await (const chunk of stream) {
@@ -42,6 +44,7 @@ export function s3Catalog(
   client: Pick<S3Client, 'send'>
 ): CatalogLoad {
   return async (etag) => {
+    const signal = AbortSignal.timeout(15_000);
     try {
       const result = await client.send(
         new GetObjectCommand({
@@ -49,13 +52,14 @@ export function s3Catalog(
           Key: key,
           IfNoneMatch: etag
         }),
-        { abortSignal: AbortSignal.timeout(15_000) }
+        { abortSignal: signal }
       );
       if (!result.Body) throw new Error('Missing reading catalog body.');
       return {
         content: await readCatalogStream(
           result.Body as Readable,
-          result.ContentLength
+          result.ContentLength,
+          signal
         ),
         etag: result.ETag
       };

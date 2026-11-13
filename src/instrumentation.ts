@@ -3,7 +3,11 @@ export async function register() {
   if (process.env.NEXT_RUNTIME === 'nodejs') {
     const { validateRuntimeConfig } = await import('./config/runtime');
     try {
-      validateRuntimeConfig(process.env);
+      const config = validateRuntimeConfig(process.env);
+      if (config.deployment !== 'local') {
+        const { validateSigningSecret } = await import('./config/deployment');
+        validateSigningSecret(process.env);
+      }
       const { serverServices } = await import('./server/services');
       void serverServices.features;
     } catch {

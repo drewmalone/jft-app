@@ -4,6 +4,8 @@ import { z } from 'zod';
 export const apiErrorCodeSchema = z.enum([
   'INVALID_JSON',
   'INVALID_SHARE',
+  'INVALID_IDEMPOTENCY_KEY',
+  'IDEMPOTENCY_CONFLICT',
   'INVALID_HISTORY_QUERY',
   'INVALID_READING_QUERY',
   'READING_UNAVAILABLE',

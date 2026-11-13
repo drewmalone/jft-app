@@ -11,7 +11,10 @@ export interface ReadingCatalog {
   byDay: Map<string, CatalogEntry>;
 }
 /** Validate the entire publication before replacing any cached content. */
-export function parseCatalog(content: string): ReadingCatalog {
+export function parseCatalog(
+  content: string,
+  { requireComplete = false }: { requireComplete?: boolean } = {}
+): ReadingCatalog {
   if (Buffer.byteLength(content) > MAX_CATALOG_BYTES)
     throw new Error('Reading catalog exceeds the size limit.');
   const document = parseDocument(content, { uniqueKeys: true });
@@ -25,5 +28,9 @@ export function parseCatalog(content: string): ReadingCatalog {
       revision: createHash('sha256').update(JSON.stringify(text)).digest('hex')
     });
   }
+  if (requireComplete && byDay.size !== 366)
+    throw new Error(
+      'Production catalog must cover all 366 calendar dates, including February 29.'
+    );
   return { byDay };
 }

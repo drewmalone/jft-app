@@ -1,3 +1,4 @@
+import { submissionFor } from '../../src/shares/server/storage/submission';
 import { useReadingFixture } from '../fixtures/reading-service';
 import { reflection } from '../fixtures/sample-reading';
 import '@hono/zod-openapi';
@@ -255,5 +256,37 @@ test(
       })
     );
     await assert.rejects(b.check('cleanup', randomUUID()));
+  }
+);
+
+test(
+  'DynamoDB atomic submissions converge across repository instances after concurrent attempts',
+  { skip: !endpoint },
+  async (t) => {
+    const { documentClient, tableName } = await dynamoTable(t);
+    const a = new DynamoDbShareRepository(tableName, documentClient);
+    const b = new DynamoDbShareRepository(tableName, documentClient);
+    const owner = randomUUID();
+    const input = { text: 'Fictional concurrent submission.' };
+    const submission = submissionFor(randomUUID(), input);
+    const results = await Promise.allSettled(
+      Array.from({ length: 8 }, (_, i) =>
+        (i % 2 ? a : b).create(owner, input.text, reflection, submission)
+      )
+    );
+    const successes = results.filter((result) => result.status === 'fulfilled');
+    assert.ok(successes.length > 0);
+    const recovered = await b.findBySubmission(owner, submission);
+    assert.ok(recovered);
+    for (const result of successes) assert.equal(result.value.id, recovered.id);
+    assert.deepEqual(
+      await a.create(owner, input.text, reflection, submission),
+      recovered
+    );
+    const history = await a.listByOwner(owner);
+    assert.deepEqual(
+      history.shares.map((share) => share.id),
+      [recovered.id]
+    );
   }
 );

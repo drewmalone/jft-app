@@ -516,3 +516,69 @@ test('history failures do not block session preparation, recording or saving', a
     page.getByRole('heading', { name: 'Your share is saved.' })
   ).toBeVisible();
 });
+
+test('lost save response retries the committed share with the same submission key', async ({
+  page
+}) => {
+  await page.goto('/');
+  await page
+    .getByRole('textbox')
+    .fill('Fictional acknowledged-on-retry draft.');
+  let committedId = '';
+  const keys: string[] = [];
+  await page.route('**/api/shares', async (route) => {
+    if (route.request().method() !== 'POST') return route.continue();
+    keys.push(route.request().headers()['idempotency-key']);
+    const response = await route.fetch();
+    expect(response.status()).toBe(201);
+    const share = await response.json();
+    if (!committedId) {
+      committedId = share.id;
+      await route.fulfill({
+        status: 503,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          error: { code: 'INTERNAL_ERROR', message: 'Please try again.' }
+        })
+      });
+    } else {
+      expect(share.id).toBe(committedId);
+      await route.fulfill({ response });
+    }
+  });
+  await page.getByRole('button', { name: 'Save privately' }).click();
+  await expect(page.locator('form').getByRole('alert')).toContainText(
+    'could not be saved'
+  );
+  await page.getByRole('button', { name: 'Save privately' }).click();
+  await expect(
+    page.getByRole('heading', { name: 'Your share is saved.' })
+  ).toBeVisible();
+  expect(keys).toHaveLength(2);
+  expect(keys[0]).toBeTruthy();
+  expect(keys[1]).toBe(keys[0]);
+  await page
+    .getByRole('main')
+    .getByRole('button', { name: 'Past shares', exact: true })
+    .click();
+  await expect(page.getByRole('listitem')).toHaveCount(1);
+});
+
+test('HTTP responses include browser security defaults', async ({
+  request
+}) => {
+  for (const path of ['/', '/api/readings/today']) {
+    const response = await request.get(path);
+    const headers = response.headers();
+    expect(headers['x-content-type-options']).toBe('nosniff');
+    expect(headers['x-frame-options']).toBe('DENY');
+    expect(headers['permissions-policy']).toContain('microphone=(self)');
+    expect(headers['content-security-policy']).toContain(
+      "frame-ancestors 'none'"
+    );
+    expect(headers['content-security-policy-report-only']).toContain(
+      'api.openai.com'
+    );
+    expect(headers['strict-transport-security']).toBeUndefined();
+  }
+});

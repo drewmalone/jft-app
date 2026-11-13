@@ -1,3 +1,4 @@
+import { submissionFor } from '../storage/submission';
 import 'server-only';
 import type { z } from 'zod';
 import type { createShareSchema } from '../../model';
@@ -11,8 +12,20 @@ export async function createShareForReading(
   input: z.infer<typeof createShareSchema>,
   timeZone: string,
   source: Pick<typeof readings, 'findByDate' | 'today'> = readings,
-  repository: Pick<ShareRepository, 'create'> = shareRepository
+  repository: Pick<
+    ShareRepository,
+    'create' | 'findBySubmission'
+  > = shareRepository,
+  submissionKey?: string,
+  authorizeCreate: () => Promise<void> = async () => {}
 ) {
+  const submission = submissionKey
+    ? submissionFor(submissionKey, input)
+    : undefined;
+  if (submission) {
+    const previous = await repository.findBySubmission(ownerId, submission);
+    if (previous) return { share: previous } as const;
+  }
   let reading;
   try {
     reading = input.readingDate
@@ -24,7 +37,8 @@ export async function createShareForReading(
   if (!reading) return { error: 'READING_UNAVAILABLE' } as const;
   if (input.readingId && reading.id !== input.readingId)
     return { error: 'READING_CHANGED' } as const;
+  await authorizeCreate();
   return {
-    share: await repository.create(ownerId, input.text, reading)
+    share: await repository.create(ownerId, input.text, reading, submission)
   } as const;
 }

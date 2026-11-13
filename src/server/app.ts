@@ -42,7 +42,11 @@ const app = new OpenAPIHono<SessionEnvironment>({
   defaultHook: (result) => {
     if (!result.success)
       return error(
-        result.target === 'query' ? 'INVALID_HISTORY_QUERY' : 'INVALID_SHARE'
+        result.target === 'query'
+          ? 'INVALID_HISTORY_QUERY'
+          : result.target === 'header'
+            ? 'INVALID_IDEMPOTENCY_KEY'
+            : 'INVALID_SHARE'
       );
   }
 }).basePath('/api');

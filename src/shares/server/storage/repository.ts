@@ -1,3 +1,4 @@
+import type { Submission } from './submission';
 import type { Reflection } from '../../model';
 import type { HistoryOptions, HistoryPage } from './history-page';
 import type { StoredShare } from './create-stored-share';
@@ -11,8 +12,14 @@ export interface ShareRepository {
   create(
     ownerId: string,
     text: string,
-    reading: Reflection
+    reading: Reflection,
+    submission?: Submission
   ): Promise<StoredShare>;
+  /** Resolve an owner-scoped replay or reject key reuse with different input. */
+  findBySubmission(
+    ownerId: string,
+    submission: Submission
+  ): Promise<StoredShare | null>;
   /** One bounded page, newest first; history may be eventually consistent. */
   listByOwner(ownerId: string, options?: HistoryOptions): Promise<HistoryPage>;
   /** Missing shares and shares owned by someone else both return null. */

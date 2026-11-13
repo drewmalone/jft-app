@@ -103,6 +103,7 @@ test('generated configuration round-trips through Next environment loading and m
     assert.equal(prepare().status, 0);
     assert.equal(readFileSync(file, 'utf8'), generated);
     assert.deepEqual(load(), {
+      DEPLOYMENT_ENV: 'local',
       ...settings,
       READINGS_SAMPLE: 'false',
       TRANSCRIPTION_ENABLED: 'true',

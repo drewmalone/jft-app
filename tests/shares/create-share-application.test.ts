@@ -71,6 +71,7 @@ test('save orchestration distinguishes reading failures and revision conflicts f
       'America/Chicago',
       source,
       {
+        findBySubmission: async () => null,
         create: async () => {
           throw new Error('Fictional storage failure');
         }

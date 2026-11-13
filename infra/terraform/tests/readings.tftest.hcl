@@ -23,6 +23,10 @@ variables {
 run "private_catalog_and_read_only_runtime" {
   command = plan
   assert {
+    condition = output.runtime_environment.READINGS_SAMPLE == "true" && output.runtime_environment.DEPLOYMENT_ENV == "dev" && output.runtime_environment.QUOTA_TABLE_NAME == aws_dynamodb_table.quotas.name
+    error_message = "Runtime must preserve sample labeling and explicit deployment/storage isolation."
+  }
+  assert {
     condition     = aws_s3_bucket_public_access_block.readings.block_public_acls && aws_s3_bucket_public_access_block.readings.block_public_policy && aws_s3_bucket_public_access_block.readings.ignore_public_acls && aws_s3_bucket_public_access_block.readings.restrict_public_buckets
     error_message = "Editorial storage must remain private."
   }
@@ -72,4 +76,14 @@ run "leap_day_is_a_valid_annual_key" {
     condition     = local.readings[0].date == "02-29"
     error_message = "Annual calendars must accept February 29 without binding the catalog to a year."
   }
+}
+
+run "production_partial_catalog_is_rejected_even_without_sample_label" {
+  command = plan
+  variables {
+    environment = "prod"
+    readings_sample = false
+    readings_yaml_path = "tests/fixtures/leap-day-readings.yaml"
+  }
+  expect_failures = [aws_s3_object.readings]
 }

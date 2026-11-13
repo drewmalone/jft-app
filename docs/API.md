@@ -196,7 +196,7 @@ The first POST issues the cookie; subsequent requests use it. On a browserless H
 
 Memory-mode records exist only in the same Node process and are lost on restart; replicas do not share that Map. Explicitly configured DynamoDB storage survives restarts and is shared across instances. Public links expire independently of private history. Neither store automatically deletes records. Cookie removal, cookie expiry, and signing-key changes lose private access without deleting records or revoking public links. No manual delete endpoint is added. See [data lifecycle](DATA_GLOSSARY.md#app-data-lifecycle).
 
-There are no idempotency keys or automatic retries. If the server commits but its response is lost, a client sees a failed request despite a stored share. Check history before retrying an ambiguous write if duplicate text matters. UI duplicate prevention blocks repeated submissions only while a save is pending. Do not describe a rejected fetch as proof that no write occurred.
+An interrupted response can leave a committed share. The browser retains an owner-scoped submission key for explicit retries of the unchanged draft; see [retrying saves](#retrying-saves). Calls without a key can still create duplicates. No automatic retries are performed, and a rejected fetch is not proof that no write occurred.
 
 ## Live transcription credentials
 
@@ -220,7 +220,7 @@ Cleanup is automatically requested only after successful explicit Stop with new 
 
 The named `ApiError` schema provides the shared envelope; response-specific schemas constrain the allowed codes. `DraftText` reuses the bounded share-input model; `TranscriptionCredential` is shared by server output validation and the browser parser. Both paid endpoints document required Origin headers and 429 Retry-After headers. Transcription OPTIONS is registered through the same OpenAPI method helper as cleanup. This changes the former transcription string-error response into the coded envelope; the website already handles credential failures by status. Any external consumer of the old string response must update.
 
-See [API client boundaries](API_CLIENTS.md) for current browser support, native-client gaps and the HTTP/streaming split. Browser session preparation is implemented; native authentication, cross-origin access, versioned APIs and save idempotency remain separate decisions.
+See [API client boundaries](API_CLIENTS.md) for current browser support, native-client gaps and the HTTP/streaming split. Browser session preparation is implemented; native authentication, cross-origin access and versioned APIs remain separate decisions. Owner-scoped save idempotency is documented below.
 
 ### Transcription provider assertion
 
@@ -229,3 +229,9 @@ Session requests may include `X-STT-Provider` matching the immutable runtime boo
 Share creation and private reading enforce per-owner quotas and can return 429 with `Retry-After`; writes fail closed on quota backend failure (503), private reads fail open while preserving ownership. Public reading relies on edge protection and database resource controls, without application-wide counters. See [security operations](SECURITY_OPERATIONS.md).
 
 Feature enable flags, migration behavior and provider configuration are maintained in [Transcription](TRANSCRIPTION.md#runtime-configuration). [Security operations](SECURITY_OPERATIONS.md) owns cookie lifetime, retention and operational quota policy.
+
+## Retrying saves
+
+`POST /api/shares` accepts an optional UUIDv4 `Idempotency-Key` header. Reuse it only for retries of the same normalized text, reading date and reading revision in the same signed owner session. A completed replay returns the original `201` representation and Location, preserving the ID, creation time, reading snapshot and public-link expiry, without a new creation-quota reservation or catalog lookup. A changed payload with the same key returns `409 IDEMPOTENCY_CONFLICT`; a malformed key returns `400 INVALID_IDEMPOTENCY_KEY`. Omitting the header retains independent-create behavior. Different owners have independent keys.
+
+The browser retains the key only in the mounted draft's memory, including after an ambiguous timeout; it clears the key after confirmed success and selects a new key when the submitted content changes. Reloading loses the draft and key. There are no automatic save retries. The public share ID is always a separate server-generated UUID. Concurrent initial attempts can conservatively consume multiple quota reservations, but atomic storage creates at most one share for an owner/key.

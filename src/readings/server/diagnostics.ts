@@ -10,6 +10,10 @@ const hints = new Map<unknown, string>([
   ['Invalid reading YAML.', 'Malformed YAML or duplicate YAML keys.'],
   ['Duplicate reading date.', 'Duplicate reading date in the catalog.'],
   [
+    'Production catalog must cover all 366 calendar dates, including February 29.',
+    'Production requires all 366 annual dates, including February 29.'
+  ],
+  [
     'Reading catalog exceeds the size limit.',
     'Catalog exceeds the 10 MiB limit.'
   ]

@@ -39,6 +39,15 @@ export const apiFailures = {
     message: 'Provide a valid history cursor and a limit from 1 to 50.'
   },
   INVALID_JSON: { status: 400, message: 'Invalid JSON body.' },
+  INVALID_IDEMPOTENCY_KEY: {
+    status: 400,
+    message: 'Provide a valid UUID submission key.'
+  },
+  IDEMPOTENCY_CONFLICT: {
+    status: 409,
+    message:
+      'This save could not be confirmed. Your words are still here. Please try again.'
+  },
   INVALID_SHARE: {
     status: 400,
     message:

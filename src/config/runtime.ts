@@ -1,3 +1,4 @@
+import { deploymentEnvironment } from './deployment';
 import { z } from 'zod';
 import { parseSecretArn } from './secret-arn';
 import { parseFeatureConfig } from './features';
@@ -61,7 +62,9 @@ const secretArn = z.string().refine((value) => {
 }, 'Expected a regional Secrets Manager secret ARN.');
 /** Validate deployment settings without reading secrets, catalogs or AWS data. */
 export function validateRuntimeConfig(env: Environment) {
-  return {
+  const deployment = deploymentEnvironment(env);
+  const config = {
+    deployment,
     storage: parsePersistenceConfig(env),
     readings: parseReadingsConfig(env),
     features: parseFeatureConfig(env),
@@ -69,6 +72,32 @@ export function validateRuntimeConfig(env: Environment) {
     openAISecretArn: secretArn.parse(env.STT_OPENAI_SECRET_ARN ?? ''),
     sonioxSecretArn: secretArn.parse(env.STT_SONIOX_SECRET_ARN ?? '')
   };
+  if (deployment !== 'local') {
+    if (
+      env.SHARE_PERSISTENCE !== 'dynamodb' ||
+      !config.quotas.tableName ||
+      env.QUOTA_LOCAL_ONLY === 'true'
+    )
+      throw new Error(
+        'Hosted deployments require durable share storage and distributed quotas'
+      );
+    if (
+      config.storage.SHARE_PERSISTENCE === 'dynamodb' &&
+      config.storage.DYNAMODB_TABLE_NAME === config.quotas.tableName
+    )
+      throw new Error('Share and quota tables must be separate');
+    if (deployment === 'prod' && env.READINGS_SAMPLE !== 'false')
+      throw new Error('Production requires explicitly non-sample readings');
+    if (
+      deployment === 'prod' &&
+      config.readings.READINGS_SOURCE === 'local' &&
+      /(?:^|[/\\])readings\.example\.yaml$/.test(
+        config.readings.READINGS_LOCAL_PATH
+      )
+    )
+      throw new Error('The example catalog cannot be used in production');
+  }
+  return config;
 }
 /** Flatten validated nonsecret settings for Amplify's SSR environment artifact. */
 export function parseRuntimeConfig(env: Environment) {
@@ -81,6 +110,7 @@ export function parseRuntimeConfig(env: Environment) {
     }
   }
   return {
+    DEPLOYMENT_ENV: config.deployment,
     ...config.storage,
     ...config.readings,
     ...quotaSettings,

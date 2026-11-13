@@ -56,6 +56,9 @@ test('catalog refresh coalesces callers across dates, preserves last-good data a
     { now: () => now, lifetimeMs: 100 }
   );
   await assert.rejects(cache.get(reading.date));
+  await assert.rejects(cache.get(reading.date));
+  assert.equal(calls, 1);
+  now = 1000;
   fail = false;
   const [first, missing] = await Promise.all([
     cache.get(reading.date),
@@ -65,13 +68,13 @@ test('catalog refresh coalesces callers across dates, preserves last-good data a
   assert.equal(missing.reading, null);
   first.reading!.body = 'Mutation';
   assert.equal((await cache.get(reading.date)).reading!.body, reading.body);
-  now = 100;
+  now = 1100;
   content = 'invalid: [';
   assert.equal((await cache.get(reading.date)).reading!.body, reading.body);
   assert.equal(calls, 3);
   await cache.get('2026-11-12');
   assert.equal(calls, 3);
-  now = 200;
+  now = 1200;
   content = JSON.stringify([
     { ...catalogReading, body: 'Fictional correction' }
   ]);

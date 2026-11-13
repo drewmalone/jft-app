@@ -1,3 +1,4 @@
+import { deploymentEnvironment } from '../config/deployment';
 import 'server-only';
 import { DynamoDBClient } from '@aws-sdk/client-dynamodb';
 import { DynamoDBDocumentClient } from '@aws-sdk/lib-dynamodb';
@@ -67,7 +68,10 @@ export function createServerServices(
                 config.READINGS_S3_KEY,
                 new S3Client({ region: config.READINGS_REGION })
               ),
-          { sample: config.READINGS_SAMPLE === 'true' }
+          {
+            sample: config.READINGS_SAMPLE === 'true',
+            requireComplete: deploymentEnvironment(environment()) === 'prod'
+          }
         );
       }
       return state.dailyReadings;

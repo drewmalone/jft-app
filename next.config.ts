@@ -1,4 +1,6 @@
 import type { NextConfig } from 'next';
+import { securityHeaders } from './src/config/security-headers';
+import { deploymentEnvironment } from './src/config/deployment';
 import { validateRuntimeConfig } from './src/config/runtime';
 
 // Fail the CLI on invalid configuration; instrumentation errors alone leave Next running.
@@ -17,14 +19,20 @@ const config: NextConfig = {
     root: import.meta.dirname
   },
   async headers() {
-    return ['/s/:path*', '/api/public/shares/:path*'].map((source) => ({
-      source,
-      headers: [
-        { key: 'Cache-Control', value: 'private, no-store' },
-        { key: 'X-Robots-Tag', value: 'noindex, nofollow' },
-        { key: 'Referrer-Policy', value: 'no-referrer' }
-      ]
-    }));
+    return [
+      {
+        source: '/:path*',
+        headers: securityHeaders(deploymentEnvironment(process.env) !== 'local')
+      },
+      ...['/s/:path*', '/api/public/shares/:path*'].map((source) => ({
+        source,
+        headers: [
+          { key: 'Cache-Control', value: 'private, no-store' },
+          { key: 'X-Robots-Tag', value: 'noindex, nofollow' },
+          { key: 'Referrer-Policy', value: 'no-referrer' }
+        ]
+      }))
+    ];
   }
 };
 export default config;

@@ -220,7 +220,7 @@ test('shared HTTP handling forwards cleanup cancellation without retrying or swa
   const request = cleanDraft('Fictional draft.', controller.signal);
   controller.abort();
   await assert.rejects(request, { name: 'AbortError' });
-  assert.equal(received, controller.signal);
+  assert.ok(received?.aborted);
   assert.equal(calls.mock.callCount(), 1);
 });
 
