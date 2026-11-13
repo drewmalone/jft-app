@@ -1,6 +1,6 @@
 # Application infrastructure
 
-This single root/state manages the shares table, its owner/time index, the Amplify SSR compute role, and optional Soniox secret metadata/access. No application or Amplify branch is created. Bootstrap state separately, then review and apply this root manually. GitHub Actions validates and tests Terraform; merging code does not provision resources.
+This single root/state manages the share and quota tables, the owner/time index, reading catalog, Amplify SSR compute role, optional provider-secret metadata/access, and opt-in WAF/budget resources. No application or Amplify branch is created. Bootstrap state separately, then review and apply this root manually. GitHub Actions validates and tests Terraform; merging code does not provision resources.
 
 ## Configuration
 
@@ -82,7 +82,7 @@ aws amplify update-branch --app-id REPLACE_APP_ID --branch-name REPLACE_TRUSTED_
 
 Use the `compute_role_arn` output for that association. The operator needs scoped `amplify:UpdateBranch` and `iam:PassRole`; runtime code gets neither. Do not make a secret-capable role an app-wide default for untrusted previews. The build service role is distinct from the SSR compute role.
 
-Set server-only runtime settings `STT_ENABLED=true`, `STT_PROVIDER=soniox`, `STT_SONIOX_SECRET_ARN=<output ARN>` and the existing `STT_OPENAI_SECRET_ARN` for cleanup. Preserve stable session signing and existing application permissions. Run `node --import tsx scripts/prepare-runtime-env.ts` from the repository root before `npm run build`; it edits only allowlisted non-secret assignments in `.env.production` and preserves unrelated source using dotenvx's source editor. Permanent API keys must not enter Amplify build variables/artifacts. `STT_SONIOX_API_KEY` is local-only and ignored in production.
+Set server-only runtime settings `TRANSCRIPTION_ENABLED=true`, `CLEANUP_ENABLED=true`, `STT_PROVIDER=soniox`, `STT_SONIOX_SECRET_ARN=<output ARN>` and the existing `STT_OPENAI_SECRET_ARN` for cleanup. Preserve stable session signing and existing application permissions. Run `node --import tsx scripts/prepare-runtime-env.ts` from the repository root before `npm run build`; it edits only allowlisted non-secret assignments in `.env.production` and preserves unrelated source using dotenvx's source editor. Permanent API keys must not enter Amplify build variables/artifacts. `STT_SONIOX_API_KEY` is local-only and ignored in production.
 
 Use [the runtime guide](../../docs/TRANSCRIPTION.md) for application configuration, token/lifecycle behavior and physical-device/provider release checks. Neither local validation nor a code merge establishes a live AWS deployment or live transcription test.
 
@@ -90,7 +90,7 @@ Use [the runtime guide](../../docs/TRANSCRIPTION.md) for application configurati
 
 Consult current Soniox audio pricing. Secrets Manager adds per-secret/month and request charges; state S3 adds storage/version/request costs. Existing Amplify and OpenAI cleanup charges continue. Monitor issuance counts, failures, concurrency and provider usage without logging speech or credentials. Anonymous cookies/process-local limits are insufficient for public spending protection; distributed quotas, concurrency/abuse controls and provider controls are required. Alerts may not stop spending. Review provider retention independently from application storage policy.
 
-To switch speech back, set `STT_PROVIDER=openai`, retain its independent credentials/permission, rebuild/redeploy and reload clients. Cleanup already uses OpenAI. Set `STT_ENABLED=false` to disable both paid operations. Already issued Soniox keys can connect during their 60-second lifetime; active streams have the ten-minute cap. For incident response, verify the provider's revocation semantics before relying on parent-key revocation to stop active streams.
+To switch speech back, set `STT_PROVIDER=openai`, retain its independent credentials/permission, rebuild/redeploy and reload clients. Cleanup already uses OpenAI. Set both canonical enable flags false to disable both paid operations; see [emergency controls](../../docs/SECURITY_OPERATIONS.md#incident-response) for shutdown without redeployment. Already issued Soniox keys can connect during their 60-second lifetime; active streams have the ten-minute cap. For incident response, verify the provider's revocation semantics before relying on parent-key revocation to stop active streams.
 
 Keep secret metadata and shared role/state resources during rollback. Managed secrets have `prevent_destroy` and a 30-day recovery window; changing creation to false intentionally blocks accidental deletion. Removing metadata or rotating live keys requires a separate reviewed operator action. No application persistence resources should change in a speech rollback.
 
@@ -122,10 +122,14 @@ Both S3 and local-file loading use the same process-local catalog cache. See [YA
 
 ## Prelaunch security resources
 
-The quota table and narrowly scoped SSR policy are provisioned with this module. Set `QUOTA_TABLE_NAME` from `quota_table_name` in Amplify runtime settings before deploying the new application. Existing private share TTL remains disabled.
+The quota table and narrowly scoped SSR policy are provisioned with this module. Set `QUOTA_TABLE_NAME` from `quota_table_name` in Amplify runtime settings before deploying the new application. Set `TRANSCRIPTION_ENABLED` and `CLEANUP_ENABLED` independently; [provider setup](../../docs/TRANSCRIPTION.md#runtime-configuration) owns their defaults and migration behavior. Existing private share TTL remains disabled.
 
 Set `amplify_app_id` to opt into a global WAF ACL/association for an existing Amplify app, in us-east-1. Default `waf_block=false` counts matches; review aggregate traffic before enabling blocking. Separate apps/backends for dev/prod avoid app-wide association conflicts. No Amplify application is created by this module.
 
 Explicit `budget_emails` and `monthly_budget_usd` (keys `total`, `amplify`, `dynamodb`) enable alert budgets. Empty defaults create no notifications. Optional `dynamodb_max_read_units` / `dynamodb_max_write_units` default to -1 (uncapped); lowering them can throttle legitimate reads/writes. Review actual plan/state for no share table replacement or deletion. Do not apply mocks as proof of production safety.
 
 See [security operations](../../docs/SECURITY_OPERATIONS.md) for pricing, permissions, imports, runtime variables, provider setup, shutdown commands and the deployment checklist. These protections are not active until deployed and verified.
+
+## Runtime preparation
+
+Run `node --import tsx scripts/prepare-runtime-env.ts` from the repository root before the trusted Amplify build. The same pure validators used at startup validate storage, catalog, feature flags, provider names, secret ARN metadata and known quota overrides. The script updates allowlisted nonsecret settings in `.env.production`, preserving unrelated comments/quoting and the existing secure delivery of secret values. Invalid input leaves the artifact untouched. Canonical enable flags and default emergency flags are always written, so a removed flag cannot silently persist from an earlier artifact. Known quota override defaults are cleared when omitted. API keys and the local browser-fixture switch are never copied. Ordinary local development uses `.env.local` directly.

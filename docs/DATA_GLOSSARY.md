@@ -1,6 +1,6 @@
 # Data glossary
 
-Use these terms consistently across `jft-app` and `jft-harness`. App-specific session/persistence terms below describe Doorknob v0.3; they do not introduce a shared schema, integration, or harness storage policy.
+Use these terms consistently across `jft-app` and `jft-harness`. App-specific session/persistence terms below describe Doorknob; they do not introduce a shared schema, integration, or harness storage policy.
 
 | Term                 | Meaning                                                                                                       | Location and lifecycle                                                                                                                                         |
 | -------------------- | ------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -22,20 +22,7 @@ Use these terms consistently across `jft-app` and `jft-harness`. App-specific se
 
 ## App data lifecycle
 
-1. Writing updates React state only. Legacy browser-stored drafts are removed on page load. After successful explicit recording Stop, the finalized draft is sent through the same-origin BFF to OpenAI for paragraph/filler cleanup without storing a share. **Save privately** separately sends the reviewed text to the BFF for storage.
-2. The server validates the input and signed session, attaches metadata/current reading, and stores an owner-associated record in the configured repository (memory by default, DynamoDB by explicit selection). A lost response can make the client uncertain whether a write occurred; see [failed-write semantics](API.md#retention-and-failed-write-semantics).
-3. The server returns a share without an `ownerId` field. History/detail requests send the cookie, check ownership, and return that owner's records to browser memory for display. Saving does not send the share to another person. Save-time UUID links allow anyone holding one to fetch only that reading snapshot and text; no harness or model provider is involved.
-4. Access loss and deletion are different events:
-
-| Event                                    | Effect on access                                     | Effect on data                                    |
-| ---------------------------------------- | ---------------------------------------------------- | ------------------------------------------------- |
-| Refresh/tab close                        | Valid cookie permits private reads                   | Draft clears; saved shares remain                 |
-| Cookie loss/expiry or signing-key change | Private history cannot be recovered                  | Records remain; public links expire independently |
-| Seven days after saving                  | Public links expire; private reads remain authorized | No automatic deletion                             |
-| Restart/replace server                   | Stable signing key preserves owner identity          | Memory clears; DynamoDB remains                   |
-| Another replica                          | Same cookie/owner checks                             | Memory Maps are isolated; DynamoDB is shared      |
-
-No manual delete endpoint, backup or account recovery is provided. Link expiration cannot recall recipient copies.
+Drafting, recording, cleanup and explicit saving have separate boundaries. [Architecture](ARCHITECTURE.md#browser-state-ownership) owns state and request coordination. [Security operations](SECURITY_OPERATIONS.md#privacy-and-retention) owns stored data, provider processing, public-link expiry, cookie loss and deletion limitations. [API conventions](API.md#session-and-response-conventions) own cookie transport and HTTP failures. The glossary defines vocabulary rather than a second policy.
 
 ## Documentation rules
 
@@ -49,11 +36,11 @@ No manual delete endpoint, backup or account recovery is provided. Link expirati
 
 ## Speech data
 
-- **Live audio**: microphone audio captured only after an explicit Record action and streamed directly to OpenAI over WebRTC. No raw audio files, playback, browser audio storage, or BFF audio persistence are added. Browser/OS/network/provider processing still occurs.
+- **Live audio**: microphone audio captured only after an explicit Record action and streamed directly to the selected provider (Soniox WebSocket or OpenAI WebRTC). No raw audio files, playback, browser audio storage, or BFF audio persistence are added. Browser/OS/network/provider processing still occurs.
 - **Provisional transcript**: transient provider deltas displayed in the teleprompter; corrections replace them. They are never included in the draft or save request, and are discarded on end/error/refresh.
 - **Final transcript**: the authoritative completed audio segment, appended once to React draft state in audio order. It becomes a share only through explicit saving. Finalized draft text survives recording errors and in-app navigation; refresh discards unsaved words.
-- **Provider retention**: separate from Doorknob storage. OpenAI API content is not used for training by default unless opted in. Standard abuse-monitoring logs may retain customer content for up to 30 days, subject to documented exceptions; Realtime documents no application-state retention. Approved account-level retention controls are not enabled or guaranteed by this app. See [OpenAI data controls](https://developers.openai.com/api/docs/guides/your-data).
-- **Ephemeral credential**: an in-memory browser bearer credential obtained from the BFF after Record. Its 60-second connection-creation expiry does not stop existing sessions or prevent reuse before expiry. Never log/cache it or treat its initial configuration as a strict spending boundary.
+- **Provider retention**: provider processing policies are separate from Doorknob storage. See [provider controls](SECURITY_OPERATIONS.md#provider-controls-and-exposure) and [privacy](SECURITY_OPERATIONS.md#privacy-and-retention).
+- **Ephemeral credential**: temporary in-memory provider bearer secret issued after Record. Its establishment expiry and stream restrictions depend on the provider; see [Transcription](TRANSCRIPTION.md). Never log/cache it.
 
 ## Cleanup data
 
