@@ -5,9 +5,7 @@ import type { Share } from '../../src/shares/model';
 async function seedHistory(page: Page) {
   await page.goto('/');
   await page.getByRole('textbox').fill('Fictional session preparation.');
-  await expect(
-    page.getByRole('button', { name: 'Save privately' })
-  ).toBeEnabled();
+  await expect(page.locator('button.primary[type="submit"]')).toBeEnabled();
   await page.getByRole('textbox').fill('');
   const saved: Share[] = [];
   for (let index = 0; index < 23; index++) {
@@ -132,7 +130,7 @@ test('successful save remains available when the next history read is temporaril
 }) => {
   await page.goto('/');
   await page.getByRole('textbox').fill('Fictional eventually visible share.');
-  await page.getByRole('button', { name: 'Save privately' }).click();
+  await page.locator('button.primary[type="submit"]').click();
   await expect(
     page.getByRole('heading', { name: 'Your share is saved.' })
   ).toBeVisible();

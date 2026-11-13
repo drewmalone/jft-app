@@ -18,9 +18,7 @@ test('refresh starts fresh, ignores legacy stored drafts, and retains saved hist
   await page.reload();
   await expect(field).toHaveValue('');
   await expect(page.getByLabel('Listening time')).toHaveText('00:00');
-  await expect(
-    page.getByRole('button', { name: 'Save privately' })
-  ).toBeDisabled();
+  await expect(page.locator('button.primary[type="submit"]')).toBeDisabled();
   await expect(page.getByText('Edit your share', { exact: true })).toHaveCount(
     0
   );
@@ -29,7 +27,7 @@ test('refresh starts fresh, ignores legacy stored drafts, and retains saved hist
   ).toHaveCount(0);
   await expect(page.getByRole('textbox')).toHaveCount(1);
   await field.fill('A fictional saved share to keep.');
-  await page.getByRole('button', { name: 'Save privately' }).click();
+  await page.locator('button.primary[type="submit"]').click();
   await expect(
     page.getByRole('heading', { name: 'Your share is saved.' })
   ).toBeVisible();
@@ -70,7 +68,7 @@ test('retains drafts through in-app views and a failed save, then discards them 
       });
     else await route.continue();
   });
-  await page.getByRole('button', { name: 'Save privately' }).click();
+  await page.locator('button.primary[type="submit"]').click();
   await expect(page.locator('form').getByRole('alert')).toBeVisible();
   await expect(page.getByRole('textbox')).toHaveValue(text);
   await page.reload();
@@ -91,7 +89,7 @@ test('typing and saving work when browser storage is unavailable', async ({
   await page
     .getByRole('textbox')
     .fill('A fictional reflection without browser storage.');
-  await page.getByRole('button', { name: 'Save privately' }).click();
+  await page.locator('button.primary[type="submit"]').click();
   await expect(
     page.getByRole('heading', { name: 'Your share is saved.' })
   ).toBeVisible();
@@ -115,9 +113,7 @@ test('the editor waits for hydration before accepting input and retains the firs
     await expect(editor).not.toBeEditable();
     hydrate();
     await editor.fill('Fictional words typed as soon as the editor is ready.');
-    await expect(
-      page.getByRole('button', { name: 'Save privately' })
-    ).toBeEnabled();
+    await expect(page.locator('button.primary[type="submit"]')).toBeEnabled();
     await page
       .getByRole('banner')
       .getByRole('button', { name: 'Past shares', exact: true })

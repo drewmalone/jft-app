@@ -39,9 +39,7 @@ test('Stop automatically tidies final text, waits before saving, and preserves p
   await page.goto('/');
   await recordAndStop(page);
   await expect(page.getByRole('status')).toHaveText('Tidying!');
-  await expect(
-    page.getByRole('button', { name: 'Save privately' })
-  ).toBeDisabled();
+  await expect(page.locator('button.primary[type="submit"]')).toBeDisabled();
   await expect(
     page.getByRole('button', { name: 'Record your share' })
   ).toBeDisabled();
@@ -92,7 +90,7 @@ test('Stop automatically tidies final text, waits before saving, and preserves p
       response.request().method() === 'POST' &&
       response.url().endsWith('/api/shares')
   );
-  await page.getByRole('button', { name: 'Save privately' }).click();
+  await page.locator('button.primary[type="submit"]').click();
   const share = await (await saved).json();
   expect(share.text).toBe(cleaned + ' Edited.');
   const paragraphs = page.locator('.share-card .thoughts-text > p');
@@ -176,9 +174,7 @@ test('cleanup failure keeps the original editable and saveable, with a retry', a
     )
   ).toBeVisible();
   await expect(page.getByRole('textbox')).toHaveValue(original);
-  await expect(
-    page.getByRole('button', { name: 'Save privately' })
-  ).toBeEnabled();
+  await expect(page.locator('button.primary[type="submit"]')).toBeEnabled();
   await page.getByRole('button', { name: 'Retry cleanup' }).click();
   await expect(page.getByRole('textbox')).toHaveValue(cleaned);
 });

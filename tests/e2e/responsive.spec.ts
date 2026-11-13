@@ -24,7 +24,7 @@ for (const width of [320, 375, 390, 430]) {
     const response = page.waitForResponse(
       (r) => r.url().endsWith('/api/shares') && r.request().method() === 'POST'
     );
-    const save = page.getByRole('button', { name: 'Save privately' });
+    const save = page.locator('button.primary[type="submit"]');
     await save.scrollIntoViewIfNeeded();
     await expect(save).toBeInViewport();
     await save.click();

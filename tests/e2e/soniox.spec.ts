@@ -159,7 +159,7 @@ test('Soniox streams provisional words, drains Stop, repeats sessions, edits, sa
   const savedResponse = page.waitForResponse(
     (r) => r.request().method() === 'POST' && r.url().endsWith('/api/shares')
   );
-  await page.getByRole('button', { name: 'Save privately' }).click();
+  await page.locator('button.primary[type="submit"]').click();
   const saved = await (await savedResponse).json();
   expect(saved.text).toBe('Edited fiction.\n\nAnother reflection.');
   const recipient = await browser.newContext({ ignoreHTTPSErrors: true });
@@ -222,4 +222,21 @@ test('Soniox credential refusal stops capture and leaves typed words editable', 
   expect(await page.evaluate(() => Reflect.get(window, 'captureStopped'))).toBe(
     true
   );
+});
+
+test('Soniox dock Save drains final words before saving', async ({ page }) => {
+  await page.setViewportSize({ width: 375, height: 667 });
+  await mockSoniox(page);
+  await page.goto('/');
+  await page.getByRole('button', { name: 'Record your share' }).click();
+  await expect(
+    page.getByRole('button', { name: 'Stop listening' })
+  ).toBeVisible();
+  await result(page, [['Saved', true]]);
+  await page.locator('.dock-save-button').click();
+  const saved = page.waitForResponse(
+    (r) => r.request().method() === 'POST' && r.url().endsWith('/api/shares')
+  );
+  await result(page, [[' final words.', true]], true);
+  expect((await (await saved).json()).text).toBe('Saved final words.');
 });

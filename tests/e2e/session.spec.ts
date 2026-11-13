@@ -17,9 +17,7 @@ test('a stale prototype cookie automatically starts an empty session and allows 
   await page
     .getByRole('textbox')
     .fill('A fictional draft after restarting the prototype.');
-  await expect(
-    page.getByRole('button', { name: 'Save privately' })
-  ).toBeEnabled();
+  await expect(page.locator('button.primary[type="submit"]')).toBeEnabled();
   await expect(page.getByRole('main').getByRole('alert')).toHaveCount(0);
   await expect(
     page.getByRole('button', { name: 'Start a new session' })
@@ -32,7 +30,7 @@ test('a stale prototype cookie automatically starts an empty session and allows 
   expect(cookie?.httpOnly).toBe(true);
   expect(cookie?.sameSite).toBe('Lax');
   expect(cookie?.value).not.toBe('fictional-stale-cookie');
-  await page.getByRole('button', { name: 'Save privately' }).click();
+  await page.locator('button.primary[type="submit"]').click();
   await expect(
     page.getByRole('heading', { name: 'Your share is saved.' })
   ).toBeVisible();

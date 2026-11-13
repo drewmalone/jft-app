@@ -39,9 +39,7 @@ test('dictation combines with inline editing, repeated sessions, saving, history
     ['More fiction.', true]
   ]);
   await page.getByRole('button', { name: 'Stop listening' }).click();
-  await expect(
-    page.getByRole('button', { name: 'Save privately' })
-  ).toBeDisabled();
+  await expect(page.locator('button.primary[type="submit"]')).toBeDisabled();
   await emit(page, 'speechEnd');
   const draft = 'Typed fictional thought.\n\nFinal fiction. More fiction.';
   await expect(page.getByRole('textbox')).toHaveValue(draft);
@@ -55,7 +53,7 @@ test('dictation combines with inline editing, repeated sessions, saving, history
   const savedResponse = page.waitForResponse(
     (r) => r.request().method() === 'POST' && r.url().endsWith('/api/shares')
   );
-  await page.getByRole('button', { name: 'Save privately' }).click();
+  await page.locator('button.primary[type="submit"]').click();
   const saved = await (await savedResponse).json();
   expect(saved.kind).toBe('text');
   expect(saved.text).toBe(combined);
@@ -119,7 +117,7 @@ test('unsupported browsers keep typing and saving', async ({ page }) => {
     page.getByText('Sorry, transcription is unavailable for your browser!')
   ).toBeVisible();
   await page.getByRole('textbox').fill('Fictional typed fallback.');
-  await page.getByRole('button', { name: 'Save privately' }).click();
+  await page.locator('button.primary[type="submit"]').click();
   await expect(
     page.getByRole('heading', { name: 'Your share is saved.' })
   ).toBeVisible();
@@ -400,9 +398,7 @@ test('microphone denial retains typing and stop accepts corrected final words wi
   await emit(page, 'speechStart');
   await emit(page, 'speechResult', [['uncorrected provisional', false]]);
   await page.getByRole('button', { name: 'Stop listening' }).click();
-  await expect(
-    page.getByRole('button', { name: 'Save privately' })
-  ).toBeDisabled();
+  await expect(page.locator('button.primary[type="submit"]')).toBeDisabled();
   expect(await page.evaluate(() => Reflect.get(window, 'aborted'))).toBe(true);
   await emit(page, 'speechResult', [['Corrected, punctuated final.', true]]);
   await emit(page, 'speechEnd');
@@ -471,9 +467,7 @@ test('unconfigured real credential endpoint releases capture and preserves typed
   await page
     .getByRole('textbox')
     .fill('Fictional typed fallback without provider access.');
-  await expect(
-    page.getByRole('button', { name: 'Save privately' })
-  ).toBeEnabled();
+  await expect(page.locator('button.primary[type="submit"]')).toBeEnabled();
   const denied = page.waitForResponse((response) =>
     response.url().endsWith('/api/transcription/session')
   );
@@ -486,7 +480,7 @@ test('unconfigured real credential endpoint releases capture and preserves typed
     )
   ).toBeVisible();
   expect(await page.evaluate(() => Reflect.get(window, 'aborted'))).toBe(true);
-  await page.getByRole('button', { name: 'Save privately' }).click();
+  await page.locator('button.primary[type="submit"]').click();
   await expect(
     page.getByRole('heading', { name: 'Your share is saved.' })
   ).toBeVisible();

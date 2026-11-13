@@ -44,9 +44,7 @@ test('browser supplies its timezone and saving keeps the displayed reading acros
   await page
     .getByRole('textbox')
     .fill('Fictional thoughts about the displayed reading.');
-  await expect(
-    page.getByRole('button', { name: 'Save privately' })
-  ).toBeEnabled();
+  await expect(page.locator('button.primary[type="submit"]')).toBeEnabled();
   servedDate = readingDate('Asia/Tokyo', now + 86400_000);
   await page.clock.setSystemTime(new Date(now + 86400_000));
   const refreshed = page.waitForResponse('**/api/readings/today?*');
@@ -76,7 +74,7 @@ test('browser supplies its timezone and saving keeps the displayed reading acros
       }
     });
   });
-  await page.getByRole('button', { name: 'Save privately' }).click();
+  await page.locator('button.primary[type="submit"]').click();
   await expect(
     page.getByRole('heading', { name: 'Your share is saved.' })
   ).toBeVisible();
@@ -134,9 +132,7 @@ test('a missing reading preserves the draft, blocks saving, and allows retry', a
     page.getByText("Today's reading is not available yet.")
   ).toBeVisible();
   await page.getByRole('textbox').fill('Fictional draft to retain.');
-  await expect(
-    page.getByRole('button', { name: 'Save privately' })
-  ).toBeDisabled();
+  await expect(page.locator('button.primary[type="submit"]')).toBeDisabled();
   published = true;
   await page.getByRole('button', { name: 'Try reading again' }).click();
   await expect(
@@ -145,9 +141,7 @@ test('a missing reading preserves the draft, blocks saving, and allows retry', a
   await expect(page.getByRole('textbox')).toHaveValue(
     'Fictional draft to retain.'
   );
-  await expect(
-    page.getByRole('button', { name: 'Save privately' })
-  ).toBeEnabled();
+  await expect(page.locator('button.primary[type="submit"]')).toBeEnabled();
 });
 
 test('an editorial update refreshes the reading without losing the draft or resubmitting it', async ({
@@ -195,7 +189,7 @@ test('an editorial update refreshes the reading without losing the draft or resu
   await page
     .getByRole('textbox')
     .fill('Fictional draft to keep after an edit.');
-  await page.getByRole('button', { name: 'Save privately' }).click();
+  await page.locator('button.primary[type="submit"]').click();
   await page.getByRole('button', { name: 'Review current reading' }).click();
   await expect(
     page.getByText('Fictional revised reading', { exact: true })
@@ -203,9 +197,7 @@ test('an editorial update refreshes the reading without losing the draft or resu
   await expect(page.getByRole('textbox')).toHaveValue(
     'Fictional draft to keep after an edit.'
   );
-  await expect(
-    page.getByRole('button', { name: 'Save privately' })
-  ).toBeEnabled();
+  await expect(page.locator('button.primary[type="submit"]')).toBeEnabled();
   expect(saves).toBe(1);
 });
 
@@ -278,16 +270,14 @@ for (const activeDraft of [false, true]) {
       await expect(
         page.getByText(fictionalReading(date).title, { exact: true })
       ).toBeVisible();
-      await expect(
-        page.getByRole('button', { name: 'Save privately' })
-      ).toBeEnabled();
+      await expect(page.locator('button.primary[type="submit"]')).toBeEnabled();
     } else {
       await expect(
         page.getByText("Today's reading is not available yet.")
       ).toBeVisible();
       await page.getByRole('textbox').fill('Fictional new draft.');
       await expect(
-        page.getByRole('button', { name: 'Save privately' })
+        page.locator('button.primary[type="submit"]')
       ).toBeDisabled();
       await expect(
         page.getByText(fictionalReading(date).title, { exact: true })

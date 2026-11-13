@@ -5,7 +5,7 @@ test('saves, persists, and opens shares in newest-first order', async ({
   page
 }) => {
   await page.goto('/');
-  const save = page.getByRole('button', { name: 'Save privately' });
+  const save = page.locator('button.primary[type="submit"]');
   await expect(save).toBeDisabled();
   await page.getByRole('textbox').fill(' \n ');
   await expect(save).toBeDisabled();
@@ -66,7 +66,7 @@ test('preserves a failed draft and saves it exactly once on retry', async ({
       });
     } else await route.continue();
   });
-  await page.getByRole('button', { name: 'Save privately' }).click();
+  await page.locator('button.primary[type="submit"]').click();
   await expect(page.getByRole('main').getByRole('alert')).toContainText(
     'could not be saved'
   );
@@ -84,7 +84,7 @@ test('preserves a failed draft and saves it exactly once on retry', async ({
   ).toBeVisible();
 
   await page.unroute('**/api/shares');
-  await page.getByRole('button', { name: 'Save privately' }).click();
+  await page.locator('button.primary[type="submit"]').click();
   await expect(
     page.getByRole('heading', { name: 'Your share is saved.' })
   ).toBeFocused();
@@ -181,7 +181,7 @@ test('prevents duplicate submissions and waits for server confirmation', async (
     }
     await route.continue();
   });
-  await page.getByRole('button', { name: 'Save privately' }).click();
+  await page.locator('button.primary[type="submit"]').click();
   await expect(page.getByRole('button', { name: 'Saving…' })).toBeDisabled();
   await expect(page.getByRole('textbox')).toHaveValue(
     'A fictional pending thought.'
@@ -210,7 +210,7 @@ test('fetches individual shares and reports detail failures', async ({
 }) => {
   await page.goto('/');
   await page.getByRole('textbox').fill('A fictional detail thought.');
-  await page.getByRole('button', { name: 'Save privately' }).click();
+  await page.locator('button.primary[type="submit"]').click();
   await page
     .getByRole('main')
     .getByRole('button', { name: 'Past shares', exact: true })
@@ -252,7 +252,7 @@ test('real HTTP requests retain shares and isolate browser sessions', async ({
       response.request().method() === 'POST' &&
       response.url().endsWith('/api/shares')
   );
-  await page.getByRole('button', { name: 'Save privately' }).click();
+  await page.locator('button.primary[type="submit"]').click();
   const response = await saved;
   expect(response.status()).toBe(201);
   const share = await response.json();
@@ -303,9 +303,7 @@ test('background history does not block saving or overwrite fresh history', asyn
 }) => {
   await page.goto('/');
   await page.getByRole('textbox').fill('A fictional independent save.');
-  await expect(
-    page.getByRole('button', { name: 'Save privately' })
-  ).toBeEnabled();
+  await expect(page.locator('button.primary[type="submit"]')).toBeEnabled();
   let release!: () => void;
   const pending = new Promise<void>((resolve) => {
     release = resolve;
@@ -332,10 +330,8 @@ test('background history does not block saving or overwrite fresh history', asyn
   await navigation
     .getByRole('button', { name: 'Today’s reflection', exact: true })
     .click();
-  await expect(
-    page.getByRole('button', { name: 'Save privately' })
-  ).toBeEnabled();
-  await page.getByRole('button', { name: 'Save privately' }).click();
+  await expect(page.locator('button.primary[type="submit"]')).toBeEnabled();
+  await page.locator('button.primary[type="submit"]').click();
   await expect(
     page.getByRole('heading', { name: 'Your share is saved.' })
   ).toBeVisible();
@@ -384,7 +380,7 @@ test('failed bootstrap blocks saves through retry and navigation until the sessi
   await page.goto('/');
   const draft = 'A fictional draft during session initialization.';
   await page.getByRole('textbox').fill(draft);
-  const save = page.getByRole('button', { name: 'Save privately' });
+  const save = page.locator('button.primary[type="submit"]');
   await expect(page.getByRole('main').getByRole('alert')).toContainText(
     'private session could not be prepared'
   );

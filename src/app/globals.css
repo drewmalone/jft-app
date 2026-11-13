@@ -356,7 +356,7 @@ button:disabled {
 @media (max-width: 767px) {
   body:has(.share-form) {
     /* Reserve the entire dock plus the device's home-indicator area. */
-    padding-bottom: calc(200px + env(safe-area-inset-bottom, 0px));
+    padding-bottom: calc(140px + env(safe-area-inset-bottom, 0px));
   }
 
   .recording-panel {
@@ -365,11 +365,11 @@ button:disabled {
     inset: auto 0 0;
     display: grid;
     grid-template-columns: 100px minmax(0, 1fr);
-    gap: 12px;
-    height: calc(184px + env(safe-area-inset-bottom, 0px));
+    gap: 8px;
+    height: calc(124px + env(safe-area-inset-bottom, 0px));
     box-sizing: border-box;
-    padding: 12px max(16px, env(safe-area-inset-right, 0px))
-      calc(12px + env(safe-area-inset-bottom, 0px))
+    padding: 8px max(16px, env(safe-area-inset-right, 0px))
+      calc(8px + env(safe-area-inset-bottom, 0px))
       max(12px, env(safe-area-inset-left, 0px));
     background: var(--paper);
     border-top: 1px solid var(--line);
@@ -413,20 +413,20 @@ button:disabled {
   }
 
   .recording-preview {
-    height: 72px;
+    height: 40px;
     flex: none;
     overflow: hidden;
     white-space: pre-wrap;
     overflow-wrap: anywhere;
     font-family: var(--font-serif);
-    font-size: 16px;
-    line-height: 24px;
+    font-size: 15px;
+    line-height: 20px;
   }
 
-  .review-button {
+  .dock-save-button {
     align-self: flex-end;
     min-height: 44px;
-    margin-top: 5px;
+    margin-top: 2px;
     padding: 8px 12px;
     border: 1px solid #bdc6cc;
     border-radius: 8px;
@@ -434,15 +434,25 @@ button:disabled {
     font-size: 14px;
   }
 
-  .review-button:hover:not(:disabled) {
+  .dock-save-button:hover:not(:disabled) {
     background: #f1eee5;
   }
 
   .transcript-editor {
-    scroll-margin-block: 24px 210px;
+    scroll-margin-block: 24px 150px;
   }
 
   html {
-    scroll-padding-bottom: calc(200px + env(safe-area-inset-bottom, 0px));
+    scroll-padding-bottom: calc(140px + env(safe-area-inset-bottom, 0px));
+  }
+}
+
+@media (max-width: 767px) {
+  .recording-panel .listening-clock {
+    display: none;
+  }
+  .recording-microphone > p[aria-live] {
+    font-size: 11px;
+    line-height: 14px;
   }
 }

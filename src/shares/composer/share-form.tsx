@@ -38,21 +38,11 @@ export function ShareForm({
     onSave
   });
   const { voice } = composer;
-  const reviewRequested = useRef(false);
-  const editor = useRef<HTMLDivElement>(null);
   const preview = useRef<HTMLDivElement>(null);
   useEffect(() => {
     if (preview.current)
       preview.current.scrollTop = preview.current.scrollHeight;
   }, [text, voice.interim]);
-  useEffect(() => {
-    // Keep the same recorder mounted until the provider has flushed its final words.
-    if (reviewRequested.current && !voice.active) {
-      editor.current?.scrollIntoView({ block: 'center', behavior: 'smooth' });
-      editor.current?.querySelector('textarea')?.focus({ preventScroll: true });
-      reviewRequested.current = false;
-    }
-  }, [voice.active]);
   const fieldId = useId();
   const errorId = `${fieldId}-error`;
   return (
@@ -102,33 +92,16 @@ export function ShareForm({
                 <span className="transcript-interim"> {voice.interim}</span>
               )}
             </div>
-            {(voice.active || Boolean(voice.message)) && (
-              <button
-                type="button"
-                className="review-button"
-                disabled={saving || voice.state === 'stopping'}
-                onClick={() => {
-                  if (voice.active) {
-                    reviewRequested.current = true;
-                    voice.stop();
-                  } else {
-                    editor.current?.scrollIntoView({
-                      block: 'center',
-                      behavior: 'smooth'
-                    });
-                    editor.current
-                      ?.querySelector('textarea')
-                      ?.focus({ preventScroll: true });
-                  }
-                }}
-              >
-                {voice.active ? 'Finish & review' : 'Review'}{' '}
-                <span aria-hidden="true">→</span>
-              </button>
-            )}
+            <button
+              type="submit"
+              className="dock-save-button"
+              disabled={composer.saveDisabled}
+            >
+              {saving ? 'Saving…' : 'Save'} <span aria-hidden="true">→</span>
+            </button>
           </div>
         </div>
-        <div ref={editor} className="transcript-editor">
+        <div className="transcript-editor">
           <LiveTranscript
             text={text}
             interim={voice.interim}

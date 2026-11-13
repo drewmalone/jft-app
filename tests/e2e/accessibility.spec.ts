@@ -74,7 +74,7 @@ test('saved preview, expanded thoughts, manual copying, history and recipient pa
   const response = page.waitForResponse(
     (r) => r.url().endsWith('/api/shares') && r.request().method() === 'POST'
   );
-  await page.getByRole('button', { name: 'Save privately' }).click();
+  await page.locator('button.primary[type="submit"]').click();
   const share = await (await response).json();
   await expect(
     page.getByRole('heading', { name: 'Your share is saved.' })

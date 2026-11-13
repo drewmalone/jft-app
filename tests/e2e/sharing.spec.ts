@@ -15,7 +15,7 @@ async function save(page: Page) {
   const response = page.waitForResponse(
     (r) => r.url().endsWith('/api/shares') && r.request().method() === 'POST'
   );
-  await page.getByRole('button', { name: 'Save privately' }).click();
+  await page.locator('button.primary[type="submit"]').click();
   await expect(
     page.getByRole('heading', { name: 'Your share is saved.' })
   ).toBeVisible();
@@ -270,7 +270,7 @@ test('owner thoughts collapse while sharing stays visible and recipients see the
   const response = page.waitForResponse(
     (r) => r.url().endsWith('/api/shares') && r.request().method() === 'POST'
   );
-  await page.getByRole('button', { name: 'Save privately' }).click();
+  await page.locator('button.primary[type="submit"]').click();
   const saved = await (await response).json();
   const sharing = page.getByRole('button', {
     name: 'Share with fellow alcoholic',
@@ -339,9 +339,7 @@ test('owner thoughts collapse while sharing stays visible and recipients see the
     await reader
       .getByRole('textbox')
       .fill('A fictional response from the recipient.');
-    await expect(
-      reader.getByRole('button', { name: 'Save privately' })
-    ).toBeEnabled();
+    await expect(reader.locator('button.primary[type="submit"]')).toBeEnabled();
     expect(await (await recipient.request.get('/api/shares')).json()).toEqual(
       []
     );
